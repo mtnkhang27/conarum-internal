@@ -2,12 +2,28 @@
   "compilerOptions": {
     "target": "ES2021",
     "module": "CommonJS",
-    "lib": ["esnext"],
+    "lib": [
+      "esnext"
+    ],
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
-    "outDir": "./gen/srv"
+    "outDir": "./gen/srv",
+    "moduleResolution": "Node",
+    "sourceMap": true,
+    "allowJs": true,
+    "paths": {
+      "@sap/cds": [
+        "./node_modules/@cap-js/cds-types"
+      ],
+      "#cds-models/*": [
+        "./@cds-models/*"
+      ]
+    }
   },
-  "include": ["srv", "tests"]
+  "include": [
+    "srv",
+    "tests"
+  ]
 }

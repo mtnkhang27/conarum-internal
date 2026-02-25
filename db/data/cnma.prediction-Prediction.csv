@@ -1,0 +1,10 @@
+ID;player_ID;match_ID;pick;status;submittedAt;lockedAt;scoredAt;isCorrect;pointsEarned
+pred-1;p1;m1;home;scored;2026-06-10T10:00:00Z;2026-06-11T17:00:00Z;2026-06-11T20:00:00Z;true;3
+pred-2;p1;m2;draw;scored;2026-06-11T09:00:00Z;2026-06-12T19:00:00Z;2026-06-12T22:00:00Z;true;3
+pred-3;p2;m1;away;scored;2026-06-10T11:00:00Z;2026-06-11T17:00:00Z;2026-06-11T20:00:00Z;false;0
+pred-4;p2;m2;home;scored;2026-06-11T08:00:00Z;2026-06-12T19:00:00Z;2026-06-12T22:00:00Z;false;1
+pred-5;p3;m1;home;scored;2026-06-10T12:00:00Z;2026-06-11T17:00:00Z;2026-06-11T20:00:00Z;true;3
+pred-6;p3;m2;away;scored;2026-06-11T07:00:00Z;2026-06-12T19:00:00Z;2026-06-12T22:00:00Z;false;0
+pred-7;p1;m3;home;submitted;2026-06-12T14:00:00Z;;;;
+pred-8;p2;m3;away;submitted;2026-06-12T15:00:00Z;;;;
+pred-9;p3;m4;draw;submitted;2026-06-12T16:00:00Z;;;;

@@ -1,0 +1,2 @@
+ID;enabled;pointsForWin;pointsForDraw;pointsForLose;regularMatchWeight;importantMatchWeight;semifinalWeight;finalMatchWeight;firstPlacePrize;firstPlaceValue;secondPlacePrize;secondPlaceValue;thirdPlacePrize;thirdPlaceValue;consolationPrizes;consolationValue;autoCalculateAfterMatch;calculateDelay;tieBreakRule;showLiveRanking;perfectWeekBonus;consecutiveWinsBonus;leaderboardUpdateInterval
+cfg-mo;true;3;1;0;1.0;2.0;3.0;5.0;iPhone 15 Pro Max;35000000;Honda Vision 2024;30000000;MacBook Air M3;25000000;10;500000;true;2;headToHead;true;5;2;5

@@ -18,7 +18,12 @@
     "jest": "^30.2.0",
     "lint-staged": "^16.2.7",
     "prettier": "^3.8.1",
-    "ts-jest": "^29.4.6"
+    "ts-jest": "^29.4.6",
+    "@cap-js/cds-types": "^0.15.0",
+    "@types/node": "^24.0.0",
+    "tsx": "^4",
+    "typescript": "^5",
+    "@cap-js/cds-typer": ">=0.1"
   },
   "scripts": {
     "start": "cds-serve"
@@ -26,9 +31,47 @@
   "private": true,
   "cds": {
     "requires": {
-      "[production]": {
-        "auth": "xsuaa"
+      "auth": {
+        "[production]": {
+          "strategy": "xsuaa"
+        },
+        "[development]": {
+          "strategy": "mock",
+          "users": {
+            "admin": {
+              "password": "admin",
+              "roles": [
+                "admin",
+                "authenticated-user"
+              ],
+              "attr": {
+                "name": "Admin User"
+              }
+            },
+            "nguyen.a@conarum.com": {
+              "password": "player",
+              "roles": [
+                "authenticated-user"
+              ],
+              "attr": {
+                "name": "Nguyen Van A"
+              }
+            },
+            "tran.b@conarum.com": {
+              "password": "player",
+              "roles": [
+                "authenticated-user"
+              ],
+              "attr": {
+                "name": "Tran Thi B"
+              }
+            }
+          }
+        }
       }
     }
+  },
+  "imports": {
+    "#cds-models/*": "./@cds-models/*/index.js"
   }
 }

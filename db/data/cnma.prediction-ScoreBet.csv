@@ -1,0 +1,6 @@
+ID;player_ID;match_ID;predictedHomeScore;predictedAwayScore;betAmount;status;submittedAt;isCorrect;payout
+sb-1;p1;m1;2;1;50000;won;2026-06-10T10:00:00Z;true;285000
+sb-2;p1;m1;3;0;50000;lost;2026-06-10T10:05:00Z;false;0
+sb-3;p2;m1;1;2;50000;lost;2026-06-10T11:00:00Z;false;0
+sb-4;p1;m3;2;0;50000;pending;2026-06-12T14:00:00Z;;
+sb-5;p3;m3;1;1;50000;pending;2026-06-12T16:00:00Z;;

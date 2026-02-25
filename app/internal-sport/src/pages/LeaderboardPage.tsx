@@ -1,5 +1,7 @@
+import { useEffect, useState } from "react";
 import { User } from "lucide-react";
-import { leaderboardEntries } from "@/data/mockData";
+import { playerLeaderboardApi } from "@/services/playerApi";
+import type { LeaderboardEntry } from "@/types";
 
 function podiumGlowClass(rank: number) {
     if (rank === 1) return "border-primary ring-1 ring-primary/50 glow-purple";
@@ -7,7 +9,22 @@ function podiumGlowClass(rank: number) {
 }
 
 export function LeaderboardPage() {
-    const topPlayers = leaderboardEntries.slice(0, 3);
+    const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        playerLeaderboardApi.getAll().then(setEntries).catch(() => { }).finally(() => setLoading(false));
+    }, []);
+
+    if (loading) {
+        return (
+            <div className="flex h-64 items-center justify-center text-muted-foreground">
+                Loading leaderboard…
+            </div>
+        );
+    }
+
+    const topPlayers = entries.slice(0, 3);
 
     return (
         <div className="p-4 pb-20 xl:pb-4">
@@ -70,7 +87,7 @@ export function LeaderboardPage() {
                     </div>
 
                     <div className="min-w-[760px] divide-y divide-border">
-                        {leaderboardEntries.map((player) => (
+                        {entries.map((player) => (
                             <div
                                 key={`${player.rank}-${player.name}`}
                                 className={`grid grid-cols-12 items-center gap-2 px-4 py-4 transition-colors hover:bg-surface ${player.isYou ? "bg-primary/10" : ""
@@ -79,8 +96,8 @@ export function LeaderboardPage() {
                                 <div className="col-span-1 text-center">
                                     <span
                                         className={`inline-flex h-7 w-7 items-center justify-center rounded-full border text-xs font-extrabold ${player.rank <= 3
-                                                ? "border-primary/40 bg-primary/20 text-primary"
-                                                : "border-border bg-surface text-foreground/80"
+                                            ? "border-primary/40 bg-primary/20 text-primary"
+                                            : "border-border bg-surface text-foreground/80"
                                             }`}
                                     >
                                         {player.rank}

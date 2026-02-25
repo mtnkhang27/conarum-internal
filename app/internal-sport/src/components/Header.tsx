@@ -1,5 +1,5 @@
 import { NavLink, useLocation } from "react-router-dom";
-import { Trophy, User, BarChart3, Home } from "lucide-react";
+import { Trophy, User, BarChart3, Home, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 const worldCupRoutes = ["/available", "/completed", "/tournament-champion", "/exact-score"];
@@ -22,6 +22,12 @@ const topNavItems = [
         to: "/leaderboard",
         icon: BarChart3,
         isActive: (p: string) => p === "/leaderboard",
+    },
+    {
+        label: "Admin",
+        to: "/admin/matches",
+        icon: Settings,
+        isActive: (p: string) => p.startsWith("/admin"),
     },
 ];
 
@@ -77,8 +83,8 @@ export function Header() {
                                 variant={isActive ? "default" : "default"}
                                 size="sm"
                                 className={`font-bold shadow-lg transition-colors ${isActive
-                                        ? "bg-secondary hover:bg-secondary/80"
-                                        : "bg-primary hover:bg-primary/80"
+                                    ? "bg-secondary hover:bg-secondary/80"
+                                    : "bg-primary hover:bg-primary/80"
                                     }`}
                             >
                                 <User className="mr-1 h-4 w-4" />

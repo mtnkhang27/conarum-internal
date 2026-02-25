@@ -1,7 +1,24 @@
+import { useEffect, useState } from "react";
 import { MatchCard } from "@/components/MatchCard";
-import { completedMatches } from "@/data/mockData";
+import { playerMatchesApi } from "@/services/playerApi";
+import type { Match } from "@/types";
 
 export function CompletedMatchesPage() {
+    const [matches, setMatches] = useState<Match[]>([]);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        playerMatchesApi.getCompleted().then(setMatches).catch(() => { }).finally(() => setLoading(false));
+    }, []);
+
+    if (loading) {
+        return (
+            <div className="flex h-64 items-center justify-center text-muted-foreground">
+                Loading completed matches…
+            </div>
+        );
+    }
+
     return (
         <div className="p-4 pb-20 xl:pb-4">
             <div className="mb-10">
@@ -17,11 +34,17 @@ export function CompletedMatchesPage() {
                     </div>
                 </div>
 
-                <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
-                    {completedMatches.map((match) => (
-                        <MatchCard key={match.id} match={match} isCompleted />
-                    ))}
-                </div>
+                {matches.length === 0 ? (
+                    <p className="py-12 text-center text-sm text-muted-foreground">
+                        No completed matches yet.
+                    </p>
+                ) : (
+                    <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
+                        {matches.map((match) => (
+                            <MatchCard key={match.id} match={match} isCompleted />
+                        ))}
+                    </div>
+                )}
             </div>
         </div>
     );

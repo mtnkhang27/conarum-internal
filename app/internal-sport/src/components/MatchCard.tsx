@@ -1,12 +1,13 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import type { Match } from "@/types";
+import { playerActionsApi } from "@/services/playerApi";
 
-function getTeamButtonClass(option: string, selected: string, isCompleted: boolean) {
+function getTeamButtonClass(option: string, selected: string, isCompleted: boolean, isSaving: boolean) {
     if (selected === option) {
         return "rounded-lg border border-primary bg-primary py-3 text-xs font-bold text-white shadow-lg transition-all glow-purple";
     }
-    return `rounded-lg border border-border bg-surface-dark py-3 text-xs font-bold text-muted-foreground transition-all hover:border-primary hover:text-primary ${isCompleted ? "pointer-events-none opacity-70" : ""
+    return `rounded-lg border border-border bg-surface-dark py-3 text-xs font-bold text-muted-foreground transition-all hover:border-primary hover:text-primary ${isCompleted || isSaving ? "pointer-events-none opacity-70" : ""
         }`;
 }
 
@@ -17,23 +18,45 @@ interface MatchCardProps {
 
 export function MatchCard({ match, isCompleted = false }: MatchCardProps) {
     const [selectedOption, setSelectedOption] = useState(match.selectedOption || "");
+    const [isSaving, setIsSaving] = useState(false);
 
     useEffect(() => {
         setSelectedOption(match.selectedOption || "");
     }, [match.selectedOption]);
 
-    const onPickOption = (option: string) => {
-        if (isCompleted) return;
+    const onPickOption = async (option: string) => {
+        if (isCompleted || isSaving) return;
         if (selectedOption === option) {
             toast.info("Pick unchanged", {
                 description: `${option} is already selected for ${match.home.name} vs ${match.away.name}.`,
             });
             return;
         }
+
         setSelectedOption(option);
-        toast.success("Pick updated", {
-            description: `${option} has been selected for ${match.home.name} vs ${match.away.name}.`,
-        });
+        setIsSaving(true);
+
+        // Map display name → API value: home / draw / away
+        let apiPick = "draw";
+        if (option === match.home.name) apiPick = "home";
+        else if (option === match.away.name) apiPick = "away";
+
+        try {
+            const res = await playerActionsApi.submitPredictions([
+                { matchId: match.id, pick: apiPick },
+            ]);
+            toast.success("Pick saved", {
+                description: res.message || `${option} selected for ${match.home.name} vs ${match.away.name}.`,
+            });
+        } catch (e: any) {
+            // Revert on failure
+            setSelectedOption(selectedOption);
+            toast.error("Failed to save pick", {
+                description: e.message || "Please try again.",
+            });
+        } finally {
+            setIsSaving(false);
+        }
     };
 
     return (
@@ -68,8 +91,13 @@ export function MatchCard({ match, isCompleted = false }: MatchCardProps) {
             </div>
 
             <div className="space-y-2">
-                <div className="mb-1 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
-                    {isCompleted ? "Final Pick" : "Pick a Winner"}
+                <div className="mb-1 flex items-center justify-between">
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                        {isCompleted ? "Final Pick" : "Pick a Winner"}
+                    </span>
+                    {isSaving && (
+                        <span className="text-[10px] font-bold text-primary animate-pulse">Saving…</span>
+                    )}
                 </div>
                 <div className="grid grid-cols-3 gap-2">
                     {match.options.map((option) => (
@@ -77,7 +105,8 @@ export function MatchCard({ match, isCompleted = false }: MatchCardProps) {
                             type="button"
                             key={option}
                             onClick={() => onPickOption(option)}
-                            className={getTeamButtonClass(option, selectedOption, isCompleted)}
+                            disabled={isSaving || isCompleted}
+                            className={getTeamButtonClass(option, selectedOption, isCompleted, isSaving)}
                         >
                             {option}
                         </button>

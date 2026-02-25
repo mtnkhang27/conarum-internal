@@ -1,5 +1,7 @@
+import { useEffect, useState } from "react";
 import { ClipboardCheck, Trophy, Target, FileEdit } from "lucide-react";
-import { myPredictionHistory, myPredictionSummary, teamFlagMap } from "@/data/mockData";
+import { playerPredictionsApi, playerTeamsApi } from "@/services/playerApi";
+import type { PredictionHistoryItem, PredictionSummary } from "@/types";
 
 function statusClass(status: string) {
     if (status === "submitted") {
@@ -18,14 +20,48 @@ function getTeams(match: string) {
     return { homeTeam, awayTeam };
 }
 
-const cards = [
-    { id: "submitted", label: "Submitted Picks", value: myPredictionSummary.totalSubmitted, icon: ClipboardCheck, color: "text-primary" },
-    { id: "winner", label: "Winner Picks", value: myPredictionSummary.winnerPicks, icon: Trophy, color: "text-success" },
-    { id: "exact-score", label: "Exact Score Picks", value: myPredictionSummary.exactScorePicks, icon: Target, color: "text-white" },
-    { id: "draft", label: "Draft Picks", value: myPredictionSummary.draftPicks, icon: FileEdit, color: "text-muted-foreground" },
-];
-
 export function MyPredictionsPage() {
+    const [summary, setSummary] = useState<PredictionSummary>({
+        totalSubmitted: 0, winnerPicks: 0, exactScorePicks: 0, draftPicks: 0,
+    });
+    const [history, setHistory] = useState<PredictionHistoryItem[]>([]);
+    const [flagMap, setFlagMap] = useState<Record<string, string>>({});
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        async function load() {
+            try {
+                const [data, flags] = await Promise.all([
+                    playerPredictionsApi.getMy(),
+                    playerTeamsApi.getFlagMap(),
+                ]);
+                setSummary(data.summary);
+                setHistory(data.history);
+                setFlagMap(flags);
+            } catch {
+                // fall back to empty
+            } finally {
+                setLoading(false);
+            }
+        }
+        load();
+    }, []);
+
+    const cards = [
+        { id: "submitted", label: "Submitted Picks", value: summary.totalSubmitted, icon: ClipboardCheck, color: "text-primary" },
+        { id: "winner", label: "Winner Picks", value: summary.winnerPicks, icon: Trophy, color: "text-success" },
+        { id: "exact-score", label: "Exact Score Picks", value: summary.exactScorePicks, icon: Target, color: "text-white" },
+        { id: "draft", label: "Draft Picks", value: summary.draftPicks, icon: FileEdit, color: "text-muted-foreground" },
+    ];
+
+    if (loading) {
+        return (
+            <div className="flex h-64 items-center justify-center text-muted-foreground">
+                Loading predictions…
+            </div>
+        );
+    }
+
     return (
         <div className="p-4 pb-20 xl:pb-4">
             <div className="mb-6">
@@ -65,47 +101,53 @@ export function MyPredictionsPage() {
                     </div>
 
                     <div className="max-h-[520px] min-w-[780px] divide-y divide-border overflow-y-auto">
-                        {myPredictionHistory.map((item) => {
-                            const { homeTeam, awayTeam } = getTeams(item.match);
-                            const homeFlag = teamFlagMap[homeTeam] || "";
-                            const awayFlag = teamFlagMap[awayTeam] || "";
+                        {history.length === 0 ? (
+                            <div className="px-4 py-12 text-center text-sm text-muted-foreground">
+                                No predictions yet. Start predicting matches!
+                            </div>
+                        ) : (
+                            history.map((item) => {
+                                const { homeTeam, awayTeam } = getTeams(item.match);
+                                const homeFlag = flagMap[homeTeam] || "";
+                                const awayFlag = flagMap[awayTeam] || "";
 
-                            return (
-                                <div
-                                    key={item.id}
-                                    className="grid grid-cols-12 items-center gap-2 px-4 py-4 transition-colors hover:bg-surface"
-                                >
-                                    <div className="col-span-4">
-                                        <div className="flex flex-wrap items-center gap-2">
-                                            <span className="flex items-center gap-1 text-sm font-bold text-white">
-                                                {homeFlag && <span className={`fi fi-${homeFlag} rounded-sm`} />}
-                                                {homeTeam}
-                                            </span>
-                                            <span className="text-[10px] font-black text-muted-foreground">VS</span>
-                                            <span className="flex items-center gap-1 text-sm font-bold text-white">
-                                                {awayFlag && <span className={`fi fi-${awayFlag} rounded-sm`} />}
-                                                {awayTeam}
+                                return (
+                                    <div
+                                        key={item.id}
+                                        className="grid grid-cols-12 items-center gap-2 px-4 py-4 transition-colors hover:bg-surface"
+                                    >
+                                        <div className="col-span-4">
+                                            <div className="flex flex-wrap items-center gap-2">
+                                                <span className="flex items-center gap-1 text-sm font-bold text-white">
+                                                    {homeFlag && <span className={`fi fi-${homeFlag} rounded-sm`} />}
+                                                    {homeTeam}
+                                                </span>
+                                                <span className="text-[10px] font-black text-muted-foreground">VS</span>
+                                                <span className="flex items-center gap-1 text-sm font-bold text-white">
+                                                    {awayFlag && <span className={`fi fi-${awayFlag} rounded-sm`} />}
+                                                    {awayTeam}
+                                                </span>
+                                            </div>
+                                        </div>
+                                        <div className="col-span-2 text-xs text-muted-foreground">{item.kickoff}</div>
+                                        <div className="col-span-2 text-xs font-bold uppercase tracking-wide text-foreground/80">
+                                            {item.predictionType}
+                                        </div>
+                                        <div className="col-span-2 text-sm font-semibold text-primary">{item.pick}</div>
+                                        <div className="col-span-1 text-center text-sm font-bold text-primary">
+                                            {item.weight.toFixed(2)}
+                                        </div>
+                                        <div className="col-span-1 text-center">
+                                            <span
+                                                className={`inline-flex rounded border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${statusClass(item.submissionStatus)}`}
+                                            >
+                                                {statusLabel(item.submissionStatus)}
                                             </span>
                                         </div>
                                     </div>
-                                    <div className="col-span-2 text-xs text-muted-foreground">{item.kickoff}</div>
-                                    <div className="col-span-2 text-xs font-bold uppercase tracking-wide text-foreground/80">
-                                        {item.predictionType}
-                                    </div>
-                                    <div className="col-span-2 text-sm font-semibold text-primary">{item.pick}</div>
-                                    <div className="col-span-1 text-center text-sm font-bold text-primary">
-                                        {item.weight.toFixed(2)}
-                                    </div>
-                                    <div className="col-span-1 text-center">
-                                        <span
-                                            className={`inline-flex rounded border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${statusClass(item.submissionStatus)}`}
-                                        >
-                                            {statusLabel(item.submissionStatus)}
-                                        </span>
-                                    </div>
-                                </div>
-                            );
-                        })}
+                                );
+                            })
+                        )}
                     </div>
                 </div>
             </div>

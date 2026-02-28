@@ -35,11 +35,16 @@ type TournamentStatus : String enum {
 
 type MatchStage       : String enum {
     group;
+    roundOf32;
     roundOf16;
     quarterFinal;
     semiFinal;
     thirdPlace;
     final;
+    // League stages
+    regular;       // regular season matchday
+    playoff;
+    relegation;
 }
 
 type PredictionPick   : String enum {
@@ -83,21 +88,44 @@ type Confederation    : String enum {
     OFC;
 }
 
+type TeamMemberRole   : String enum {
+    headCoach;
+    assistantCoach;
+    goalkeepingCoach;
+    fitnessCoach;
+    player;
+    captain;
+}
+
+type TournamentFormat : String enum {
+    knockout;     // World Cup, Champions League
+    league;       // Premier League, La Liga
+    groupKnockout; // World Cup (group stage + knockout)
+    cup;          // FA Cup (straight knockout)
+}
+
 // ────────────────────────────────────────────────────────────
 //  Core Entities
 // ────────────────────────────────────────────────────────────
 
 /**
- * Tournament master data (e.g., FIFA World Cup 2026).
+ * Tournament master data (e.g., FIFA World Cup 2026, Premier League 2025/26).
+ * Supports both knockout (World Cup, C1) and league (Premier League) formats.
  */
 entity Tournament : cuid, managed {
-    name        : String(100) @mandatory;
-    startDate   : Date        @mandatory;
-    endDate     : Date        @mandatory;
-    status      : TournamentStatus default 'upcoming';
-    description : String(500);
-    matches     : Composition of many Match
-                      on matches.tournament = $self;
+    name           : String(100)     @mandatory;
+    startDate      : Date            @mandatory;
+    endDate        : Date            @mandatory;
+    status         : TournamentStatus default 'upcoming';
+    format         : TournamentFormat default 'knockout';
+    description    : String(500);
+    season         : String(20);       // e.g., '2025/26' for league formats
+    country        : Country;          // e.g., for domestic leagues
+    numberOfGroups : Integer;          // for groupKnockout format
+    hasGroupStage  : Boolean default false;
+    hasLegs        : Boolean default false; // two-leg ties (e.g., C1 knockout)
+    matches        : Composition of many Match
+                         on matches.tournament = $self;
 }
 
 /**
@@ -110,6 +138,25 @@ entity Team : cuid, managed {
     fifaRanking   : Integer;
     groupName     : String(5); // e.g., 'A', 'B'
     isEliminated  : Boolean default false;
+    members       : Composition of many TeamMember
+                        on members.team = $self;
+}
+
+/**
+ * Team member: players, coaches, and staff.
+ * Reusable across tournament types (league, knockout, groupKnockout).
+ */
+entity TeamMember : cuid, managed {
+    team         : Association to Team @mandatory;
+    name         : String(150)        @mandatory;
+    role         : TeamMemberRole default 'player';
+    jerseyNumber : Integer;
+    position     : String(50);   // e.g., 'GK', 'CB', 'CM', 'ST'
+    nationality  : Country;
+    dateOfBirth  : Date;
+    photoUrl     : String(500);
+    isCaptain    : Boolean default false;
+    isActive     : Boolean default true;
 }
 
 /**
@@ -126,6 +173,8 @@ entity Match : cuid, managed {
     status      : MatchStatus default 'upcoming';
     weight      : Weight default 1.0;
     matchNumber : Integer;
+    matchday    : Integer;  // for league format (e.g., matchday 1–38)
+    leg         : Integer;  // for two-leg ties (1 or 2), null for single match
     // Result (null until finished)
     homeScore   : Integer;
     awayScore   : Integer;

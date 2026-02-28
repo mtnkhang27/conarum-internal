@@ -15,6 +15,8 @@ export class PlayerService extends cds.ApplicationService {
         // ── Actions ──────────────────────────────────────────
         this.on('submitPredictions', this.predictionHandler.submitPredictions.bind(this.predictionHandler));
         this.on('submitScoreBet', this.predictionHandler.submitScoreBet.bind(this.predictionHandler));
+        this.on('submitMatchPrediction', this.predictionHandler.submitMatchPrediction.bind(this.predictionHandler));
+        this.on('cancelMatchPrediction', this.predictionHandler.cancelMatchPrediction.bind(this.predictionHandler));
         this.on('pickChampion', this.predictionHandler.pickChampion.bind(this.predictionHandler));
 
         // ── Auto-filter MyPredictions / MyScoreBets / MyChampionPick to current user ──

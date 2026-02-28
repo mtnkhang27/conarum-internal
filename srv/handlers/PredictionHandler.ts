@@ -168,6 +168,125 @@ export class PredictionHandler {
     }
 
     /**
+     * Combined: submit winner pick + score bets in one action.
+     * Validates match, saves/updates prediction, replaces score bets.
+     */
+    async submitMatchPrediction(req: Request) {
+        const { matchId, pick, scores } = req.data;
+        const { Prediction, ScoreBet, Match, ScorePredictionConfig } = cds.entities('cnma.prediction');
+
+        // Validate match
+        const match = await SELECT.one.from(Match).where({ ID: matchId });
+        if (!match) return req.error(404, 'Match not found');
+        if (match.status !== 'upcoming') return req.error(400, 'Match is no longer open for predictions');
+
+        const now = new Date();
+        if (new Date(match.kickoff) <= now) {
+            return req.error(400, 'Match has already kicked off');
+        }
+
+        const playerId = await this.getOrCreatePlayerId(req);
+
+        // ── Save winner prediction ──
+        if (pick && ['home', 'draw', 'away'].includes(pick)) {
+            const existing = await SELECT.one.from(Prediction)
+                .where({ player_ID: playerId, match_ID: matchId });
+
+            if (existing) {
+                if (existing.status === 'locked' || existing.status === 'scored') {
+                    return req.error(400, 'Prediction is already locked');
+                }
+                await UPDATE(Prediction).where({ ID: existing.ID }).set({
+                    pick,
+                    submittedAt: now.toISOString()
+                });
+            } else {
+                await INSERT.into(Prediction).entries({
+                    player_ID: playerId,
+                    match_ID: matchId,
+                    pick,
+                    status: 'submitted',
+                    submittedAt: now.toISOString()
+                });
+            }
+        }
+
+        // ── Save score bets ──
+        if (scores && scores.length > 0) {
+            const config = await SELECT.one.from(ScorePredictionConfig);
+            if (config && !config.enabled) {
+                return req.error(400, 'Score predictions are currently disabled');
+            }
+
+            const lockMinutes = config?.lockBeforeMatch ?? 30;
+            const lockTime = new Date(new Date(match.kickoff).getTime() - lockMinutes * 60 * 1000);
+            if (now >= lockTime) {
+                return req.error(400, 'Betting window has closed for this match');
+            }
+
+            // Replace existing score bets for this player+match
+            await DELETE.from(ScoreBet).where({ player_ID: playerId, match_ID: matchId });
+
+            const validScores = scores.filter(
+                (s: any) => s.homeScore >= 0 && s.awayScore >= 0 && s.homeScore <= 99 && s.awayScore <= 99
+            );
+
+            for (const s of validScores) {
+                await INSERT.into(ScoreBet).entries({
+                    player_ID: playerId,
+                    match_ID: matchId,
+                    predictedHomeScore: s.homeScore,
+                    predictedAwayScore: s.awayScore,
+                    betAmount: config?.basePrice ?? 50000,
+                    status: 'pending',
+                    submittedAt: now.toISOString()
+                });
+            }
+        }
+
+        return { success: true, message: 'Prediction saved successfully' };
+    }
+
+    /**
+     * Cancel/clear a match prediction and associated score bets.
+     * Removes the prediction and all score bets for the given match.
+     */
+    async cancelMatchPrediction(req: Request) {
+        const { matchId } = req.data;
+        const { Prediction, ScoreBet, Match } = cds.entities('cnma.prediction');
+
+        // Validate match
+        const match = await SELECT.one.from(Match).where({ ID: matchId });
+        if (!match) return req.error(404, 'Match not found');
+        if (match.status !== 'upcoming') return req.error(400, 'Match is no longer open for changes');
+
+        const now = new Date();
+        if (new Date(match.kickoff) <= now) {
+            return req.error(400, 'Match has already kicked off');
+        }
+
+        const playerId = await this.getOrCreatePlayerId(req);
+
+        // Check existing prediction
+        const existing = await SELECT.one.from(Prediction)
+            .where({ player_ID: playerId, match_ID: matchId });
+
+        if (!existing) {
+            return { success: true, message: 'No prediction to cancel' };
+        }
+
+        if (existing.status === 'locked' || existing.status === 'scored') {
+            return req.error(400, 'Prediction is already locked and cannot be cancelled');
+        }
+
+        // Delete prediction and associated score bets
+        await DELETE.from(Prediction).where({ player_ID: playerId, match_ID: matchId });
+        await DELETE.from(ScoreBet).where({ player_ID: playerId, match_ID: matchId });
+
+        return { success: true, message: 'Prediction cancelled successfully' };
+    }
+
+    /**
      * Pick tournament champion (UC3).
      * Validates: betting window open, within change deadline.
      */

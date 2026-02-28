@@ -13,7 +13,24 @@ service PlayerService {
     /** All teams for champion picker and display. */
     @readonly
     entity Teams                    as
-        projection on db.Team
+        projection on db.Team {
+            *,
+            members : redirected to TeamMembers
+        }
+        excluding {
+            createdAt,
+            createdBy,
+            modifiedAt,
+            modifiedBy
+        };
+
+    /** Team members (players, coaches) — read only for players. */
+    @readonly
+    entity TeamMembers              as
+        projection on db.TeamMember {
+            *,
+            team : redirected to Teams
+        }
         excluding {
             createdAt,
             createdBy,
@@ -158,6 +175,17 @@ service PlayerService {
     /** Place an exact score bet (UC1). */
     action submitScoreBet(matchId: UUID, homeScore: Integer, awayScore: Integer)   returns ActionResult;
 
+    /** Combined: submit winner pick + score bets for a match. */
+    type ScoreInput {
+        homeScore : Integer;
+        awayScore : Integer;
+    }
+
+    action submitMatchPrediction(matchId: UUID, pick: String, scores: many ScoreInput) returns ActionResult;
+
+    /** Cancel/clear match prediction and score bets. */
+    action cancelMatchPrediction(matchId: UUID)                                        returns ActionResult;
+
     /** Pick tournament champion (UC3). */
     action pickChampion(teamId: UUID)                                              returns ActionResult;
 }
@@ -174,6 +202,7 @@ service AdminService {
 
     entity Matches                  as projection on db.Match;
     entity Teams                    as projection on db.Team;
+    entity TeamMembers              as projection on db.TeamMember;
     entity Tournaments              as projection on db.Tournament;
     entity Players                  as projection on db.Player;
 

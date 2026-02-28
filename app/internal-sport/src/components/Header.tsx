@@ -2,7 +2,7 @@ import { NavLink, useLocation } from "react-router-dom";
 import { Trophy, User, BarChart3, Home, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-const worldCupRoutes = ["/available", "/completed", "/tournament-champion", "/exact-score"];
+const worldCupRoutes = ["/available", "/completed", "/tournament-champion"];
 
 const topNavItems = [
     {
@@ -34,7 +34,6 @@ const topNavItems = [
 const modeTabs = [
     { label: "Match Predictions", to: "/available", isActive: (p: string) => p === "/available" || p === "/completed" },
     { label: "Tournament Champion", to: "/tournament-champion", isActive: (p: string) => p === "/tournament-champion" },
-    { label: "Exact Score", to: "/exact-score", isActive: (p: string) => p === "/exact-score" },
 ];
 
 export function Header() {

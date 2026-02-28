@@ -24,13 +24,11 @@ function FilterCheckbox({ label }: FilterCheckboxProps) {
 export function LeftSidebar() {
     const { pathname } = useLocation();
     const isChampionPage = pathname === "/tournament-champion";
-    const isExactScorePage = pathname === "/exact-score";
     const isMyPredictionsPage = pathname === "/my-predictions";
     const isLeaderboardPage = pathname === "/leaderboard";
 
     const filterOptions: Record<string, string[]> = {
         "/tournament-champion": ["UEFA (Europe)", "CONMEBOL (S. America)", "CAF (Africa)", "AFC (Asia)"],
-        "/exact-score": ["High Weight Matches", "Both Teams to Score", "Clean Sheet Picks"],
         "/my-predictions": ["Submitted Picks", "Draft Picks", "Winner Picks"],
         "/leaderboard": ["Overall Rank", "Friends League", "Weekly Form"],
         default: ["Group Stage", "Knockout Stage"],
@@ -40,7 +38,6 @@ export function LeftSidebar() {
 
     const infoMessages: Record<string, string> = {
         "/tournament-champion": "Admin managed rewards.",
-        "/exact-score": "Only saved score picks are shown. Final-score comparison is disabled.",
         "/my-predictions": "Track submitted and draft picks without live result comparison.",
         "/leaderboard": "Leaderboard can be updated manually by admin.",
         default: "Realtime results are hidden in manual mode.",
@@ -74,10 +71,6 @@ export function LeftSidebar() {
                         <div className={statusClass(true)}>
                             <span className="truncate">Select Champion</span>
                         </div>
-                    ) : isExactScorePage ? (
-                        <NavLink to="/exact-score" className={statusClass(true)}>
-                            <span className="truncate">Exact Score Picks</span>
-                        </NavLink>
                     ) : isMyPredictionsPage ? (
                         <NavLink to="/my-predictions" className={statusClass(true)}>
                             <span className="truncate">My Predictions</span>

@@ -12,6 +12,7 @@ export interface Match {
     away: Team;
     options: string[];
     selectedOption: string;
+    existingScores?: { home: number; away: number }[];
 }
 
 export interface UpcomingMatch {

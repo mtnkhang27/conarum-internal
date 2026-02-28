@@ -83,10 +83,12 @@ export interface ODataScoreBet {
     ID: string;
     player_ID: string;
     match_ID: string;
-    homeScore: number;
-    awayScore: number;
-    pointsEarned: number;
-    isExact: boolean | null;
+    predictedHomeScore: number;
+    predictedAwayScore: number;
+    betAmount: number;
+    status: string;
+    isCorrect: boolean | null;
+    payout: number;
     submittedAt: string | null;
     match?: ODataMatch;
 }
@@ -202,18 +204,26 @@ function toLeaderboardEntry(p: ODataLeaderboardEntry, idx: number): LeaderboardE
 // ─── Public API ──────────────────────────────────────────────
 
 export const playerMatchesApi = {
-    /** Available (upcoming) matches for prediction cards, with user's existing picks. */
+    /** Available (upcoming) matches for prediction cards, with user's existing picks and score bets. */
     async getAvailable(): Promise<Match[]> {
-        const [matches, predictions] = await Promise.all([
+        const [matches, predictions, scoreBets] = await Promise.all([
             json<ODataMatch[]>(
                 `${BASE}/Matches?$filter=status eq 'upcoming'&$expand=homeTeam,awayTeam&$orderby=kickoff asc`
             ),
             json<ODataPrediction[]>(`${BASE}/MyPredictions`).catch(() => [] as ODataPrediction[]),
+            json<ODataScoreBet[]>(`${BASE}/MyScoreBets`).catch(() => [] as ODataScoreBet[]),
         ]);
 
         // Build map: matchId → pick value (home/draw/away)
         const pickMap = new Map<string, string>();
         for (const p of predictions) pickMap.set(p.match_ID, p.pick);
+
+        // Build map: matchId → existing score bets
+        const scoreMap = new Map<string, { home: number; away: number }[]>();
+        for (const sb of scoreBets) {
+            if (!scoreMap.has(sb.match_ID)) scoreMap.set(sb.match_ID, []);
+            scoreMap.get(sb.match_ID)!.push({ home: sb.predictedHomeScore, away: sb.predictedAwayScore });
+        }
 
         return matches.map((m) => {
             const match = toMatch(m);
@@ -224,6 +234,7 @@ export const playerMatchesApi = {
                 else if (rawPick === "away") match.selectedOption = match.away.name;
                 else match.selectedOption = "Draw";
             }
+            match.existingScores = scoreMap.get(m.ID) || [];
             return match;
         });
     },
@@ -331,7 +342,7 @@ export const playerPredictionsApi = {
                 match: `${home} vs ${away}`,
                 kickoff: m ? formatKickoff(m.kickoff) : "",
                 predictionType: "Exact Score",
-                pick: `${sb.homeScore} - ${sb.awayScore}`,
+                pick: `${sb.predictedHomeScore} - ${sb.predictedAwayScore}`,
                 weight: m?.weight || 1,
                 submissionStatus: sb.submittedAt ? "submitted" : "draft",
             });
@@ -369,6 +380,22 @@ export const playerActionsApi = {
         return post<{ success: boolean; message: string }>(
             `${BASE}/submitScoreBet`,
             { matchId, homeScore, awayScore }
+        );
+    },
+
+    /** Combined: submit winner pick + score bets for a match. */
+    async submitMatchPrediction(matchId: string, pick: string, scores: { homeScore: number; awayScore: number }[]) {
+        return post<{ success: boolean; message: string }>(
+            `${BASE}/submitMatchPrediction`,
+            { matchId, pick, scores }
+        );
+    },
+
+    /** Cancel/clear match prediction and associated score bets. */
+    async cancelMatchPrediction(matchId: string) {
+        return post<{ success: boolean; message: string }>(
+            `${BASE}/cancelMatchPrediction`,
+            { matchId }
         );
     },
 

@@ -8,10 +8,11 @@ import { RecentPredictionsPage } from "@/pages/RecentPredictionsPage";
 import { LeaderboardPage } from "@/pages/LeaderboardPage";
 import { AccountPage } from "@/pages/AccountPage";
 import { MatchManagement } from "@/pages/admin/MatchManagement";
+import { MatchDetail } from "@/pages/admin/MatchDetail";
 import { TeamManagement } from "@/pages/admin/TeamManagement";
 import { TournamentManagement } from "@/pages/admin/TournamentManagement";
+import { TournamentDetail } from "@/pages/admin/TournamentDetail";
 import { PlayerManagement } from "@/pages/admin/PlayerManagement";
-import { UseCaseConfig } from "@/pages/admin/UseCaseConfig";
 
 export default function App() {
   return (
@@ -29,10 +30,11 @@ export default function App() {
       {/* Admin routes */}
       <Route element={<AdminLayout />}>
         <Route path="/admin/matches" element={<MatchManagement />} />
+        <Route path="/admin/matches/:matchId" element={<MatchDetail />} />
         <Route path="/admin/teams" element={<TeamManagement />} />
         <Route path="/admin/tournaments" element={<TournamentManagement />} />
+        <Route path="/admin/tournaments/:tournamentId" element={<TournamentDetail />} />
         <Route path="/admin/players" element={<PlayerManagement />} />
-        <Route path="/admin/config" element={<UseCaseConfig />} />
         <Route path="/admin" element={<Navigate to="/admin/matches" replace />} />
       </Route>
 

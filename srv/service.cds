@@ -320,7 +320,16 @@ service AdminService {
     entity Players                  as projection on db.Player;
     entity PlayerTournamentStats    as projection on db.PlayerTournamentStats;
 
-    // ── Config CRUD ──────────────────────────────────────────
+    // ── Per-Match Config CRUD ────────────────────────────────
+
+    entity MatchScoreBetConfig      as projection on db.MatchScoreBetConfig;
+
+    // ── Per-Tournament Config CRUD ───────────────────────────
+
+    entity TournamentPrizeConfig    as projection on db.TournamentPrizeConfig;
+    entity TournamentChampionConfig as projection on db.TournamentChampionConfig;
+
+    // ── Legacy Global Config (deprecated, kept for backward compat) ──
 
     entity ScorePredictionConfig    as projection on db.ScorePredictionConfig;
     entity MatchOutcomeConfig       as projection on db.MatchOutcomeConfig;
@@ -371,6 +380,6 @@ service AdminService {
     /** Force recalculate leaderboard rankings (all or by tournament). */
     action recalculateLeaderboard(tournamentId: UUID)                               returns ActionResult;
 
-    /** Lock champion predictions (UC3). */
-    action lockChampionPredictions()                                               returns ActionResult;
+    /** Lock champion predictions for a specific tournament (UC3). */
+    action lockChampionPredictions(tournamentId: UUID)                              returns ActionResult;
 }

@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import {
     Calendar,
     Clock,
@@ -7,6 +8,7 @@ import {
     Edit,
     Trash2,
     Trophy,
+    Settings,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -66,6 +68,7 @@ function statusVariant(status: string) {
 }
 
 export function MatchManagement() {
+    const navigate = useNavigate();
     const [matches, setMatches] = useState<AdminMatch[]>([]);
     const [teams, setTeams] = useState<AdminTeam[]>([]);
     const [tournaments, setTournaments] = useState<AdminTournament[]>([]);
@@ -342,6 +345,15 @@ export function MatchManagement() {
                                     </td>
                                     <td className="px-4 py-3">
                                         <div className="flex items-center gap-1">
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                className="h-8 w-8 p-0 text-primary hover:text-primary/80"
+                                                title="Configure match"
+                                                onClick={() => navigate(`/admin/matches/${m.ID}`)}
+                                            >
+                                                <Settings className="h-4 w-4" />
+                                            </Button>
                                             {m.status === "upcoming" && (
                                                 <Button
                                                     variant="ghost"

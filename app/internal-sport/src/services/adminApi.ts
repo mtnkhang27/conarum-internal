@@ -3,6 +3,9 @@ import type {
     AdminTeam,
     AdminTournament,
     AdminPlayer,
+    MatchScoreBetConfig,
+    TournamentPrizeConfig,
+    TournamentChampionConfig,
     ScorePredictionConfig,
     MatchOutcomeConfig,
     ChampionPredictionConfig,
@@ -40,6 +43,10 @@ export const matchesApi = {
         odataList<AdminMatch>(
             "/Matches?$expand=homeTeam,awayTeam,tournament&$orderby=kickoff asc"
         ),
+    get: (id: string) =>
+        odata<AdminMatch>(
+            `/Matches('${id}')?$expand=homeTeam,awayTeam,tournament,scoreBetConfig`
+        ),
     create: (data: Partial<AdminMatch>) =>
         odata<AdminMatch>("/Matches", {
             method: "POST",
@@ -57,6 +64,27 @@ export const matchesApi = {
             method: "POST",
             body: JSON.stringify({ matchId, homeScore, awayScore }),
         }),
+};
+
+// ── Match Score Bet Config ─────────────────────────────────
+
+export const matchScoreBetConfigApi = {
+    getByMatch: (matchId: string) =>
+        odataList<MatchScoreBetConfig>(
+            `/MatchScoreBetConfig?$filter=match_ID eq '${matchId}'`
+        ).then((v) => v[0] ?? null),
+    create: (data: Partial<MatchScoreBetConfig>) =>
+        odata<MatchScoreBetConfig>("/MatchScoreBetConfig", {
+            method: "POST",
+            body: JSON.stringify(data),
+        }),
+    update: (id: string, data: Partial<MatchScoreBetConfig>) =>
+        odata<void>(`/MatchScoreBetConfig('${id}')`, {
+            method: "PATCH",
+            body: JSON.stringify(data),
+        }),
+    delete: (id: string) =>
+        odata<void>(`/MatchScoreBetConfig('${id}')`, { method: "DELETE" }),
 };
 
 // ── Teams ──────────────────────────────────────────────────
@@ -102,11 +130,55 @@ export const playersApi = {
         odataList<AdminPlayer>("/Players?$orderby=totalPoints desc"),
     delete: (id: string) =>
         odata<void>(`/Players('${id}')`, { method: "DELETE" }),
-    recalculateLeaderboard: () =>
-        odata<ActionResult>("/recalculateLeaderboard", { method: "POST" }),
+    recalculateLeaderboard: (tournamentId?: string) =>
+        odata<ActionResult>("/recalculateLeaderboard", {
+            method: "POST",
+            body: JSON.stringify({ tournamentId: tournamentId ?? null }),
+        }),
 };
 
-// ── Config ─────────────────────────────────────────────────
+// ── Per-Tournament Config ──────────────────────────────────
+
+export const tournamentPrizeConfigApi = {
+    getByTournament: (tournamentId: string) =>
+        odataList<TournamentPrizeConfig>(
+            `/TournamentPrizeConfig?$filter=tournament_ID eq '${tournamentId}'`
+        ).then((v) => v[0] ?? null),
+    create: (data: Partial<TournamentPrizeConfig>) =>
+        odata<TournamentPrizeConfig>("/TournamentPrizeConfig", {
+            method: "POST",
+            body: JSON.stringify(data),
+        }),
+    update: (id: string, data: Partial<TournamentPrizeConfig>) =>
+        odata<void>(`/TournamentPrizeConfig('${id}')`, {
+            method: "PATCH",
+            body: JSON.stringify(data),
+        }),
+};
+
+export const tournamentChampionConfigApi = {
+    getByTournament: (tournamentId: string) =>
+        odataList<TournamentChampionConfig>(
+            `/TournamentChampionConfig?$filter=tournament_ID eq '${tournamentId}'`
+        ).then((v) => v[0] ?? null),
+    create: (data: Partial<TournamentChampionConfig>) =>
+        odata<TournamentChampionConfig>("/TournamentChampionConfig", {
+            method: "POST",
+            body: JSON.stringify(data),
+        }),
+    update: (id: string, data: Partial<TournamentChampionConfig>) =>
+        odata<void>(`/TournamentChampionConfig('${id}')`, {
+            method: "PATCH",
+            body: JSON.stringify(data),
+        }),
+    lockPredictions: (tournamentId: string) =>
+        odata<ActionResult>("/lockChampionPredictions", {
+            method: "POST",
+            body: JSON.stringify({ tournamentId }),
+        }),
+};
+
+// ── Legacy Global Config (deprecated) ──────────────────────
 
 export const configApi = {
     scorePrediction: {

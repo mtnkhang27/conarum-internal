@@ -43,9 +43,13 @@ export interface AdminMatch {
     status: "upcoming" | "live" | "finished" | "cancelled";
     matchNumber: number | null;
     matchday: number | null;
+    allowScorePrediction: boolean;
+    outcomeEnabled: boolean;
+    outcomePoints: number;
     homeScore: number | null;
     awayScore: number | null;
     outcome: "home" | "draw" | "away" | null;
+    scoreBetConfig?: MatchScoreBetConfig[];
 }
 
 export interface AdminPlayer {
@@ -63,7 +67,76 @@ export interface AdminPlayer {
     rank: number | null;
 }
 
-// === Config Types ===
+// === Per-Match Config Types ===
+
+export interface MatchScoreBetConfig {
+    ID: string;
+    match_ID: string;
+    enabled: boolean;
+    maxBets: number;
+    basePrice: number;
+    baseReward: number;
+    allowDuplicates: boolean;
+    duplicateMultiplier: number;
+    maxDuplicates: number;
+    bonusMultiplier: number;
+    platformFee: number;
+    lockBeforeMinutes: number;
+    minBetAmount: number;
+    maxBetAmount: number;
+    autoLockOnKickoff: boolean;
+}
+
+// === Per-Tournament Config Types ===
+
+export interface TournamentPrizeConfig {
+    ID: string;
+    tournament_ID: string;
+    firstPlacePrize: string;
+    firstPlaceValue: number;
+    secondPlacePrize: string;
+    secondPlaceValue: number;
+    thirdPlacePrize: string;
+    thirdPlaceValue: number;
+    consolationPrizes: number;
+    consolationValue: number;
+    showLiveRanking: boolean;
+    leaderboardUpdateInterval: number;
+}
+
+export interface TournamentChampionConfig {
+    ID: string;
+    tournament_ID: string;
+    enabled: boolean;
+    bettingStatus: "open" | "locked" | "closed";
+    openDate: string | null;
+    lockDate: string | null;
+    closeDate: string | null;
+    autoLockOnTournamentStart: boolean;
+    grandPrize: string;
+    grandPrizeValue: number;
+    secondPrize: string;
+    secondPrizeValue: number;
+    thirdPrize: string;
+    thirdPrizeValue: number;
+    splitPrizeIfTie: boolean;
+    maxWinnersForSplit: number;
+    cashAlternativeEnabled: boolean;
+    cashAlternativeValue: number;
+    maxPredictionsPerUser: number;
+    allowChangePrediction: boolean;
+    changeDeadline: string | null;
+    requireReason: boolean;
+    showOthersPredictions: boolean;
+    showPredictionStats: boolean;
+    showOdds: boolean;
+    notifyOnOpen: boolean;
+    notifyBeforeLock: boolean;
+    notifyHoursBeforeLock: number;
+    notifyOnResult: boolean;
+}
+
+// === Legacy Global Config Types (deprecated) ===
 
 export interface ScorePredictionConfig {
     ID: string;

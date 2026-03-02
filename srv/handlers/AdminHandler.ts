@@ -18,8 +18,8 @@ export class AdminHandler {
      * Enter match result and trigger scoring for all predictions/bets.
      * 1. Update match with result
      * 2. Determine outcome (home/draw/away)
-     * 3. Score all UC2 predictions (1 point correct, 0 wrong, no weight)
-     * 4. Score all UC1 score bets
+     * 3. Score all UC2 predictions using per-match outcomePoints
+     * 4. Score all UC1 score bets using per-match MatchScoreBetConfig
      * 5. Update player stats (both global and per-tournament)
      */
     async enterMatchResult(req: Request) {
@@ -29,8 +29,7 @@ export class AdminHandler {
             Prediction,
             ScoreBet,
             Player,
-            MatchOutcomeConfig,
-            ScorePredictionConfig,
+            MatchScoreBetConfig,
             PlayerTournamentStats
         } = cds.entities('cnma.prediction');
 
@@ -54,38 +53,36 @@ export class AdminHandler {
             status: 'finished'
         });
 
-        // ── Score UC2 Predictions (1 if correct, 0 if wrong) ──
-        const moConfig = await SELECT.one.from(MatchOutcomeConfig);
+        // ── Score UC2 Predictions (per-match outcomePoints) ──
+        const outcomePoints = Number(match.outcomePoints ?? 1);
         const predictions = await SELECT.from(Prediction)
             .where({ match_ID: matchId, status: { '!=': 'scored' } });
 
         let predictionsScored = 0;
         for (const pred of predictions) {
-            const points = this.scoringEngine.scorePrediction(
-                pred.pick,
-                outcome,
-                moConfig
-            );
+            const isCorrect = pred.pick === outcome;
+            const points = isCorrect ? outcomePoints : 0;
 
             await UPDATE(Prediction).where({ ID: pred.ID }).set({
-                isCorrect: pred.pick === outcome,
+                isCorrect,
                 pointsEarned: points,
                 status: 'scored',
                 scoredAt: new Date().toISOString()
             });
 
             // Update both global and per-tournament stats
-            await this.updatePlayerStats(pred.player_ID, points, pred.pick === outcome);
+            await this.updatePlayerStats(pred.player_ID, points, isCorrect);
             if (tournamentId) {
                 await this.updatePlayerTournamentStats(
-                    pred.player_ID, tournamentId, points, pred.pick === outcome
+                    pred.player_ID, tournamentId, points, isCorrect
                 );
             }
             predictionsScored++;
         }
 
-        // ── Score UC1 Score Bets ─────────────────────────────
-        const spConfig = await SELECT.one.from(ScorePredictionConfig);
+        // ── Score UC1 Score Bets (per-match MatchScoreBetConfig) ──
+        const scoreBetCfg = await SELECT.one.from(MatchScoreBetConfig)
+            .where({ match_ID: matchId });
         const bets = await SELECT.from(ScoreBet)
             .where({ match_ID: matchId, status: 'pending' });
 
@@ -95,8 +92,8 @@ export class AdminHandler {
                 && bet.predictedAwayScore === awayScore;
 
             let payout = 0;
-            if (isCorrect) {
-                payout = this.scoringEngine.calculateScoreBetPayout(bet, bets, spConfig);
+            if (isCorrect && scoreBetCfg) {
+                payout = this.scoringEngine.calculateScoreBetPayout(bet, bets, scoreBetCfg);
             }
 
             await UPDATE(ScoreBet).where({ ID: bet.ID }).set({
@@ -219,25 +216,29 @@ export class AdminHandler {
     }
 
     /**
-     * Lock champion predictions (UC3 → status "locked").
+     * Lock champion predictions for a specific tournament (UC3 → status "locked").
      */
     async lockChampionPredictions(req: Request) {
-        const { ChampionPredictionConfig } = cds.entities('cnma.prediction');
+        const { tournamentId } = req.data;
+        const { TournamentChampionConfig } = cds.entities('cnma.prediction');
 
-        const config = await SELECT.one.from(ChampionPredictionConfig);
-        if (!config) return req.error(404, 'Champion prediction config not found');
+        if (!tournamentId) return req.error(400, 'Tournament ID is required');
+
+        const config = await SELECT.one.from(TournamentChampionConfig)
+            .where({ tournament_ID: tournamentId });
+        if (!config) return req.error(404, 'Champion prediction config not found for this tournament');
 
         if (config.bettingStatus === 'locked') {
-            return req.error(400, 'Champion predictions are already locked');
+            return req.error(400, 'Champion predictions are already locked for this tournament');
         }
 
-        await UPDATE(ChampionPredictionConfig).where({ ID: config.ID }).set({
+        await UPDATE(TournamentChampionConfig).where({ ID: config.ID }).set({
             bettingStatus: 'locked'
         });
 
         return {
             success: true,
-            message: 'Champion predictions are now locked. No new predictions will be accepted.'
+            message: 'Champion predictions are now locked for this tournament. No new predictions will be accepted.'
         };
     }
 

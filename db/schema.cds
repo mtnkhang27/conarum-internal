@@ -128,6 +128,12 @@ entity Tournament : cuid, managed {
                          on matches.tournament = $self;
     teams          : Composition of many TournamentTeam
                          on teams.tournament = $self;
+    // Per-tournament prize config (outcome prediction leaderboard prizes)
+    prizeConfig    : Composition of many TournamentPrizeConfig
+                         on prizeConfig.tournament = $self;
+    // Per-tournament champion prediction config
+    championConfig : Composition of many TournamentChampionConfig
+                         on championConfig.tournament = $self;
 }
 
 /**
@@ -194,6 +200,9 @@ entity Match : cuid, managed {
     leg         : Integer;  // for two-leg ties (1 or 2), null for single match
     // Admin toggle: allow score prediction for this match (default true)
     allowScorePrediction : Boolean default true;
+    // Per-match outcome prediction config
+    outcomeEnabled : Boolean default true;
+    outcomePoints  : Points default 1;    // points earned for correct outcome prediction
     // Result (null until finished)
     homeScore   : Integer;
     awayScore   : Integer;
@@ -204,6 +213,9 @@ entity Match : cuid, managed {
                       on predictions.match = $self;
     scoreBets   : Association to many ScoreBet
                       on scoreBets.match = $self;
+    // Per-match score bet configuration
+    scoreBetConfig : Composition of many MatchScoreBetConfig
+                         on scoreBetConfig.match = $self;
 }
 
 /**
@@ -312,7 +324,102 @@ entity ChampionPick : cuid, managed {
 annotate ChampionPick with @assert.unique: {playerPick: [player]};
 
 // ────────────────────────────────────────────────────────────
-//  Configuration Entities (single-row admin config)
+//  Per-Match Configuration Entities
+// ────────────────────────────────────────────────────────────
+
+/**
+ * Per-match score betting config.
+ * Each match can have its own score betting rules (UC1).
+ * If no config exists for a match, score betting is disabled.
+ */
+entity MatchScoreBetConfig : cuid, managed {
+    match               : Association to Match @mandatory;
+    enabled             : Boolean default true;
+    maxBets             : Integer default 3;
+    basePrice           : MoneyAmount default 50000;
+    baseReward          : MoneyAmount default 200000;
+    allowDuplicates     : Boolean default true;
+    duplicateMultiplier : Weight default 2.0;
+    maxDuplicates       : Integer default 3;
+    bonusMultiplier     : Weight default 1.5;
+    platformFee         : Percentage default 5;
+    lockBeforeMinutes   : Integer default 30;
+    minBetAmount        : MoneyAmount default 10000;
+    maxBetAmount        : MoneyAmount default 500000;
+    autoLockOnKickoff   : Boolean default true;
+}
+
+annotate MatchScoreBetConfig with @assert.unique: {perMatch: [match]};
+
+// ────────────────────────────────────────────────────────────
+//  Per-Tournament Configuration Entities
+// ────────────────────────────────────────────────────────────
+
+/**
+ * Per-tournament prize config for Match Outcome Prediction (UC2).
+ * At the end of a tournament, the leaderboard winners receive these prizes.
+ */
+entity TournamentPrizeConfig : cuid, managed {
+    tournament                : Association to Tournament @mandatory;
+    firstPlacePrize           : String(200) default 'iPhone 15 Pro Max';
+    firstPlaceValue           : MoneyAmount default 35000000;
+    secondPlacePrize          : String(200) default 'Honda Vision 2024';
+    secondPlaceValue          : MoneyAmount default 30000000;
+    thirdPlacePrize           : String(200) default 'MacBook Air M3';
+    thirdPlaceValue           : MoneyAmount default 25000000;
+    consolationPrizes         : Integer default 10;
+    consolationValue          : MoneyAmount default 500000;
+    showLiveRanking           : Boolean default true;
+    leaderboardUpdateInterval : Integer default 5;
+}
+
+annotate TournamentPrizeConfig with @assert.unique: {perTournament: [tournament]};
+
+/**
+ * Per-tournament champion prediction config (UC3).
+ * Each tournament has its own champion prediction rules and prizes.
+ */
+entity TournamentChampionConfig : cuid, managed {
+    tournament                : Association to Tournament @mandatory;
+    enabled                   : Boolean default true;
+    bettingStatus             : BettingStatus default 'open';
+    // Timing
+    openDate                  : Date;
+    lockDate                  : Date;
+    closeDate                 : Date;
+    autoLockOnTournamentStart : Boolean default true;
+    // Prizes
+    grandPrize                : String(200) default 'iPhone 15 Pro Max 256GB';
+    grandPrizeValue           : MoneyAmount default 35000000;
+    secondPrize               : String(200) default 'iPad Pro 12.9"';
+    secondPrizeValue          : MoneyAmount default 25000000;
+    thirdPrize                : String(200) default 'AirPods Pro 2';
+    thirdPrizeValue           : MoneyAmount default 7000000;
+    // Multiple Winners
+    splitPrizeIfTie           : Boolean default true;
+    maxWinnersForSplit        : Integer default 5;
+    cashAlternativeEnabled    : Boolean default true;
+    cashAlternativeValue      : MoneyAmount default 30000000;
+    // Prediction Rules
+    maxPredictionsPerUser     : Integer default 1;
+    allowChangePrediction     : Boolean default true;
+    changeDeadline            : Date;
+    requireReason             : Boolean default false;
+    // Display Options
+    showOthersPredictions     : Boolean default false;
+    showPredictionStats       : Boolean default true;
+    showOdds                  : Boolean default true;
+    // Notifications
+    notifyOnOpen              : Boolean default true;
+    notifyBeforeLock          : Boolean default true;
+    notifyHoursBeforeLock     : Integer default 24;
+    notifyOnResult            : Boolean default true;
+}
+
+annotate TournamentChampionConfig with @assert.unique: {perTournament: [tournament]};
+
+// ────────────────────────────────────────────────────────────
+//  Legacy Global Configuration (kept for backward compat, deprecated)
 // ────────────────────────────────────────────────────────────
 
 /**

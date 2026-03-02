@@ -100,25 +100,27 @@ export class PredictionHandler {
     /**
      * Place an exact score bet (UC1).
      * Validates: match exists, not kicked off, max bets not exceeded.
+     * Uses per-match MatchScoreBetConfig.
      */
     async submitScoreBet(req: Request) {
         const { matchId, homeScore, awayScore } = req.data;
-        const { ScoreBet, Match, ScorePredictionConfig } = cds.entities('cnma.prediction');
-
-        // Get config
-        const config = await SELECT.one.from(ScorePredictionConfig);
-        if (config && !config.enabled) {
-            return req.error(400, 'Score predictions are currently disabled');
-        }
+        const { ScoreBet, Match, MatchScoreBetConfig } = cds.entities('cnma.prediction');
 
         // Validate match
         const match = await SELECT.one.from(Match).where({ ID: matchId });
         if (!match) return req.error(404, 'Match not found');
+        if (!match.allowScorePrediction) return req.error(400, 'Score predictions are not allowed for this match');
         if (match.status !== 'upcoming') return req.error(400, 'Match is no longer open for bets');
+
+        // Get per-match config
+        const config = await SELECT.one.from(MatchScoreBetConfig).where({ match_ID: matchId });
+        if (config && !config.enabled) {
+            return req.error(400, 'Score predictions are currently disabled for this match');
+        }
 
         const now = new Date();
         const kickoff = new Date(match.kickoff);
-        const lockMinutes = config?.lockBeforeMatch ?? 30;
+        const lockMinutes = config?.lockBeforeMinutes ?? 30;
         const lockTime = new Date(kickoff.getTime() - lockMinutes * 60 * 1000);
 
         if (now >= lockTime) {
@@ -136,13 +138,13 @@ export class PredictionHandler {
         const existingBets = await SELECT.from(ScoreBet)
             .where({ player_ID: playerId, match_ID: matchId });
 
-        const maxBets = config?.maxBetsPerMatch ?? 3;
+        const maxBets = config?.maxBets ?? 3;
         if (existingBets.length >= maxBets) {
             return req.error(400, `Maximum ${maxBets} bets per match reached`);
         }
 
         // Check duplicate bet limits
-        if (config && !config.allowDuplicateBets) {
+        if (config && !config.allowDuplicates) {
             const duplicate = existingBets.find(
                 (b: any) => b.predictedHomeScore === homeScore && b.predictedAwayScore === awayScore
             );
@@ -178,7 +180,7 @@ export class PredictionHandler {
      */
     async submitMatchPrediction(req: Request) {
         const { matchId, pick, scores } = req.data;
-        const { Prediction, ScoreBet, Match, ScorePredictionConfig } = cds.entities('cnma.prediction');
+        const { Prediction, ScoreBet, Match, MatchScoreBetConfig } = cds.entities('cnma.prediction');
 
         // Validate match
         const match = await SELECT.one.from(Match).where({ ID: matchId });
@@ -224,12 +226,12 @@ export class PredictionHandler {
                 return req.error(400, 'Score predictions are not allowed for this match');
             }
 
-            const config = await SELECT.one.from(ScorePredictionConfig);
+            const config = await SELECT.one.from(MatchScoreBetConfig).where({ match_ID: matchId });
             if (config && !config.enabled) {
-                return req.error(400, 'Score predictions are currently disabled');
+                return req.error(400, 'Score predictions are currently disabled for this match');
             }
 
-            const lockMinutes = config?.lockBeforeMatch ?? 30;
+            const lockMinutes = config?.lockBeforeMinutes ?? 30;
             const lockTime = new Date(new Date(match.kickoff).getTime() - lockMinutes * 60 * 1000);
             if (now >= lockTime) {
                 return req.error(400, 'Betting window has closed for this match');

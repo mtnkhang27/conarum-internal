@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
-import { Plus, Edit, Trash2, Trophy } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { Plus, Edit, Trash2, Trophy, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -46,6 +47,7 @@ function statusVariant(status: string) {
 }
 
 export function TournamentManagement() {
+    const navigate = useNavigate();
     const [tournaments, setTournaments] = useState<AdminTournament[]>([]);
     const [loading, setLoading] = useState(true);
     const [dialogOpen, setDialogOpen] = useState(false);
@@ -182,6 +184,15 @@ export function TournamentManagement() {
                         )}
 
                         <div className="flex items-center justify-end gap-1 border-t border-border pt-3">
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 w-8 p-0 text-primary hover:text-primary/80"
+                                title="Configure tournament"
+                                onClick={() => navigate(`/admin/tournaments/${t.ID}`)}
+                            >
+                                <Settings className="h-4 w-4" />
+                            </Button>
                             <Button
                                 variant="ghost"
                                 size="sm"

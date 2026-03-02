@@ -87,21 +87,32 @@ export class AdminHandler {
             .where({ match_ID: matchId, status: 'pending' });
 
         let scoreBetsScored = 0;
+        const prize = Number(scoreBetCfg?.prize ?? 200000);
+
+        // Group bets by player to handle duplicate-bet multiplier
+        const betsByPlayer = new Map<string, typeof bets>();
         for (const bet of bets) {
-            const isCorrect = bet.predictedHomeScore === homeScore
-                && bet.predictedAwayScore === awayScore;
+            const pid = bet.player_ID;
+            if (!betsByPlayer.has(pid)) betsByPlayer.set(pid, []);
+            betsByPlayer.get(pid)!.push(bet);
+        }
 
-            let payout = 0;
-            if (isCorrect && scoreBetCfg) {
-                payout = this.scoringEngine.calculateScoreBetPayout(bet, bets, scoreBetCfg);
+        for (const [, playerBets] of betsByPlayer) {
+            for (const bet of playerBets) {
+                const isCorrect = bet.predictedHomeScore === homeScore
+                    && bet.predictedAwayScore === awayScore;
+
+                // Each correct bet wins 1×prize.
+                // If player placed N identical bets and all are correct, each pays 1×prize (total N×prize).
+                const payout = isCorrect ? prize : 0;
+
+                await UPDATE(ScoreBet).where({ ID: bet.ID }).set({
+                    isCorrect,
+                    payout,
+                    status: isCorrect ? 'won' : 'lost'
+                });
+                scoreBetsScored++;
             }
-
-            await UPDATE(ScoreBet).where({ ID: bet.ID }).set({
-                isCorrect,
-                payout,
-                status: isCorrect ? 'won' : 'lost'
-            });
-            scoreBetsScored++;
         }
 
         // ── Lock all remaining draft/submitted predictions ───
@@ -220,20 +231,20 @@ export class AdminHandler {
      */
     async lockChampionPredictions(req: Request) {
         const { tournamentId } = req.data;
-        const { TournamentChampionConfig } = cds.entities('cnma.prediction');
+        const { Tournament } = cds.entities('cnma.prediction');
 
         if (!tournamentId) return req.error(400, 'Tournament ID is required');
 
-        const config = await SELECT.one.from(TournamentChampionConfig)
-            .where({ tournament_ID: tournamentId });
-        if (!config) return req.error(404, 'Champion prediction config not found for this tournament');
+        const tournament = await SELECT.one.from(Tournament)
+            .where({ ID: tournamentId });
+        if (!tournament) return req.error(404, 'Tournament not found');
 
-        if (config.bettingStatus === 'locked') {
+        if (tournament.championBettingStatus === 'locked') {
             return req.error(400, 'Champion predictions are already locked for this tournament');
         }
 
-        await UPDATE(TournamentChampionConfig).where({ ID: config.ID }).set({
-            bettingStatus: 'locked'
+        await UPDATE(Tournament).where({ ID: tournamentId }).set({
+            championBettingStatus: 'locked'
         });
 
         return {

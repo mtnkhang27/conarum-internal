@@ -1,6 +1,6 @@
 ID;displayName;email;avatarUrl;country_code;favoriteTeam_ID;totalPoints;totalCorrect;totalPredictions;currentStreak;bestStreak;rank
-p1;Nguyen Van A;nguyen.a@conarum.com;;VN;team-br;2;2;2;2;2;1
-p2;Tran Thi B;tran.b@conarum.com;;VN;team-ar;0;0;2;0;0;3
-p3;Le Van C;le.c@conarum.com;;VN;team-es;1;1;2;0;1;2
-p4;Pham Duc D;pham.d@conarum.com;;VN;team-fr;0;0;0;0;0;
-p5;Anonymous User;anonymous@example.com;;VN;;0;0;0;0;0;
+aa0e8400-e29b-41d4-a716-446655440501;Nguyen Van A;nguyen.a@conarum.com;;VN;c1a7f9e2-3b4d-4f9a-8c1e-1a2b3c4d0001;2;2;2;2;2;1
+aa0e8400-e29b-41d4-a716-446655440502;Tran Thi B;tran.b@conarum.com;;VN;c1a7f9e2-3b4d-4f9a-8c1e-1a2b3c4d0003;0;0;2;0;0;3
+aa0e8400-e29b-41d4-a716-446655440503;Le Van C;le.c@conarum.com;;VN;c1a7f9e2-3b4d-4f9a-8c1e-1a2b3c4d0005;1;1;2;0;1;2
+aa0e8400-e29b-41d4-a716-446655440504;Pham Duc D;pham.d@conarum.com;;VN;c1a7f9e2-3b4d-4f9a-8c1e-1a2b3c4d0004;0;0;0;0;0;
+aa0e8400-e29b-41d4-a716-446655440505;Anonymous User;anonymous@example.com;;VN;;0;0;0;0;0;

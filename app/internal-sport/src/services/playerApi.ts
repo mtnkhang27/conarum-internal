@@ -59,7 +59,6 @@ export interface ODataMatch {
     homeScore: number | null;
     awayScore: number | null;
     matchday: number | null;
-    allowScorePrediction: boolean | null;
     homeTeam?: ODataTeam;
     awayTeam?: ODataTeam;
     tournament?: ODataTournament;
@@ -96,7 +95,6 @@ export interface ODataScoreBet {
     match_ID: string;
     predictedHomeScore: number;
     predictedAwayScore: number;
-    betAmount: number;
     status: string;
     isCorrect: boolean | null;
     payout: number;
@@ -159,7 +157,7 @@ function toMatch(m: ODataMatch): Match {
         away: { name: away.name, flag: away.flagCode },
         options: [home.name, "Draw", away.name],
         selectedOption: "",
-        allowScorePrediction: m.allowScorePrediction !== false, // default true
+        scoreBettingEnabled: false, // will be set based on MatchScoreBetConfig existence
     };
 }
 
@@ -259,7 +257,7 @@ export const playerMatchesApi = {
 
         const [matches, predictions, scoreBets] = await Promise.all([
             json<ODataMatch[]>(
-                `${BASE}/Matches?$filter=${encodeURIComponent(filter)}&$expand=homeTeam,awayTeam&$orderby=kickoff asc`
+                `${BASE}/Matches?$filter=${encodeURIComponent(filter)}&$expand=homeTeam,awayTeam,scoreBetConfig&$orderby=kickoff asc`
             ),
             json<ODataPrediction[]>(`${BASE}/MyPredictions`).catch(() => [] as ODataPrediction[]),
             json<ODataScoreBet[]>(`${BASE}/MyScoreBets`).catch(() => [] as ODataScoreBet[]),
@@ -278,6 +276,13 @@ export const playerMatchesApi = {
 
         return matches.map((m) => {
             const match = toMatch(m);
+
+            // Determine if score betting is enabled from expanded scoreBetConfig
+            const scoreBetConfigs = (m as any).scoreBetConfig;
+            if (scoreBetConfigs && Array.isArray(scoreBetConfigs) && scoreBetConfigs.length > 0) {
+                match.scoreBettingEnabled = scoreBetConfigs.some((cfg: any) => cfg.enabled);
+            }
+
             const rawPick = pickMap.get(m.ID);
             if (rawPick) {
                 // Map API pick (home/draw/away) → display name

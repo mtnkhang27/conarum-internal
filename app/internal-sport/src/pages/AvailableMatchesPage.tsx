@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
+import { useLocation } from "react-router-dom";
 import { MatchCard } from "@/components/MatchCard";
 import { UpcomingKickoffTable } from "@/components/UpcomingKickoffTable";
 import { LiveMatchesTable } from "@/components/LiveMatchesTable";
@@ -8,6 +9,7 @@ import { playerMatchesApi } from "@/services/playerApi";
 import type { Match, UpcomingMatch, LiveMatch } from "@/types";
 
 export function AvailableMatchesPage() {
+    const location = useLocation();
     const [tournamentId, setTournamentId] = useState("");
     const [matches, setMatches] = useState<Match[]>([]);
     const [upcoming, setUpcoming] = useState<UpcomingMatch[]>([]);
@@ -33,9 +35,12 @@ export function AvailableMatchesPage() {
         }
     }, []);
 
+    // Re-fetch data whenever the page is navigated to (location.key changes)
+    // or when the tournament filter changes. This ensures admin changes
+    // (e.g. enabling score prediction, updating points) are reflected immediately.
     useEffect(() => {
         loadData(tournamentId);
-    }, [tournamentId, loadData]);
+    }, [tournamentId, loadData, location.key]);
 
     const handleTournamentChange = (id: string) => {
         setTournamentId(id);

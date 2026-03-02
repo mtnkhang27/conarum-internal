@@ -35,33 +35,10 @@ export class ScoringEngine {
 
     /**
      * Calculate UC1 score bet payout.
-     *
-     * Formula: Payout = BaseReward × DuplicateMultiplier × BonusMultiplier × (1 - PlatformFee/100)
+     * Simple: if correct, payout = prize from config.
      */
-    calculateScoreBetPayout(
-        bet: any,
-        allBetsForMatch: any[],
-        config: any
-    ): number {
-        const baseReward = Number(config?.baseReward ?? 200000);
-        const bonusMultiplier = Number(config?.bonusMultiplier ?? 1.5);
-        const platformFee = Number(config?.platformFee ?? 5);
-        const duplicateMultiplier = Number(config?.duplicateMultiplier ?? 2.0);
-
-        // Count how many times this player bet on the same score for this match
-        const duplicateCount = allBetsForMatch.filter(
-            (b: any) =>
-                b.player_ID === bet.player_ID
-                && b.predictedHomeScore === bet.predictedHomeScore
-                && b.predictedAwayScore === bet.predictedAwayScore
-        ).length;
-
-        const effectiveMultiplier = duplicateCount > 1 ? duplicateMultiplier : 1;
-
-        const grossPayout = baseReward * effectiveMultiplier * bonusMultiplier;
-        const netPayout = grossPayout * (1 - platformFee / 100);
-
-        return Math.round(netPayout);
+    calculateScoreBetPayout(config: any): number {
+        return Number(config?.prize ?? 200000);
     }
 
     /**

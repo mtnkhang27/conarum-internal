@@ -20,9 +20,11 @@ export class PredictionHandler {
         const userId = await this.getCurrentPlayerId(req);
         if (userId) {
             // Inject filter: player_ID = current user's player ID
+            // Must wrap userId in {val: ...} so CDS properly quotes the UUID string
+            // in SQLite, otherwise dashes in UUID are interpreted as minus operators.
             if (req.query.SELECT) {
                 const existingWhere = req.query.SELECT.where || [];
-                req.query.SELECT.where = [...(Array.isArray(existingWhere) ? existingWhere : [existingWhere]), 'player_ID', '=', userId];
+                req.query.SELECT.where = [...(Array.isArray(existingWhere) ? existingWhere : [existingWhere]), 'player_ID', '=', { val: userId }];
             }
         }
     }
@@ -109,21 +111,18 @@ export class PredictionHandler {
         // Validate match
         const match = await SELECT.one.from(Match).where({ ID: matchId });
         if (!match) return req.error(404, 'Match not found');
-        if (!match.allowScorePrediction) return req.error(400, 'Score predictions are not allowed for this match');
         if (match.status !== 'upcoming') return req.error(400, 'Match is no longer open for bets');
 
-        // Get per-match config
+        // Get per-match config (score betting is only available if config exists and enabled)
         const config = await SELECT.one.from(MatchScoreBetConfig).where({ match_ID: matchId });
         if (config && !config.enabled) {
             return req.error(400, 'Score predictions are currently disabled for this match');
         }
 
+        // Lock when match has kicked off
         const now = new Date();
         const kickoff = new Date(match.kickoff);
-        const lockMinutes = config?.lockBeforeMinutes ?? 30;
-        const lockTime = new Date(kickoff.getTime() - lockMinutes * 60 * 1000);
-
-        if (now >= lockTime) {
+        if (now >= kickoff) {
             return req.error(400, 'Betting window has closed for this match');
         }
 
@@ -143,30 +142,12 @@ export class PredictionHandler {
             return req.error(400, `Maximum ${maxBets} bets per match reached`);
         }
 
-        // Check duplicate bet limits
-        if (config && !config.allowDuplicates) {
-            const duplicate = existingBets.find(
-                (b: any) => b.predictedHomeScore === homeScore && b.predictedAwayScore === awayScore
-            );
-            if (duplicate) {
-                return req.error(400, 'Duplicate score bets are not allowed');
-            }
-        } else if (config?.maxDuplicates) {
-            const duplicateCount = existingBets.filter(
-                (b: any) => b.predictedHomeScore === homeScore && b.predictedAwayScore === awayScore
-            ).length;
-            if (duplicateCount >= config.maxDuplicates) {
-                return req.error(400, `Maximum ${config.maxDuplicates} duplicate bets on same score`);
-            }
-        }
-
         // Insert bet
         await INSERT.into(ScoreBet).entries({
             player_ID: playerId,
             match_ID: matchId,
             predictedHomeScore: homeScore,
             predictedAwayScore: awayScore,
-            betAmount: config?.basePrice ?? 50000,
             status: 'pending',
             submittedAt: now.toISOString()
         });
@@ -221,19 +202,14 @@ export class PredictionHandler {
 
         // ── Save score bets ──
         if (scores && scores.length > 0) {
-            // Check if match allows score prediction
-            if (match.allowScorePrediction === false) {
-                return req.error(400, 'Score predictions are not allowed for this match');
-            }
-
+            // Check if match has score bet config enabled
             const config = await SELECT.one.from(MatchScoreBetConfig).where({ match_ID: matchId });
-            if (config && !config.enabled) {
-                return req.error(400, 'Score predictions are currently disabled for this match');
+            if (!config || !config.enabled) {
+                return req.error(400, 'Score predictions are not available for this match');
             }
 
-            const lockMinutes = config?.lockBeforeMinutes ?? 30;
-            const lockTime = new Date(new Date(match.kickoff).getTime() - lockMinutes * 60 * 1000);
-            if (now >= lockTime) {
+            // Lock when match has kicked off
+            if (now >= new Date(match.kickoff)) {
                 return req.error(400, 'Betting window has closed for this match');
             }
 
@@ -250,7 +226,6 @@ export class PredictionHandler {
                     match_ID: matchId,
                     predictedHomeScore: s.homeScore,
                     predictedAwayScore: s.awayScore,
-                    betAmount: config?.basePrice ?? 50000,
                     status: 'pending',
                     submittedAt: now.toISOString()
                 });
@@ -305,15 +280,14 @@ export class PredictionHandler {
      */
     async pickChampion(req: Request) {
         const { teamId } = req.data;
-        const { ChampionPick, Team, ChampionPredictionConfig } = cds.entities('cnma.prediction');
+        const { ChampionPick, Team, Tournament } = cds.entities('cnma.prediction');
 
-        // Get config
-        const config = await SELECT.one.from(ChampionPredictionConfig);
-        if (config && !config.enabled) {
-            return req.error(400, 'Champion predictions are currently disabled');
-        }
-        if (config && config.bettingStatus !== 'open') {
-            return req.error(400, `Champion predictions are ${config.bettingStatus}`);
+        // Find active tournament with champion betting open
+        const tournaments = await SELECT.from(Tournament)
+            .where({ championBettingStatus: 'open' });
+
+        if (!tournaments || tournaments.length === 0) {
+            return req.error(400, 'No tournament with open champion predictions found');
         }
 
         // Validate team exists
@@ -328,12 +302,6 @@ export class PredictionHandler {
             .where({ player_ID: playerId });
 
         if (existing) {
-            if (config?.allowChangePrediction === false) {
-                return req.error(400, 'Changing champion prediction is not allowed');
-            }
-            if (config?.changeDeadline && now > new Date(config.changeDeadline)) {
-                return req.error(400, 'Change deadline has passed');
-            }
             // Update existing pick
             await UPDATE(ChampionPick).where({ ID: existing.ID }).set({
                 team_ID: teamId

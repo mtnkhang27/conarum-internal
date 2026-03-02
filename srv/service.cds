@@ -67,14 +67,20 @@ service PlayerService {
             modifiedBy
         };
 
+    /** Per-match score bet config (read-only for players — needed for $expand on Matches). */
+    @readonly
+    entity MatchScoreBetConfigs     as projection on db.MatchScoreBetConfig { * }
+        excluding { createdAt, createdBy, modifiedAt, modifiedBy };
+
     /** Matches with team details — the core view for all prediction pages. */
     @readonly
     entity Matches                  as
         projection on db.Match {
             *,
-            homeTeam   : redirected to Teams,
-            awayTeam   : redirected to Teams,
-            tournament : redirected to Tournaments
+            homeTeam       : redirected to Teams,
+            awayTeam       : redirected to Teams,
+            tournament     : redirected to Tournaments,
+            scoreBetConfig : redirected to MatchScoreBetConfigs
         }
         excluding {
             createdBy,
@@ -145,38 +151,6 @@ service PlayerService {
         }
         excluding {
             createdBy,
-            modifiedBy
-        };
-
-    // ── Read-Only Config (for UI display) ────────────────────
-
-    @readonly
-    entity ScorePredictionConfig    as
-        projection on db.ScorePredictionConfig
-        excluding {
-            createdAt,
-            createdBy,
-            modifiedAt,
-            modifiedBy
-        };
-
-    @readonly
-    entity MatchOutcomeConfig       as
-        projection on db.MatchOutcomeConfig
-        excluding {
-            createdAt,
-            createdBy,
-            modifiedAt,
-            modifiedBy
-        };
-
-    @readonly
-    entity ChampionPredictionConfig as
-        projection on db.ChampionPredictionConfig
-        excluding {
-            createdAt,
-            createdBy,
-            modifiedAt,
             modifiedBy
         };
 
@@ -324,16 +298,6 @@ service AdminService {
 
     entity MatchScoreBetConfig      as projection on db.MatchScoreBetConfig;
 
-    // ── Per-Tournament Config CRUD ───────────────────────────
-
-    entity TournamentPrizeConfig    as projection on db.TournamentPrizeConfig;
-    entity TournamentChampionConfig as projection on db.TournamentChampionConfig;
-
-    // ── Legacy Global Config (deprecated, kept for backward compat) ──
-
-    entity ScorePredictionConfig    as projection on db.ScorePredictionConfig;
-    entity MatchOutcomeConfig       as projection on db.MatchOutcomeConfig;
-    entity ChampionPredictionConfig as projection on db.ChampionPredictionConfig;
 
     // ── Read-Only Views (all users' data) ────────────────────
 

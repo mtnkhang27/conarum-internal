@@ -4,11 +4,6 @@ import type {
     AdminTournament,
     AdminPlayer,
     MatchScoreBetConfig,
-    TournamentPrizeConfig,
-    TournamentChampionConfig,
-    ScorePredictionConfig,
-    MatchOutcomeConfig,
-    ChampionPredictionConfig,
     ActionResult,
     MatchResultResponse,
 } from "@/types/admin";
@@ -137,74 +132,12 @@ export const playersApi = {
         }),
 };
 
-// ── Per-Tournament Config ──────────────────────────────────
+// ── Tournament Actions ─────────────────────────────────────
 
-export const tournamentPrizeConfigApi = {
-    getByTournament: (tournamentId: string) =>
-        odataList<TournamentPrizeConfig>(
-            `/TournamentPrizeConfig?$filter=tournament_ID eq '${tournamentId}'`
-        ).then((v) => v[0] ?? null),
-    create: (data: Partial<TournamentPrizeConfig>) =>
-        odata<TournamentPrizeConfig>("/TournamentPrizeConfig", {
-            method: "POST",
-            body: JSON.stringify(data),
-        }),
-    update: (id: string, data: Partial<TournamentPrizeConfig>) =>
-        odata<void>(`/TournamentPrizeConfig('${id}')`, {
-            method: "PATCH",
-            body: JSON.stringify(data),
-        }),
-};
-
-export const tournamentChampionConfigApi = {
-    getByTournament: (tournamentId: string) =>
-        odataList<TournamentChampionConfig>(
-            `/TournamentChampionConfig?$filter=tournament_ID eq '${tournamentId}'`
-        ).then((v) => v[0] ?? null),
-    create: (data: Partial<TournamentChampionConfig>) =>
-        odata<TournamentChampionConfig>("/TournamentChampionConfig", {
-            method: "POST",
-            body: JSON.stringify(data),
-        }),
-    update: (id: string, data: Partial<TournamentChampionConfig>) =>
-        odata<void>(`/TournamentChampionConfig('${id}')`, {
-            method: "PATCH",
-            body: JSON.stringify(data),
-        }),
-    lockPredictions: (tournamentId: string) =>
+export const tournamentActionsApi = {
+    lockChampionPredictions: (tournamentId: string) =>
         odata<ActionResult>("/lockChampionPredictions", {
             method: "POST",
             body: JSON.stringify({ tournamentId }),
         }),
-};
-
-// ── Legacy Global Config (deprecated) ──────────────────────
-
-export const configApi = {
-    scorePrediction: {
-        get: () => odataList<ScorePredictionConfig>("/ScorePredictionConfig").then((v) => v[0]),
-        update: (id: string, data: Partial<ScorePredictionConfig>) =>
-            odata<void>(`/ScorePredictionConfig('${id}')`, {
-                method: "PATCH",
-                body: JSON.stringify(data),
-            }),
-    },
-    matchOutcome: {
-        get: () => odataList<MatchOutcomeConfig>("/MatchOutcomeConfig").then((v) => v[0]),
-        update: (id: string, data: Partial<MatchOutcomeConfig>) =>
-            odata<void>(`/MatchOutcomeConfig('${id}')`, {
-                method: "PATCH",
-                body: JSON.stringify(data),
-            }),
-    },
-    championPrediction: {
-        get: () => odataList<ChampionPredictionConfig>("/ChampionPredictionConfig").then((v) => v[0]),
-        update: (id: string, data: Partial<ChampionPredictionConfig>) =>
-            odata<void>(`/ChampionPredictionConfig('${id}')`, {
-                method: "PATCH",
-                body: JSON.stringify(data),
-            }),
-        lockPredictions: () =>
-            odata<ActionResult>("/lockChampionPredictions", { method: "POST" }),
-    },
 };

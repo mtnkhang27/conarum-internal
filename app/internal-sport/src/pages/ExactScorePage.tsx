@@ -165,9 +165,8 @@ export function ExactScorePage() {
                 <div className="overflow-x-auto">
                     <div className="grid min-w-[760px] grid-cols-12 gap-2 border-b border-border bg-surface/60 px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
                         <div className="col-span-4">Match</div>
-                        <div className="col-span-2 text-center">Kickoff</div>
-                        <div className="col-span-2 text-center">Your Score</div>
-                        <div className="col-span-2 text-center">Bet</div>
+                        <div className="col-span-3 text-center">Kickoff</div>
+                        <div className="col-span-3 text-center">Your Score</div>
                         <div className="col-span-2 text-center">State</div>
                     </div>
 
@@ -182,12 +181,9 @@ export function ExactScorePage() {
                                     <div className="col-span-4 text-sm font-bold text-white">
                                         {item.home.name} vs {item.away.name}
                                     </div>
-                                    <div className="col-span-2 text-center text-xs text-muted-foreground">{item.timeLabel}</div>
-                                    <div className="col-span-2 text-center font-mono text-sm text-primary">
+                                    <div className="col-span-3 text-center text-xs text-muted-foreground">{item.timeLabel}</div>
+                                    <div className="col-span-3 text-center font-mono text-sm text-primary">
                                         {pick?.home ?? 0} - {pick?.away ?? 0}
-                                    </div>
-                                    <div className="col-span-2 text-center text-sm font-bold text-secondary">
-                                        50K
                                     </div>
                                     <div className="col-span-2 text-center">
                                         <span className="inline-flex rounded border border-primary/40 bg-primary/20 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-primary">

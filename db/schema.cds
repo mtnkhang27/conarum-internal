@@ -128,12 +128,12 @@ entity Tournament : cuid, managed {
                          on matches.tournament = $self;
     teams          : Composition of many TournamentTeam
                          on teams.tournament = $self;
-    // Per-tournament prize config (outcome prediction leaderboard prizes)
-    prizeConfig    : Composition of many TournamentPrizeConfig
-                         on prizeConfig.tournament = $self;
-    // Per-tournament champion prediction config
-    championConfig : Composition of many TournamentChampionConfig
-                         on championConfig.tournament = $self;
+    // ── UC2: Outcome Prediction Prize (single prize description) ──
+    outcomePrize : String(200) default 'iPhone 15 Pro Max';
+    // ── UC3: Champion Prediction Config & Prize Pool ──
+    championBettingStatus : BettingStatus default 'open';
+    championLockDate      : Date;
+    championPrizePool     : String(200) default 'iPhone 15 Pro Max 256GB';
 }
 
 /**
@@ -198,11 +198,8 @@ entity Match : cuid, managed {
     matchNumber : Integer;
     matchday    : Integer;  // for league format (e.g., matchday 1–38)
     leg         : Integer;  // for two-leg ties (1 or 2), null for single match
-    // Admin toggle: allow score prediction for this match (default true)
-    allowScorePrediction : Boolean default true;
-    // Per-match outcome prediction config
-    outcomeEnabled : Boolean default true;
-    outcomePoints  : Points default 1;    // points earned for correct outcome prediction
+    // Points earned for correct outcome prediction (always enabled)
+    outcomePoints  : Points default 1;
     // Result (null until finished)
     homeScore   : Integer;
     awayScore   : Integer;
@@ -213,7 +210,7 @@ entity Match : cuid, managed {
                       on predictions.match = $self;
     scoreBets   : Association to many ScoreBet
                       on scoreBets.match = $self;
-    // Per-match score bet configuration
+    // Per-match score bet configuration (UC1)
     scoreBetConfig : Composition of many MatchScoreBetConfig
                          on scoreBetConfig.match = $self;
 }
@@ -302,11 +299,10 @@ entity ScoreBet : cuid, managed {
     match              : Association to Match  @mandatory;
     predictedHomeScore : Integer               @mandatory;
     predictedAwayScore : Integer               @mandatory;
-    betAmount          : MoneyAmount default 50000;
     status             : BetStatus default 'pending';
     submittedAt        : DateTime;
     isCorrect          : Boolean;
-    payout             : MoneyAmount default 0;
+    payout             : MoneyAmount default 0; // prize × number of matching bets
 }
 
 /**
@@ -328,182 +324,19 @@ annotate ChampionPick with @assert.unique: {playerPick: [player]};
 // ────────────────────────────────────────────────────────────
 
 /**
- * Per-match score betting config.
- * Each match can have its own score betting rules (UC1).
+ * Per-match score betting config (UC1).
+ * Each match can have its own score betting rules.
  * If no config exists for a match, score betting is disabled.
  */
 entity MatchScoreBetConfig : cuid, managed {
-    match               : Association to Match @mandatory;
-    enabled             : Boolean default true;
-    maxBets             : Integer default 3;
-    basePrice           : MoneyAmount default 50000;
-    baseReward          : MoneyAmount default 200000;
-    allowDuplicates     : Boolean default true;
-    duplicateMultiplier : Weight default 2.0;
-    maxDuplicates       : Integer default 3;
-    bonusMultiplier     : Weight default 1.5;
-    platformFee         : Percentage default 5;
-    lockBeforeMinutes   : Integer default 30;
-    minBetAmount        : MoneyAmount default 10000;
-    maxBetAmount        : MoneyAmount default 500000;
-    autoLockOnKickoff   : Boolean default true;
+    match   : Association to Match @mandatory;
+    enabled : Boolean default true;
+    maxBets : Integer default 3;
+    prize   : MoneyAmount default 200000; // each correct bet wins 1×prize; N identical correct bets win N×prize
 }
 
 annotate MatchScoreBetConfig with @assert.unique: {perMatch: [match]};
 
-// ────────────────────────────────────────────────────────────
-//  Per-Tournament Configuration Entities
-// ────────────────────────────────────────────────────────────
 
-/**
- * Per-tournament prize config for Match Outcome Prediction (UC2).
- * At the end of a tournament, the leaderboard winners receive these prizes.
- */
-entity TournamentPrizeConfig : cuid, managed {
-    tournament                : Association to Tournament @mandatory;
-    firstPlacePrize           : String(200) default 'iPhone 15 Pro Max';
-    firstPlaceValue           : MoneyAmount default 35000000;
-    secondPlacePrize          : String(200) default 'Honda Vision 2024';
-    secondPlaceValue          : MoneyAmount default 30000000;
-    thirdPlacePrize           : String(200) default 'MacBook Air M3';
-    thirdPlaceValue           : MoneyAmount default 25000000;
-    consolationPrizes         : Integer default 10;
-    consolationValue          : MoneyAmount default 500000;
-    showLiveRanking           : Boolean default true;
-    leaderboardUpdateInterval : Integer default 5;
-}
 
-annotate TournamentPrizeConfig with @assert.unique: {perTournament: [tournament]};
 
-/**
- * Per-tournament champion prediction config (UC3).
- * Each tournament has its own champion prediction rules and prizes.
- */
-entity TournamentChampionConfig : cuid, managed {
-    tournament                : Association to Tournament @mandatory;
-    enabled                   : Boolean default true;
-    bettingStatus             : BettingStatus default 'open';
-    // Timing
-    openDate                  : Date;
-    lockDate                  : Date;
-    closeDate                 : Date;
-    autoLockOnTournamentStart : Boolean default true;
-    // Prizes
-    grandPrize                : String(200) default 'iPhone 15 Pro Max 256GB';
-    grandPrizeValue           : MoneyAmount default 35000000;
-    secondPrize               : String(200) default 'iPad Pro 12.9"';
-    secondPrizeValue          : MoneyAmount default 25000000;
-    thirdPrize                : String(200) default 'AirPods Pro 2';
-    thirdPrizeValue           : MoneyAmount default 7000000;
-    // Multiple Winners
-    splitPrizeIfTie           : Boolean default true;
-    maxWinnersForSplit        : Integer default 5;
-    cashAlternativeEnabled    : Boolean default true;
-    cashAlternativeValue      : MoneyAmount default 30000000;
-    // Prediction Rules
-    maxPredictionsPerUser     : Integer default 1;
-    allowChangePrediction     : Boolean default true;
-    changeDeadline            : Date;
-    requireReason             : Boolean default false;
-    // Display Options
-    showOthersPredictions     : Boolean default false;
-    showPredictionStats       : Boolean default true;
-    showOdds                  : Boolean default true;
-    // Notifications
-    notifyOnOpen              : Boolean default true;
-    notifyBeforeLock          : Boolean default true;
-    notifyHoursBeforeLock     : Integer default 24;
-    notifyOnResult            : Boolean default true;
-}
-
-annotate TournamentChampionConfig with @assert.unique: {perTournament: [tournament]};
-
-// ────────────────────────────────────────────────────────────
-//  Legacy Global Configuration (kept for backward compat, deprecated)
-// ────────────────────────────────────────────────────────────
-
-/**
- * Score Prediction Config: Exact score betting rules.
- * Single-row configuration entity managed by admin.
- */
-entity ScorePredictionConfig : cuid, managed {
-    enabled             : Boolean default true;
-    maxBetsPerMatch     : Integer default 3;
-    basePrice           : MoneyAmount default 50000;
-    baseReward          : MoneyAmount default 200000;
-    allowDuplicateBets  : Boolean default true;
-    duplicateMultiplier : Weight default 2.0;
-    maxDuplicates       : Integer default 3;
-    bonusMultiplier     : Weight default 1.5;
-    platformFee         : Percentage default 5;
-    lockBeforeMatch     : Integer default 30; // minutes
-    minBetAmount        : MoneyAmount default 10000;
-    maxBetAmount        : MoneyAmount default 500000;
-    payoutDelay         : Integer default 24; // hours
-    autoLockOnKickoff   : Boolean default true;
-}
-
-/**
- * Match Outcome Config: Win/Draw/Lose prediction rules (UC2).
- * Simplified: correct = 1 point, wrong = 0. No weight.
- */
-entity MatchOutcomeConfig : cuid, managed {
-    enabled                   : Boolean default true;
-    // Point System — simplified: 1 for correct, 0 for wrong
-    pointsForCorrect          : Points default 1;
-    // Prizes
-    firstPlacePrize           : String(200) default 'iPhone 15 Pro Max';
-    firstPlaceValue           : MoneyAmount default 35000000;
-    secondPlacePrize          : String(200) default 'Honda Vision 2024';
-    secondPlaceValue          : MoneyAmount default 30000000;
-    thirdPlacePrize           : String(200) default 'MacBook Air M3';
-    thirdPlaceValue           : MoneyAmount default 25000000;
-    consolationPrizes         : Integer default 10;
-    consolationValue          : MoneyAmount default 500000;
-    // Calculation
-    autoCalculateAfterMatch   : Boolean default true;
-    calculateDelay            : Integer default 2; // hours
-    showLiveRanking           : Boolean default true;
-    // Leaderboard
-    leaderboardUpdateInterval : Integer default 5; // minutes
-}
-
-/**
- * Champion Prediction Config: Tournament champion prediction rules + prizes.
- * Single-row configuration entity managed by admin.
- */
-entity ChampionPredictionConfig : cuid, managed {
-    enabled                   : Boolean default true;
-    bettingStatus             : BettingStatus default 'open';
-    // Timing
-    openDate                  : Date;
-    lockDate                  : Date;
-    closeDate                 : Date;
-    autoLockOnTournamentStart : Boolean default true;
-    // Prizes
-    grandPrize                : String(200) default 'iPhone 15 Pro Max 256GB';
-    grandPrizeValue           : MoneyAmount default 35000000;
-    secondPrize               : String(200) default 'iPad Pro 12.9"';
-    secondPrizeValue          : MoneyAmount default 25000000;
-    thirdPrize                : String(200) default 'AirPods Pro 2';
-    thirdPrizeValue           : MoneyAmount default 7000000;
-    // Multiple Winners
-    splitPrizeIfTie           : Boolean default true;
-    maxWinnersForSplit        : Integer default 5;
-    cashAlternativeEnabled    : Boolean default true;
-    cashAlternativeValue      : MoneyAmount default 30000000;
-    // Prediction Rules
-    maxPredictionsPerUser     : Integer default 1;
-    allowChangePrediction     : Boolean default true;
-    changeDeadline            : Date;
-    requireReason             : Boolean default false;
-    // Display Options
-    showOthersPredictions     : Boolean default false;
-    showPredictionStats       : Boolean default true;
-    showOdds                  : Boolean default true;
-    // Notifications
-    notifyOnOpen              : Boolean default true;
-    notifyBeforeLock          : Boolean default true;
-    notifyHoursBeforeLock     : Integer default 24;
-    notifyOnResult            : Boolean default true;
-}

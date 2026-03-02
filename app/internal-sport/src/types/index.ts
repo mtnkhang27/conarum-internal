@@ -23,7 +23,8 @@ export interface Match {
     options: string[];
     selectedOption: string;
     existingScores?: { home: number; away: number }[];
-    allowScorePrediction: boolean;
+    /** Whether this match has score betting enabled (MatchScoreBetConfig exists and is enabled) */
+    scoreBettingEnabled: boolean;
 }
 
 export interface UpcomingMatch {

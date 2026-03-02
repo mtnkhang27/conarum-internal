@@ -1,17 +1,17 @@
 ID;name;flagCode;confederation;fifaRanking
-team-br;Brazil;br;CONMEBOL;5
-team-de;Germany;de;UEFA;13
-team-ar;Argentina;ar;CONMEBOL;1
-team-fr;France;fr;UEFA;2
-team-es;Spain;es;UEFA;3
-team-jp;Japan;jp;AFC;15
-team-en;England;gb;UEFA;4
-team-us;United States;us;CONCACAF;11
-team-man;Manchester City;gb;UEFA;
-team-psg;Paris Saint-Germain;fr;UEFA;
-team-rm;Real Madrid;es;UEFA;
-team-bay;Bayern Munich;de;UEFA;
-team-liv;Liverpool;gb;UEFA;
-team-ars;Arsenal;gb;UEFA;
-team-che;Chelsea;gb;UEFA;
-team-tot;Tottenham;gb;UEFA;
+c1a7f9e2-3b4d-4f9a-8c1e-1a2b3c4d0001;Brazil;br;CONMEBOL;5
+c1a7f9e2-3b4d-4f9a-8c1e-1a2b3c4d0002;Germany;de;UEFA;13
+c1a7f9e2-3b4d-4f9a-8c1e-1a2b3c4d0003;Argentina;ar;CONMEBOL;1
+c1a7f9e2-3b4d-4f9a-8c1e-1a2b3c4d0004;France;fr;UEFA;2
+c1a7f9e2-3b4d-4f9a-8c1e-1a2b3c4d0005;Spain;es;UEFA;3
+c1a7f9e2-3b4d-4f9a-8c1e-1a2b3c4d0006;Japan;jp;AFC;15
+c1a7f9e2-3b4d-4f9a-8c1e-1a2b3c4d0007;England;gb;UEFA;4
+c1a7f9e2-3b4d-4f9a-8c1e-1a2b3c4d0008;United States;us;CONCACAF;11
+c1a7f9e2-3b4d-4f9a-8c1e-1a2b3c4d0009;Manchester City;gb;UEFA;
+c1a7f9e2-3b4d-4f9a-8c1e-1a2b3c4d0010;Paris Saint-Germain;fr;UEFA;
+c1a7f9e2-3b4d-4f9a-8c1e-1a2b3c4d0011;Real Madrid;es;UEFA;
+c1a7f9e2-3b4d-4f9a-8c1e-1a2b3c4d0012;Bayern Munich;de;UEFA;
+c1a7f9e2-3b4d-4f9a-8c1e-1a2b3c4d0013;Liverpool;gb;UEFA;
+c1a7f9e2-3b4d-4f9a-8c1e-1a2b3c4d0014;Arsenal;gb;UEFA;
+c1a7f9e2-3b4d-4f9a-8c1e-1a2b3c4d0015;Chelsea;gb;UEFA;
+c1a7f9e2-3b4d-4f9a-8c1e-1a2b3c4d0016;Tottenham;gb;UEFA;

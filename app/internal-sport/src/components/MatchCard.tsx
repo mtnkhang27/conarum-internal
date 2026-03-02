@@ -168,7 +168,7 @@ export function MatchCard({ match, isCompleted = false }: MatchCardProps) {
         else if (selectedOption === match.away.name) apiPick = "away";
 
         try {
-            const scoresToSend = match.allowScorePrediction
+            const scoresToSend = match.scoreBettingEnabled
                 ? scores.map((s) => ({ homeScore: s.home, awayScore: s.away }))
                 : [];
             const res = await playerActionsApi.submitMatchPrediction(
@@ -211,7 +211,7 @@ export function MatchCard({ match, isCompleted = false }: MatchCardProps) {
                         </div>
 
                         <div className="flex flex-col items-center gap-2 px-3">
-                            {match.allowScorePrediction ? (
+                            {match.scoreBettingEnabled ? (
                                 scores.map((row, i) => (
                                     <div key={i} className="flex items-center gap-1">
                                         <input
@@ -254,7 +254,7 @@ export function MatchCard({ match, isCompleted = false }: MatchCardProps) {
                         <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
                             {isCompleted
                                 ? "Final Pick"
-                                : match.allowScorePrediction
+                                : match.scoreBettingEnabled
                                     ? "Pick Winner & Score"
                                     : "Pick Outcome"}
                         </span>

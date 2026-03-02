@@ -56,17 +56,7 @@ function statusVariant(status: string) {
 const DEFAULT_SCORE_BET_CONFIG: Omit<MatchScoreBetConfig, "ID" | "match_ID"> = {
     enabled: true,
     maxBets: 3,
-    basePrice: 50000,
-    baseReward: 200000,
-    allowDuplicates: true,
-    duplicateMultiplier: 2.0,
-    maxDuplicates: 3,
-    bonusMultiplier: 1.5,
-    platformFee: 5,
-    lockBeforeMinutes: 30,
-    minBetAmount: 10000,
-    maxBetAmount: 500000,
-    autoLockOnKickoff: true,
+    prize: 200000,
 };
 
 export function MatchDetail() {
@@ -80,10 +70,10 @@ export function MatchDetail() {
     const [saving, setSaving] = useState(false);
 
     // Local editable state
-    const [outcomeEnabled, setOutcomeEnabled] = useState(true);
     const [outcomePoints, setOutcomePoints] = useState(1);
-    const [allowScorePrediction, setAllowScorePrediction] = useState(true);
     const [sbCfg, setSbCfg] = useState(DEFAULT_SCORE_BET_CONFIG);
+    /** Whether score betting config exists for this match */
+    const [scoreBettingEnabled, setScoreBettingEnabled] = useState(false);
 
     const load = useCallback(async () => {
         if (!matchId) return;
@@ -94,30 +84,20 @@ export function MatchDetail() {
                 matchScoreBetConfigApi.getByMatch(matchId),
             ]);
             setMatch(m);
-            setOutcomeEnabled(m.outcomeEnabled ?? true);
             setOutcomePoints(Number(m.outcomePoints ?? 1));
-            setAllowScorePrediction(m.allowScorePrediction ?? true);
 
             if (cfg) {
                 setScoreBetCfg(cfg);
                 setScoreBetCfgExists(true);
+                setScoreBettingEnabled(true);
                 setSbCfg({
                     enabled: cfg.enabled,
                     maxBets: cfg.maxBets,
-                    basePrice: cfg.basePrice,
-                    baseReward: cfg.baseReward,
-                    allowDuplicates: cfg.allowDuplicates,
-                    duplicateMultiplier: cfg.duplicateMultiplier,
-                    maxDuplicates: cfg.maxDuplicates,
-                    bonusMultiplier: cfg.bonusMultiplier,
-                    platformFee: cfg.platformFee,
-                    lockBeforeMinutes: cfg.lockBeforeMinutes,
-                    minBetAmount: cfg.minBetAmount,
-                    maxBetAmount: cfg.maxBetAmount,
-                    autoLockOnKickoff: cfg.autoLockOnKickoff,
+                    prize: cfg.prize,
                 });
             } else {
                 setScoreBetCfgExists(false);
+                setScoreBettingEnabled(false);
                 setSbCfg(DEFAULT_SCORE_BET_CONFIG);
             }
         } catch (e: any) {
@@ -135,15 +115,13 @@ export function MatchDetail() {
         if (!matchId || !match) return;
         setSaving(true);
         try {
-            // Save match-level fields (outcome config)
+            // Save match-level fields (outcome points)
             await matchesApi.update(matchId, {
-                outcomeEnabled,
                 outcomePoints,
-                allowScorePrediction,
             } as Partial<AdminMatch>);
 
             // Save score bet config
-            if (allowScorePrediction) {
+            if (scoreBettingEnabled) {
                 if (scoreBetCfgExists && scoreBetCfg) {
                     await matchScoreBetConfigApi.update(scoreBetCfg.ID, sbCfg);
                 } else {
@@ -155,7 +133,7 @@ export function MatchDetail() {
                     setScoreBetCfgExists(true);
                 }
             } else if (scoreBetCfgExists && scoreBetCfg) {
-                // If score prediction disabled, delete the config
+                // If score betting disabled, delete the config
                 await matchScoreBetConfigApi.delete(scoreBetCfg.ID);
                 setScoreBetCfgExists(false);
                 setScoreBetCfg(null);
@@ -266,17 +244,8 @@ export function MatchDetail() {
 
                     <div className="space-y-0">
                         <ConfigRow
-                            label="Enabled"
-                            description="Allow outcome prediction for this match"
-                        >
-                            <Checkbox
-                                checked={outcomeEnabled}
-                                onCheckedChange={(v) => setOutcomeEnabled(!!v)}
-                            />
-                        </ConfigRow>
-                        <ConfigRow
                             label="Points for Correct"
-                            description="Points awarded for a correct prediction on this match"
+                            description="Points awarded for a correct outcome prediction (always enabled)"
                         >
                             <Input
                                 type="number"
@@ -287,7 +256,6 @@ export function MatchDetail() {
                                 onChange={(e) =>
                                     setOutcomePoints(parseFloat(e.target.value) || 0)
                                 }
-                                disabled={!outcomeEnabled}
                             />
                         </ConfigRow>
                     </div>
@@ -312,15 +280,15 @@ export function MatchDetail() {
                     <div className="space-y-0">
                         <ConfigRow
                             label="Enable Score Betting"
-                            description="Allow exact score bets for this match"
+                            description="Create score bet config for this match"
                         >
                             <Checkbox
-                                checked={allowScorePrediction}
-                                onCheckedChange={(v) => setAllowScorePrediction(!!v)}
+                                checked={scoreBettingEnabled}
+                                onCheckedChange={(v) => setScoreBettingEnabled(!!v)}
                             />
                         </ConfigRow>
 
-                        {allowScorePrediction && (
+                        {scoreBettingEnabled && (
                             <>
                                 <ConfigRow label="Enabled" description="Activate betting">
                                     <Checkbox
@@ -330,7 +298,7 @@ export function MatchDetail() {
                                         }
                                     />
                                 </ConfigRow>
-                                <ConfigRow label="Max Bets">
+                                <ConfigRow label="Max Bets" description="Maximum score bets per player">
                                     <Input
                                         type="number"
                                         className="w-20 text-right"
@@ -343,105 +311,16 @@ export function MatchDetail() {
                                         }
                                     />
                                 </ConfigRow>
-                                <ConfigRow label="Base Price (VND)">
+                                <ConfigRow label="Prize (VND)" description="Prize per correct score bet">
                                     <Input
                                         type="number"
                                         className="w-28 text-right"
-                                        value={sbCfg.basePrice}
+                                        value={sbCfg.prize}
                                         onChange={(e) =>
                                             setSbCfg({
                                                 ...sbCfg,
-                                                basePrice: parseInt(e.target.value) || 0,
+                                                prize: parseInt(e.target.value) || 0,
                                             })
-                                        }
-                                    />
-                                </ConfigRow>
-                                <ConfigRow label="Base Reward (VND)">
-                                    <Input
-                                        type="number"
-                                        className="w-28 text-right"
-                                        value={sbCfg.baseReward}
-                                        onChange={(e) =>
-                                            setSbCfg({
-                                                ...sbCfg,
-                                                baseReward: parseInt(e.target.value) || 0,
-                                            })
-                                        }
-                                    />
-                                </ConfigRow>
-                                <ConfigRow label="Duplicate Multiplier">
-                                    <Input
-                                        type="number"
-                                        step="0.5"
-                                        className="w-20 text-right"
-                                        value={sbCfg.duplicateMultiplier}
-                                        onChange={(e) =>
-                                            setSbCfg({
-                                                ...sbCfg,
-                                                duplicateMultiplier:
-                                                    parseFloat(e.target.value) || 0,
-                                            })
-                                        }
-                                    />
-                                </ConfigRow>
-                                <ConfigRow label="Platform Fee (%)">
-                                    <Input
-                                        type="number"
-                                        className="w-20 text-right"
-                                        value={sbCfg.platformFee}
-                                        onChange={(e) =>
-                                            setSbCfg({
-                                                ...sbCfg,
-                                                platformFee: parseFloat(e.target.value) || 0,
-                                            })
-                                        }
-                                    />
-                                </ConfigRow>
-                                <ConfigRow label="Lock Before (min)">
-                                    <Input
-                                        type="number"
-                                        className="w-20 text-right"
-                                        value={sbCfg.lockBeforeMinutes}
-                                        onChange={(e) =>
-                                            setSbCfg({
-                                                ...sbCfg,
-                                                lockBeforeMinutes:
-                                                    parseInt(e.target.value) || 0,
-                                            })
-                                        }
-                                    />
-                                </ConfigRow>
-                                <ConfigRow label="Min Bet (VND)">
-                                    <Input
-                                        type="number"
-                                        className="w-28 text-right"
-                                        value={sbCfg.minBetAmount}
-                                        onChange={(e) =>
-                                            setSbCfg({
-                                                ...sbCfg,
-                                                minBetAmount: parseInt(e.target.value) || 0,
-                                            })
-                                        }
-                                    />
-                                </ConfigRow>
-                                <ConfigRow label="Max Bet (VND)">
-                                    <Input
-                                        type="number"
-                                        className="w-28 text-right"
-                                        value={sbCfg.maxBetAmount}
-                                        onChange={(e) =>
-                                            setSbCfg({
-                                                ...sbCfg,
-                                                maxBetAmount: parseInt(e.target.value) || 0,
-                                            })
-                                        }
-                                    />
-                                </ConfigRow>
-                                <ConfigRow label="Auto Lock on Kickoff">
-                                    <Checkbox
-                                        checked={sbCfg.autoLockOnKickoff}
-                                        onCheckedChange={(v) =>
-                                            setSbCfg({ ...sbCfg, autoLockOnKickoff: !!v })
                                         }
                                     />
                                 </ConfigRow>

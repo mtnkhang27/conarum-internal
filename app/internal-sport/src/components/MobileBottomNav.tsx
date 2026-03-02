@@ -1,11 +1,11 @@
 import { NavLink } from "react-router-dom";
-import { Home, BarChart3, Trophy, History } from "lucide-react";
+import { Home, BarChart3, Trophy, Clock } from "lucide-react";
 
 const navItems = [
     { to: "/available", icon: Home, label: "Home" },
-    { to: "/my-predictions", icon: BarChart3, label: "My Picks" },
+    { to: "/recent-predictions", icon: Clock, label: "Recent" },
     { to: "/leaderboard", icon: Trophy, label: "Leaders" },
-    { to: "/completed", icon: History, label: "Submitted" },
+    { to: "/completed", icon: BarChart3, label: "Results" },
 ];
 
 export function MobileBottomNav() {

@@ -263,6 +263,27 @@ service PlayerService {
 
     function getPredictionLeaderboard(tournamentId: UUID) returns many LeaderboardItem;
 
+    /** Recent predictions for the current user. */
+    type RecentPredictionItem {
+        predictionId   : UUID;
+        matchId        : UUID;
+        homeTeam       : String;
+        homeFlag       : String;
+        awayTeam       : String;
+        awayFlag       : String;
+        tournamentName : String;
+        pick           : String;
+        status         : String;
+        isCorrect      : Boolean;
+        pointsEarned   : Decimal;
+        submittedAt    : DateTime;
+        kickoff        : DateTime;
+        homeScore      : Integer;
+        awayScore      : Integer;
+    }
+
+    function getMyRecentPredictions(limit: Integer) returns many RecentPredictionItem;
+
     /** League standings for a league-format tournament. */
     type StandingItem {
         teamId       : UUID;

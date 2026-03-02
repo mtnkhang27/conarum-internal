@@ -551,6 +551,54 @@ export class PredictionHandler {
         return result;
     }
 
+    /**
+     * Get the current user's recent predictions with match details.
+     * Ordered by submittedAt DESC.
+     */
+    async getMyRecentPredictions(req: Request) {
+        const { limit: rawLimit } = req.data;
+        const limit = rawLimit && rawLimit > 0 ? Math.min(rawLimit, 50) : 20;
+        const { Prediction, Match, Team, Tournament } = cds.entities('cnma.prediction');
+
+        const playerId = await this.getCurrentPlayerId(req);
+        if (!playerId) return [];
+
+        const predictions = await SELECT.from(Prediction)
+            .where({ player_ID: playerId })
+            .orderBy('submittedAt desc')
+            .limit(limit);
+
+        const results = [];
+        for (const p of predictions) {
+            const match = await SELECT.one.from(Match).where({ ID: p.match_ID });
+            if (!match) continue;
+            const home = await SELECT.one.from(Team).where({ ID: match.homeTeam_ID });
+            const away = await SELECT.one.from(Team).where({ ID: match.awayTeam_ID });
+            const tournament = p.tournament_ID
+                ? await SELECT.one.from(Tournament).where({ ID: p.tournament_ID })
+                : null;
+
+            results.push({
+                predictionId: p.ID,
+                matchId: match.ID,
+                homeTeam: home?.name ?? '',
+                homeFlag: home?.flagCode ?? '',
+                awayTeam: away?.name ?? '',
+                awayFlag: away?.flagCode ?? '',
+                tournamentName: tournament?.name ?? '',
+                pick: p.pick,
+                status: p.status,
+                isCorrect: p.isCorrect,
+                pointsEarned: Number(p.pointsEarned) || 0,
+                submittedAt: p.submittedAt,
+                kickoff: match.kickoff,
+                homeScore: match.homeScore,
+                awayScore: match.awayScore,
+            });
+        }
+        return results;
+    }
+
     // ── Helpers ──────────────────────────────────────────────
 
     /**

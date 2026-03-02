@@ -1,6 +1,8 @@
 import { NavLink, useLocation } from "react-router-dom";
-import { Trophy, Info, Filter } from "lucide-react";
-import { Checkbox } from "@/components/ui/checkbox";
+import { Trophy, Info } from "lucide-react";
+import { useEffect, useState } from "react";
+import { playerTournamentsApi } from "@/services/playerApi";
+import type { TournamentInfo } from "@/types";
 
 function statusClass(active: boolean) {
     return active
@@ -8,37 +10,20 @@ function statusClass(active: boolean) {
         : "block w-full border-l-4 border-transparent px-4 py-2 text-sm text-muted-foreground transition-colors hover:bg-surface";
 }
 
-interface FilterCheckboxProps {
-    label: string;
-}
-
-function FilterCheckbox({ label }: FilterCheckboxProps) {
-    return (
-        <label className="flex cursor-pointer items-center space-x-2">
-            <Checkbox className="h-3 w-3 border-border bg-surface data-[state=checked]:bg-primary" />
-            <span className="text-xs text-muted-foreground">{label}</span>
-        </label>
-    );
-}
-
 export function LeftSidebar() {
     const { pathname } = useLocation();
-    const isChampionPage = pathname === "/tournament-champion";
-    const isMyPredictionsPage = pathname === "/my-predictions";
-    const isLeaderboardPage = pathname === "/leaderboard";
+    const [tournaments, setTournaments] = useState<TournamentInfo[]>([]);
 
-    const filterOptions: Record<string, string[]> = {
-        "/tournament-champion": ["UEFA (Europe)", "CONMEBOL (S. America)", "CAF (Africa)", "AFC (Asia)"],
-        "/my-predictions": ["Submitted Picks", "Draft Picks", "Winner Picks"],
-        "/leaderboard": ["Overall Rank", "Friends League", "Weekly Form"],
-        default: ["Group Stage", "Knockout Stage"],
-    };
-
-    const currentFilters = filterOptions[pathname] || filterOptions.default;
+    useEffect(() => {
+        playerTournamentsApi.getAll()
+            .then(setTournaments)
+            .catch(() => {});
+    }, []);
 
     const infoMessages: Record<string, string> = {
         "/tournament-champion": "Admin managed rewards.",
         "/my-predictions": "Track submitted and draft picks without live result comparison.",
+        "/recent-predictions": "Your most recent predictions across all tournaments.",
         "/leaderboard": "Leaderboard can be updated manually by admin.",
         default: "Realtime results are hidden in manual mode.",
     };
@@ -48,58 +33,47 @@ export function LeftSidebar() {
             {/* Tournament Focus */}
             <div className="border-b border-border p-4">
                 <h3 className="mb-3 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
-                    Tournament Focus
+                    Tournaments
                 </h3>
                 <ul className="space-y-1 text-sm">
-                    <li>
-                        <a href="#" className="group flex items-center rounded bg-surface px-2 py-2 text-white transition-colors">
-                            <Trophy className="mr-3 h-4 w-4 text-yellow-500" />
-                            <span className="truncate">World Cup 2026</span>
-                        </a>
-                    </li>
+                    {tournaments.map((t) => (
+                        <li key={t.ID}>
+                            <a href="#" className="group flex items-center rounded px-2 py-2 text-muted-foreground transition-colors hover:bg-surface hover:text-white">
+                                <Trophy className="mr-3 h-4 w-4 text-primary" />
+                                <div className="flex-1 min-w-0">
+                                    <span className="block truncate text-xs font-medium">{t.name}</span>
+                                    <span className={`text-[9px] font-bold uppercase ${t.status === "active" ? "text-success" : "text-muted-foreground"}`}>
+                                        {t.status}
+                                    </span>
+                                </div>
+                            </a>
+                        </li>
+                    ))}
+                    {tournaments.length === 0 && (
+                        <li className="px-2 py-2 text-xs text-muted-foreground">Loading…</li>
+                    )}
                 </ul>
             </div>
 
-            {/* Status & Filters */}
+            {/* Navigation */}
             <div className="flex-1 overflow-y-auto">
                 <div className="py-2">
                     <div className="px-4 py-2.5 text-xs font-bold uppercase tracking-widest text-muted-foreground">
-                        Prediction Status
+                        Navigation
                     </div>
 
-                    {isChampionPage ? (
-                        <div className={statusClass(true)}>
-                            <span className="truncate">Select Champion</span>
-                        </div>
-                    ) : isMyPredictionsPage ? (
-                        <NavLink to="/my-predictions" className={statusClass(true)}>
-                            <span className="truncate">My Predictions</span>
-                        </NavLink>
-                    ) : isLeaderboardPage ? (
-                        <NavLink to="/leaderboard" className={statusClass(true)}>
-                            <span className="truncate">Top Players</span>
-                        </NavLink>
-                    ) : (
-                        <>
-                            <NavLink to="/available" className={statusClass(pathname === "/available")}>
-                                <span className="truncate">Available Matches</span>
-                            </NavLink>
-                            <NavLink to="/completed" className={statusClass(pathname === "/completed")}>
-                                <span className="truncate">Submitted Picks</span>
-                            </NavLink>
-                        </>
-                    )}
-
-                    <div className="mt-4 flex items-center gap-1 px-4 py-2.5 text-xs font-bold uppercase tracking-widest text-muted-foreground">
-                        <Filter className="h-3 w-3" />
-                        Filters
-                    </div>
-
-                    <div className="space-y-2 px-4">
-                        {currentFilters.map((label) => (
-                            <FilterCheckbox key={label} label={label} />
-                        ))}
-                    </div>
+                    <NavLink to="/available" className={statusClass(pathname === "/available")}>
+                        <span className="truncate">Available Matches</span>
+                    </NavLink>
+                    <NavLink to="/completed" className={statusClass(pathname === "/completed")}>
+                        <span className="truncate">Completed Matches</span>
+                    </NavLink>
+                    <NavLink to="/recent-predictions" className={statusClass(pathname === "/recent-predictions")}>
+                        <span className="truncate">Recent Predictions</span>
+                    </NavLink>
+                    <NavLink to="/leaderboard" className={statusClass(pathname === "/leaderboard")}>
+                        <span className="truncate">Leaderboard</span>
+                    </NavLink>
                 </div>
             </div>
 

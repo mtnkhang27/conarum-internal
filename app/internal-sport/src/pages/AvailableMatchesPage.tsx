@@ -3,6 +3,7 @@ import { MatchCard } from "@/components/MatchCard";
 import { UpcomingKickoffTable } from "@/components/UpcomingKickoffTable";
 import { LiveMatchesTable } from "@/components/LiveMatchesTable";
 import { TournamentSelector } from "@/components/TournamentSelector";
+import { TournamentLeaderboardWidget } from "@/components/TournamentLeaderboardWidget";
 import { playerMatchesApi } from "@/services/playerApi";
 import type { Match, UpcomingMatch, LiveMatch } from "@/types";
 
@@ -60,21 +61,33 @@ export function AvailableMatchesPage() {
                     />
                 </div>
 
-                {loading ? (
-                    <div className="flex h-64 items-center justify-center text-muted-foreground">
-                        Loading matches…
+                <div className="flex flex-col gap-6 xl:flex-row">
+                    {/* Match cards */}
+                    <div className="flex-1 min-w-0">
+                        {loading ? (
+                            <div className="flex h-64 items-center justify-center text-muted-foreground">
+                                Loading matches…
+                            </div>
+                        ) : matches.length === 0 ? (
+                            <p className="py-12 text-center text-sm text-muted-foreground">
+                                No upcoming matches available for prediction.
+                            </p>
+                        ) : (
+                            <div className="grid grid-cols-1 gap-6 md:grid-cols-3 2xl:grid-cols-4">
+                                {matches.map((match) => (
+                                    <MatchCard key={match.id} match={match} />
+                                ))}
+                            </div>
+                        )}
                     </div>
-                ) : matches.length === 0 ? (
-                    <p className="py-12 text-center text-sm text-muted-foreground">
-                        No upcoming matches available for prediction.
-                    </p>
-                ) : (
-                    <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
-                        {matches.map((match) => (
-                            <MatchCard key={match.id} match={match} />
-                        ))}
-                    </div>
-                )}
+
+                    {/* Leaderboard sidebar */}
+                    {tournamentId && (
+                        <div className="w-full xl:w-[280px] flex-shrink-0">
+                            <TournamentLeaderboardWidget tournamentId={tournamentId} maxEntries={5} />
+                        </div>
+                    )}
+                </div>
             </div>
 
             <LiveMatchesTable items={live} />

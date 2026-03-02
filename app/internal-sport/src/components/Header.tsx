@@ -1,21 +1,19 @@
 import { NavLink, useLocation } from "react-router-dom";
-import { Trophy, User, BarChart3, Home, Settings } from "lucide-react";
+import { Trophy, User, BarChart3, Home, Settings, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
-
-const worldCupRoutes = ["/available", "/completed", "/tournament-champion"];
 
 const topNavItems = [
     {
-        label: "World Cup 2026",
+        label: "Predictions",
         to: "/available",
         icon: Trophy,
-        isActive: (p: string) => worldCupRoutes.includes(p),
+        isActive: (p: string) => ["/available", "/completed", "/tournament-champion"].includes(p),
     },
     {
-        label: "My Predictions",
-        to: "/my-predictions",
-        icon: BarChart3,
-        isActive: (p: string) => p === "/my-predictions",
+        label: "Recent",
+        to: "/recent-predictions",
+        icon: Clock,
+        isActive: (p: string) => p === "/recent-predictions",
     },
     {
         label: "Leaderboard",
@@ -31,14 +29,16 @@ const topNavItems = [
     },
 ];
 
-const modeTabs = [
+const predictionSubTabs = [
     { label: "Match Predictions", to: "/available", isActive: (p: string) => p === "/available" || p === "/completed" },
     { label: "Tournament Champion", to: "/tournament-champion", isActive: (p: string) => p === "/tournament-champion" },
 ];
 
+const predictionRoutes = ["/available", "/completed", "/tournament-champion"];
+
 export function Header() {
     const { pathname } = useLocation();
-    const showModeTabs = worldCupRoutes.includes(pathname);
+    const showSubTabs = predictionRoutes.includes(pathname);
 
     return (
         <header className="z-30 flex-none border-b border-border bg-surface-dark">
@@ -51,7 +51,7 @@ export function Header() {
                     >
                         <Home className="h-7 w-7 text-primary" />
                         <span className="hidden sm:inline">
-                            <span className="text-white">WC </span>
+                            <span className="text-white">Sport </span>
                             <span className="text-gradient">Predictor</span>
                         </span>
                     </NavLink>
@@ -94,10 +94,10 @@ export function Header() {
                 </div>
             </div>
 
-            {/* Mode tabs */}
-            {showModeTabs && (
+            {/* Sub tabs for prediction pages */}
+            {showSubTabs && (
                 <div className="no-scrollbar flex space-x-6 overflow-x-auto border-t border-border bg-surface px-4 text-sm">
-                    {modeTabs.map((item) => (
+                    {predictionSubTabs.map((item) => (
                         <NavLink
                             key={item.label}
                             to={item.to}

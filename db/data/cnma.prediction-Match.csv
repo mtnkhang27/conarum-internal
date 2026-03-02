@@ -1,9 +1,16 @@
-ID;tournament_ID;homeTeam_ID;awayTeam_ID;kickoff;venue;stage;status;matchNumber;homeScore;awayScore;outcome
-m1;t1;team-br;team-de;2026-06-11T18:00:00Z;MetLife Stadium, New Jersey;group;finished;1;2;1;home
-m2;t1;team-ar;team-fr;2026-06-12T20:00:00Z;SoFi Stadium, Los Angeles;group;finished;2;1;1;draw
-m3;t1;team-es;team-jp;2026-06-13T18:00:00Z;AT&T Stadium, Dallas;group;upcoming;3;;;
-m4;t1;team-en;team-us;2026-06-14T20:00:00Z;MetLife Stadium, New Jersey;group;upcoming;4;;;
-m5;t1;team-br;team-ar;2026-06-18T20:00:00Z;Rose Bowl, Pasadena;group;upcoming;5;;;
-m6;t1;team-de;team-fr;2026-06-19T18:00:00Z;Lumen Field, Seattle;group;upcoming;6;;;
-m7;t2;team-man;team-psg;2026-03-15T20:00:00Z;Etihad Stadium;quarterfinal;upcoming;1;;;
-m8;t2;team-rm;team-bay;2026-03-16T20:00:00Z;Santiago Bernabéu;quarterfinal;upcoming;2;;;
+ID;tournament_ID;homeTeam_ID;awayTeam_ID;kickoff;venue;stage;status;matchNumber;matchday;homeScore;awayScore;outcome
+m1;t1;team-br;team-de;2026-06-11T18:00:00Z;MetLife Stadium, New Jersey;group;finished;1;;2;1;home
+m2;t1;team-ar;team-fr;2026-06-12T20:00:00Z;SoFi Stadium, Los Angeles;group;finished;2;;1;1;draw
+m3;t1;team-es;team-jp;2026-06-13T18:00:00Z;AT&T Stadium, Dallas;group;upcoming;3;;;;
+m4;t1;team-en;team-us;2026-06-14T20:00:00Z;MetLife Stadium, New Jersey;group;upcoming;4;;;;
+m5;t1;team-br;team-ar;2026-06-18T20:00:00Z;Rose Bowl, Pasadena;group;upcoming;5;;;;
+m6;t1;team-de;team-fr;2026-06-19T18:00:00Z;Lumen Field, Seattle;group;upcoming;6;;;;
+m7;t2;team-man;team-psg;2026-03-15T20:00:00Z;Etihad Stadium;quarterFinal;upcoming;1;;;;
+m8;t2;team-rm;team-bay;2026-03-16T20:00:00Z;Santiago Bernabéu;quarterFinal;upcoming;2;;;;
+m9;t3;team-man;team-liv;2026-03-02T15:00:00Z;Etihad Stadium;regular;live;1;28;1;1;
+m10;t3;team-ars;team-che;2026-03-02T15:00:00Z;Emirates Stadium;regular;live;2;28;2;0;
+m11;t3;team-tot;team-man;2026-03-08T17:30:00Z;Tottenham Hotspur Stadium;regular;upcoming;3;29;;;
+m12;t3;team-liv;team-ars;2026-03-08T20:00:00Z;Anfield;regular;upcoming;4;29;;;
+m13;t3;team-che;team-tot;2026-03-15T15:00:00Z;Stamford Bridge;regular;upcoming;5;30;;;
+m14;t3;team-man;team-ars;2026-03-01T17:30:00Z;Etihad Stadium;regular;finished;6;27;3;1;home
+m15;t3;team-liv;team-che;2026-03-01T15:00:00Z;Anfield;regular;finished;7;27;2;2;draw

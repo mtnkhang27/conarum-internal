@@ -167,3 +167,22 @@ export interface UserProfile {
     favoriteTeam: string;
     bio: string;
 }
+
+// === Recent Prediction Types ===
+export interface RecentPredictionItem {
+    predictionId: string;
+    matchId: string;
+    homeTeam: string;
+    homeFlag: string;
+    awayTeam: string;
+    awayFlag: string;
+    tournamentName: string;
+    pick: string;
+    status: string;
+    isCorrect: boolean | null;
+    pointsEarned: number;
+    submittedAt: string;
+    kickoff: string;
+    homeScore: number | null;
+    awayScore: number | null;
+}

@@ -4,7 +4,7 @@ import { AdminLayout } from "@/layouts/AdminLayout";
 import { AvailableMatchesPage } from "@/pages/AvailableMatchesPage";
 import { CompletedMatchesPage } from "@/pages/CompletedMatchesPage";
 import { TournamentChampionPage } from "@/pages/TournamentChampionPage";
-import { MyPredictionsPage } from "@/pages/MyPredictionsPage";
+import { RecentPredictionsPage } from "@/pages/RecentPredictionsPage";
 import { LeaderboardPage } from "@/pages/LeaderboardPage";
 import { AccountPage } from "@/pages/AccountPage";
 import { MatchManagement } from "@/pages/admin/MatchManagement";
@@ -21,7 +21,7 @@ export default function App() {
         <Route path="/available" element={<AvailableMatchesPage />} />
         <Route path="/completed" element={<CompletedMatchesPage />} />
         <Route path="/tournament-champion" element={<TournamentChampionPage />} />
-        <Route path="/my-predictions" element={<MyPredictionsPage />} />
+        <Route path="/recent-predictions" element={<RecentPredictionsPage />} />
         <Route path="/leaderboard" element={<LeaderboardPage />} />
         <Route path="/account" element={<AccountPage />} />
       </Route>

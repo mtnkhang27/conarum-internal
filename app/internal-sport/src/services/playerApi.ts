@@ -128,6 +128,7 @@ import type {
     UpcomingMatchItem,
     TournamentLeaderboardItem,
     StandingItem,
+    RecentPredictionItem,
 } from "@/types";
 
 // ─── Transform helpers ──────────────────────────────────────
@@ -494,6 +495,14 @@ export const playerTournamentQueryApi = {
         return post<StandingItem[]>(
             `${BASE}/getStandings`,
             { tournamentId }
+        );
+    },
+
+    /** Get the current user's recent predictions. */
+    async getMyRecentPredictions(limit: number = 20): Promise<RecentPredictionItem[]> {
+        return post<RecentPredictionItem[]>(
+            `${BASE}/getMyRecentPredictions`,
+            { limit }
         );
     },
 };

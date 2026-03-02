@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { MatchCard } from "@/components/MatchCard";
 import { TournamentSelector } from "@/components/TournamentSelector";
+import { TournamentLeaderboardWidget } from "@/components/TournamentLeaderboardWidget";
 import { playerMatchesApi } from "@/services/playerApi";
 import type { Match } from "@/types";
 
@@ -45,21 +46,32 @@ export function CompletedMatchesPage() {
                     />
                 </div>
 
-                {loading ? (
-                    <div className="flex h-64 items-center justify-center text-muted-foreground">
-                        Loading completed matches…
+                <div className="flex flex-col gap-6 xl:flex-row">
+                    <div className="flex-1 min-w-0">
+                        {loading ? (
+                            <div className="flex h-64 items-center justify-center text-muted-foreground">
+                                Loading completed matches…
+                            </div>
+                        ) : matches.length === 0 ? (
+                            <p className="py-12 text-center text-sm text-muted-foreground">
+                                No completed matches yet.
+                            </p>
+                        ) : (
+                            <div className="grid grid-cols-1 gap-6 md:grid-cols-2 2xl:grid-cols-3">
+                                {matches.map((match) => (
+                                    <MatchCard key={match.id} match={match} isCompleted />
+                                ))}
+                            </div>
+                        )}
                     </div>
-                ) : matches.length === 0 ? (
-                    <p className="py-12 text-center text-sm text-muted-foreground">
-                        No completed matches yet.
-                    </p>
-                ) : (
-                    <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
-                        {matches.map((match) => (
-                            <MatchCard key={match.id} match={match} isCompleted />
-                        ))}
-                    </div>
-                )}
+
+                    {/* Leaderboard sidebar */}
+                    {tournamentId && (
+                        <div className="w-full xl:w-[280px] flex-shrink-0">
+                            <TournamentLeaderboardWidget tournamentId={tournamentId} maxEntries={5} />
+                        </div>
+                    )}
+                </div>
             </div>
         </div>
     );

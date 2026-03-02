@@ -344,9 +344,8 @@ export const playerLeaderboardApi = {
 
     /** Tournament-specific prediction leaderboard (UC2). */
     async getByTournament(tournamentId: string): Promise<TournamentLeaderboardItem[]> {
-        return post<TournamentLeaderboardItem[]>(
-            `${BASE}/getPredictionLeaderboard`,
-            { tournamentId }
+        return json<TournamentLeaderboardItem[]>(
+            `${BASE}/getPredictionLeaderboard(tournamentId='${tournamentId}')`
         );
     },
 };
@@ -476,33 +475,29 @@ export const playerActionsApi = {
 export const playerTournamentQueryApi = {
     /** Get latest results for a tournament. */
     async getLatestResults(tournamentId: string): Promise<MatchResultItem[]> {
-        return post<MatchResultItem[]>(
-            `${BASE}/getLatestResults`,
-            { tournamentId }
+        return json<MatchResultItem[]>(
+            `${BASE}/getLatestResults(tournamentId='${tournamentId}')`
         );
     },
 
     /** Get upcoming matches for a tournament. */
     async getUpcomingMatches(tournamentId: string): Promise<UpcomingMatchItem[]> {
-        return post<UpcomingMatchItem[]>(
-            `${BASE}/getUpcomingMatches`,
-            { tournamentId }
+        return json<UpcomingMatchItem[]>(
+            `${BASE}/getUpcomingMatches(tournamentId='${tournamentId}')`
         );
     },
 
     /** Get league standings for a tournament. */
     async getStandings(tournamentId: string): Promise<StandingItem[]> {
-        return post<StandingItem[]>(
-            `${BASE}/getStandings`,
-            { tournamentId }
+        return json<StandingItem[]>(
+            `${BASE}/getStandings(tournamentId='${tournamentId}')`
         );
     },
 
     /** Get the current user's recent predictions. */
     async getMyRecentPredictions(limit: number = 20): Promise<RecentPredictionItem[]> {
-        return post<RecentPredictionItem[]>(
-            `${BASE}/getMyRecentPredictions`,
-            { limit }
+        return json<RecentPredictionItem[]>(
+            `${BASE}/getMyRecentPredictions(limit=${limit})`
         );
     },
 };

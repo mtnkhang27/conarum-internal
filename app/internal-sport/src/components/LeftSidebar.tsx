@@ -30,7 +30,7 @@ export function LeftSidebar() {
 
     return (
         <aside className="hidden w-[240px] flex-shrink-0 flex-col overflow-y-auto border-r border-border bg-surface-dark lg:flex">
-            {/* Tournament Focus */}
+            {/* Tournament Focus
             <div className="border-b border-border p-4">
                 <h3 className="mb-3 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
                     Tournaments
@@ -53,7 +53,7 @@ export function LeftSidebar() {
                         <li className="px-2 py-2 text-xs text-muted-foreground">Loading…</li>
                     )}
                 </ul>
-            </div>
+            </div> */}
 
             {/* Navigation */}
             <div className="flex-1 overflow-y-auto">

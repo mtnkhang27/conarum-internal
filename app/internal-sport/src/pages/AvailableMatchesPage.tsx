@@ -61,7 +61,13 @@ export function AvailableMatchesPage() {
                     />
                 </div>
 
-                <div className="flex flex-col gap-6 xl:flex-row">
+                <div className="flex flex-col gap-6 ">
+                    {/* Leaderboard sidebar */}
+                    {tournamentId && (
+                        <div className="w-full  flex-shrink-0">
+                            <TournamentLeaderboardWidget tournamentId={tournamentId} maxEntries={5} />
+                        </div>
+                    )}
                     {/* Match cards */}
                     <div className="flex-1 min-w-0">
                         {loading ? (
@@ -81,12 +87,7 @@ export function AvailableMatchesPage() {
                         )}
                     </div>
 
-                    {/* Leaderboard sidebar */}
-                    {tournamentId && (
-                        <div className="w-full xl:w-[280px] flex-shrink-0">
-                            <TournamentLeaderboardWidget tournamentId={tournamentId} maxEntries={5} />
-                        </div>
-                    )}
+                    
                 </div>
             </div>
 

@@ -1,0 +1,13 @@
+ID;tournament_ID;team_ID;groupName;isEliminated
+tt1;t1;team-br;A;false
+tt2;t1;team-de;A;false
+tt3;t1;team-ar;B;false
+tt4;t1;team-fr;B;false
+tt5;t1;team-es;C;false
+tt6;t1;team-jp;C;false
+tt7;t1;team-en;D;false
+tt8;t1;team-us;D;false
+tt9;t2;team-man;;false
+tt10;t2;team-psg;;false
+tt11;t2;team-rm;;false
+tt12;t2;team-bay;;false

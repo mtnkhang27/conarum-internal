@@ -98,10 +98,10 @@ type TeamMemberRole   : String enum {
 }
 
 type TournamentFormat : String enum {
-    knockout;     // World Cup, Champions League
-    league;       // Premier League, La Liga
+    knockout;      // World Cup, Champions League
+    league;        // Premier League, La Liga
     groupKnockout; // World Cup (group stage + knockout)
-    cup;          // FA Cup (straight knockout)
+    cup;           // FA Cup (straight knockout)
 }
 
 // ────────────────────────────────────────────────────────────
@@ -126,21 +126,39 @@ entity Tournament : cuid, managed {
     hasLegs        : Boolean default false; // two-leg ties (e.g., C1 knockout)
     matches        : Composition of many Match
                          on matches.tournament = $self;
+    teams          : Composition of many TournamentTeam
+                         on teams.tournament = $self;
 }
 
 /**
- * Team roster with flag codes and confederation.
+ * Team master data — reusable across tournaments.
+ * A real-world team (e.g., "Argentina", "Man City").
+ * One player can belong to both a club (Man City) and a national team (Argentina).
+ * Tournament-specific data (group, elimination) lives in TournamentTeam.
  */
 entity Team : cuid, managed {
     name          : String(100) @mandatory;
     flagCode      : String(5)   @mandatory; // ISO 3166-1 alpha-2 (e.g., 'br', 'de')
     confederation : Confederation;
     fifaRanking   : Integer;
-    groupName     : String(5); // e.g., 'A', 'B'
-    isEliminated  : Boolean default false;
     members       : Composition of many TeamMember
                         on members.team = $self;
+    tournaments   : Association to many TournamentTeam
+                        on tournaments.team = $self;
 }
+
+/**
+ * Join entity: a Team participating in a specific Tournament.
+ * Holds tournament-specific info like group assignment and elimination status.
+ */
+entity TournamentTeam : cuid, managed {
+    tournament   : Association to Tournament @mandatory;
+    team         : Association to Team       @mandatory;
+    groupName    : String(5);    // e.g., 'A', 'B' — for groupKnockout format
+    isEliminated : Boolean default false;
+}
+
+annotate TournamentTeam with @assert.unique: {tournamentTeam: [tournament, team]};
 
 /**
  * Team member: players, coaches, and staff.
@@ -171,10 +189,11 @@ entity Match : cuid, managed {
     venue       : String(200);
     stage       : MatchStage default 'group';
     status      : MatchStatus default 'upcoming';
-    weight      : Weight default 1.0;
     matchNumber : Integer;
     matchday    : Integer;  // for league format (e.g., matchday 1–38)
     leg         : Integer;  // for two-leg ties (1 or 2), null for single match
+    // Admin toggle: allow score prediction for this match (default true)
+    allowScorePrediction : Boolean default true;
     // Result (null until finished)
     homeScore   : Integer;
     awayScore   : Integer;
@@ -196,7 +215,7 @@ entity Player : cuid, managed {
     avatarUrl        : String(500);
     country          : Country;
     favoriteTeam     : Association to Team;
-    // Aggregated stats (denormalized for leaderboard performance)
+    // Aggregated stats across ALL tournaments (denormalized)
     totalPoints      : Points default 0;
     totalCorrect     : Integer default 0;
     totalPredictions : Integer default 0;
@@ -210,10 +229,29 @@ entity Player : cuid, managed {
                            on scoreBets.player = $self;
     championPicks    : Association to many ChampionPick
                            on championPicks.player = $self;
+    tournamentStats  : Association to many PlayerTournamentStats
+                           on tournamentStats.player = $self;
 }
 
 // Unique constraints
 annotate Player with @assert.unique: {email: [email]};
+
+/**
+ * Per-tournament stats for a player.
+ * Enables separate leaderboards per tournament.
+ */
+entity PlayerTournamentStats : cuid, managed {
+    player           : Association to Player     @mandatory;
+    tournament       : Association to Tournament @mandatory;
+    totalPoints      : Points default 0;
+    totalCorrect     : Integer default 0;
+    totalPredictions : Integer default 0;
+    currentStreak    : Integer default 0;
+    bestStreak       : Integer default 0;
+    rank             : Integer;
+}
+
+annotate PlayerTournamentStats with @assert.unique: {playerTournament: [player, tournament]};
 
 // ────────────────────────────────────────────────────────────
 //  Prediction Entities
@@ -222,17 +260,19 @@ annotate Player with @assert.unique: {email: [email]};
 /**
  * Match outcome prediction (Win / Draw / Lose).
  * Belongs to a Player and a Match.
+ * Points: 1 if correct, 0 if wrong (no weight).
  */
 entity Prediction : cuid, managed {
-    player       : Association to Player @mandatory;
-    match        : Association to Match  @mandatory;
-    pick         : PredictionPick        @mandatory;
+    player       : Association to Player     @mandatory;
+    match        : Association to Match      @mandatory;
+    tournament   : Association to Tournament; // denormalized from match for fast queries
+    pick         : PredictionPick            @mandatory;
     status       : PredictionStatus default 'submitted';
     submittedAt  : DateTime;
     lockedAt     : DateTime;
     scoredAt     : DateTime;
     isCorrect    : Boolean;
-    pointsEarned : Points default 0;
+    pointsEarned : Points default 0;         // 1 if correct, 0 if wrong
 }
 
 // One prediction per player per match
@@ -297,20 +337,13 @@ entity ScorePredictionConfig : cuid, managed {
 }
 
 /**
- * Match Outcome Config: Win/Draw/Lose prediction rules + prizes.
- * Single-row configuration entity managed by admin.
+ * Match Outcome Config: Win/Draw/Lose prediction rules (UC2).
+ * Simplified: correct = 1 point, wrong = 0. No weight.
  */
 entity MatchOutcomeConfig : cuid, managed {
     enabled                   : Boolean default true;
-    // Point System
-    pointsForWin              : Points default 3;
-    pointsForDraw             : Points default 1;
-    pointsForLose             : Points default 0;
-    // Match Weight Defaults
-    regularMatchWeight        : Weight default 1.0;
-    importantMatchWeight      : Weight default 2.0;
-    semifinalWeight           : Weight default 3.0;
-    finalMatchWeight          : Weight default 5.0;
+    // Point System — simplified: 1 for correct, 0 for wrong
+    pointsForCorrect          : Points default 1;
     // Prizes
     firstPlacePrize           : String(200) default 'iPhone 15 Pro Max';
     firstPlaceValue           : MoneyAmount default 35000000;
@@ -323,11 +356,8 @@ entity MatchOutcomeConfig : cuid, managed {
     // Calculation
     autoCalculateAfterMatch   : Boolean default true;
     calculateDelay            : Integer default 2; // hours
-    tieBreakRule              : TieBreakRule default 'headToHead';
     showLiveRanking           : Boolean default true;
-    // Bonuses
-    perfectWeekBonus          : Points default 5;
-    consecutiveWinsBonus      : Points default 2;
+    // Leaderboard
     leaderboardUpdateInterval : Integer default 5; // minutes
 }
 

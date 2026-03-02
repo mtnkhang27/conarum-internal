@@ -1,7 +1,9 @@
-ID;tournament_ID;homeTeam_ID;awayTeam_ID;kickoff;venue;stage;status;weight;matchNumber;homeScore;awayScore;outcome
-m1;t1;team-br;team-de;2026-06-11T18:00:00Z;MetLife Stadium, New Jersey;group;finished;1.0;1;2;1;home
-m2;t1;team-ar;team-fr;2026-06-12T20:00:00Z;SoFi Stadium, Los Angeles;group;finished;1.0;2;1;1;draw
-m3;t1;team-es;team-jp;2026-06-13T18:00:00Z;AT&T Stadium, Dallas;group;upcoming;1.0;3;;;
-m4;t1;team-en;team-us;2026-06-14T20:00:00Z;MetLife Stadium, New Jersey;group;upcoming;1.0;4;;;
-m5;t1;team-br;team-ar;2026-06-18T20:00:00Z;Rose Bowl, Pasadena;group;upcoming;1.5;5;;;
-m6;t1;team-de;team-fr;2026-06-19T18:00:00Z;Lumen Field, Seattle;group;upcoming;1.0;6;;;
+ID;tournament_ID;homeTeam_ID;awayTeam_ID;kickoff;venue;stage;status;matchNumber;homeScore;awayScore;outcome
+m1;t1;team-br;team-de;2026-06-11T18:00:00Z;MetLife Stadium, New Jersey;group;finished;1;2;1;home
+m2;t1;team-ar;team-fr;2026-06-12T20:00:00Z;SoFi Stadium, Los Angeles;group;finished;2;1;1;draw
+m3;t1;team-es;team-jp;2026-06-13T18:00:00Z;AT&T Stadium, Dallas;group;upcoming;3;;;
+m4;t1;team-en;team-us;2026-06-14T20:00:00Z;MetLife Stadium, New Jersey;group;upcoming;4;;;
+m5;t1;team-br;team-ar;2026-06-18T20:00:00Z;Rose Bowl, Pasadena;group;upcoming;5;;;
+m6;t1;team-de;team-fr;2026-06-19T18:00:00Z;Lumen Field, Seattle;group;upcoming;6;;;
+m7;t2;team-man;team-psg;2026-03-15T20:00:00Z;Etihad Stadium;quarterfinal;upcoming;1;;;
+m8;t2;team-rm;team-bay;2026-03-16T20:00:00Z;Santiago Bernabéu;quarterfinal;upcoming;2;;;

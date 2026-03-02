@@ -18,9 +18,9 @@ export class AdminHandler {
      * Enter match result and trigger scoring for all predictions/bets.
      * 1. Update match with result
      * 2. Determine outcome (home/draw/away)
-     * 3. Score all UC2 predictions
+     * 3. Score all UC2 predictions (1 point correct, 0 wrong, no weight)
      * 4. Score all UC1 score bets
-     * 5. Update player stats
+     * 5. Update player stats (both global and per-tournament)
      */
     async enterMatchResult(req: Request) {
         const { matchId, homeScore, awayScore } = req.data;
@@ -30,7 +30,8 @@ export class AdminHandler {
             ScoreBet,
             Player,
             MatchOutcomeConfig,
-            ScorePredictionConfig
+            ScorePredictionConfig,
+            PlayerTournamentStats
         } = cds.entities('cnma.prediction');
 
         // Validate match
@@ -43,6 +44,7 @@ export class AdminHandler {
 
         // Determine outcome
         const outcome = ScoringEngine.determineOutcome(homeScore, awayScore);
+        const tournamentId = match.tournament_ID;
 
         // Update match with result
         await UPDATE(Match).where({ ID: matchId }).set({
@@ -52,7 +54,7 @@ export class AdminHandler {
             status: 'finished'
         });
 
-        // ── Score UC2 Predictions ────────────────────────────
+        // ── Score UC2 Predictions (1 if correct, 0 if wrong) ──
         const moConfig = await SELECT.one.from(MatchOutcomeConfig);
         const predictions = await SELECT.from(Prediction)
             .where({ match_ID: matchId, status: { '!=': 'scored' } });
@@ -62,7 +64,6 @@ export class AdminHandler {
             const points = this.scoringEngine.scorePrediction(
                 pred.pick,
                 outcome,
-                match.weight ?? 1,
                 moConfig
             );
 
@@ -73,8 +74,13 @@ export class AdminHandler {
                 scoredAt: new Date().toISOString()
             });
 
-            // Update player stats
+            // Update both global and per-tournament stats
             await this.updatePlayerStats(pred.player_ID, points, pred.pick === outcome);
+            if (tournamentId) {
+                await this.updatePlayerTournamentStats(
+                    pred.player_ID, tournamentId, points, pred.pick === outcome
+                );
+            }
             predictionsScored++;
         }
 
@@ -116,15 +122,70 @@ export class AdminHandler {
 
     /**
      * Force recalculate leaderboard rankings.
-     * Aggregates all scored predictions per player and updates rank.
+     * If tournamentId is provided, recalculates only for that tournament.
+     * Otherwise, recalculates global stats.
      */
     async recalculateLeaderboard(req: Request) {
-        const { Player, Prediction } = cds.entities('cnma.prediction');
+        const { tournamentId } = req.data;
+        const { Player, Prediction, PlayerTournamentStats } = cds.entities('cnma.prediction');
 
-        // Get all players
+        if (tournamentId) {
+            // Per-tournament recalculation
+            const stats = await SELECT.from(PlayerTournamentStats)
+                .where({ tournament_ID: tournamentId });
+
+            for (const stat of stats) {
+                const preds = await SELECT.from(Prediction)
+                    .where({ player_ID: stat.player_ID, tournament_ID: tournamentId, status: 'scored' });
+
+                const totalPoints = preds.reduce((sum: number, p: any) => sum + (Number(p.pointsEarned) || 0), 0);
+                const totalCorrect = preds.filter((p: any) => p.isCorrect).length;
+                const totalPredictions = preds.length;
+                const { currentStreak, bestStreak } = this.scoringEngine.calculateStreaks(preds);
+
+                await UPDATE(PlayerTournamentStats).where({ ID: stat.ID }).set({
+                    totalPoints,
+                    totalCorrect,
+                    totalPredictions,
+                    currentStreak,
+                    bestStreak
+                });
+            }
+
+            // Assign ranks — sort by points desc then name asc
+            const updatedStats = await SELECT.from(PlayerTournamentStats)
+                .where({ tournament_ID: tournamentId });
+
+            // Enrich with player names for tiebreak
+            const enriched = [];
+            for (const s of updatedStats) {
+                const player = await SELECT.one.from(Player).where({ ID: s.player_ID });
+                enriched.push({
+                    id: s.ID,
+                    totalPoints: Number(s.totalPoints),
+                    name: (player?.displayName ?? '').toLowerCase(),
+                });
+            }
+            enriched.sort((a, b) => {
+                if (b.totalPoints !== a.totalPoints) return b.totalPoints - a.totalPoints;
+                return a.name.localeCompare(b.name);
+            });
+
+            for (let i = 0; i < enriched.length; i++) {
+                await UPDATE(PlayerTournamentStats).where({ ID: enriched[i].id }).set({
+                    rank: i + 1
+                });
+            }
+
+            return {
+                success: true,
+                message: `Tournament leaderboard recalculated for ${stats.length} players`
+            };
+        }
+
+        // Global recalculation
         const players = await SELECT.from(Player);
 
-        // Calculate totals for each player
         for (const player of players) {
             const preds = await SELECT.from(Prediction)
                 .where({ player_ID: player.ID, status: 'scored' });
@@ -132,8 +193,6 @@ export class AdminHandler {
             const totalPoints = preds.reduce((sum: number, p: any) => sum + (Number(p.pointsEarned) || 0), 0);
             const totalCorrect = preds.filter((p: any) => p.isCorrect).length;
             const totalPredictions = preds.length;
-
-            // Calculate streaks
             const { currentStreak, bestStreak } = this.scoringEngine.calculateStreaks(preds);
 
             await UPDATE(Player).where({ ID: player.ID }).set({
@@ -145,7 +204,7 @@ export class AdminHandler {
             });
         }
 
-        // Assign ranks based on total points (descending)
+        // Assign global ranks based on total points (descending)
         const rankedPlayers = await SELECT.from(Player).orderBy('totalPoints desc');
         for (let i = 0; i < rankedPlayers.length; i++) {
             await UPDATE(Player).where({ ID: rankedPlayers[i].ID }).set({
@@ -155,7 +214,7 @@ export class AdminHandler {
 
         return {
             success: true,
-            message: `Leaderboard recalculated for ${players.length} players`
+            message: `Global leaderboard recalculated for ${players.length} players`
         };
     }
 
@@ -185,7 +244,7 @@ export class AdminHandler {
     // ── Helpers ──────────────────────────────────────────────
 
     /**
-     * Update a single player's aggregated stats after scoring.
+     * Update a single player's global aggregated stats after scoring.
      */
     private async updatePlayerStats(playerId: string, points: number, isCorrect: boolean) {
         const { Player } = cds.entities('cnma.prediction');
@@ -200,6 +259,50 @@ export class AdminHandler {
         const newBest = Math.max(player.bestStreak || 0, newStreak);
 
         await UPDATE(Player).where({ ID: playerId }).set({
+            totalPoints: newTotal,
+            totalCorrect: newCorrect,
+            totalPredictions: newPredictions,
+            currentStreak: newStreak,
+            bestStreak: newBest
+        });
+    }
+
+    /**
+     * Update per-tournament stats for a player after scoring.
+     * Creates the stats record if it doesn't exist (auto-enroll on first prediction scoring).
+     */
+    private async updatePlayerTournamentStats(
+        playerId: string,
+        tournamentId: string,
+        points: number,
+        isCorrect: boolean
+    ) {
+        const { PlayerTournamentStats } = cds.entities('cnma.prediction');
+
+        let stats = await SELECT.one.from(PlayerTournamentStats)
+            .where({ player_ID: playerId, tournament_ID: tournamentId });
+
+        if (!stats) {
+            // Auto-create stats record for this player in this tournament
+            await INSERT.into(PlayerTournamentStats).entries({
+                player_ID: playerId,
+                tournament_ID: tournamentId,
+                totalPoints: points,
+                totalCorrect: isCorrect ? 1 : 0,
+                totalPredictions: 1,
+                currentStreak: isCorrect ? 1 : 0,
+                bestStreak: isCorrect ? 1 : 0,
+            });
+            return;
+        }
+
+        const newTotal = (Number(stats.totalPoints) || 0) + points;
+        const newCorrect = (stats.totalCorrect || 0) + (isCorrect ? 1 : 0);
+        const newPredictions = (stats.totalPredictions || 0) + 1;
+        const newStreak = isCorrect ? (stats.currentStreak || 0) + 1 : 0;
+        const newBest = Math.max(stats.bestStreak || 0, newStreak);
+
+        await UPDATE(PlayerTournamentStats).where({ ID: stats.ID }).set({
             totalPoints: newTotal,
             totalCorrect: newCorrect,
             totalPredictions: newPredictions,

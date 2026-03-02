@@ -1,9 +1,13 @@
-ID;name;flagCode;confederation;fifaRanking;groupName;isEliminated
-team-br;Brazil;br;CONMEBOL;5;A;false
-team-de;Germany;de;UEFA;13;A;false
-team-ar;Argentina;ar;CONMEBOL;1;B;false
-team-fr;France;fr;UEFA;2;B;false
-team-es;Spain;es;UEFA;3;C;false
-team-jp;Japan;jp;AFC;15;C;false
-team-en;England;gb;UEFA;4;D;false
-team-us;United States;us;CONCACAF;11;D;false
+ID;name;flagCode;confederation;fifaRanking
+team-br;Brazil;br;CONMEBOL;5
+team-de;Germany;de;UEFA;13
+team-ar;Argentina;ar;CONMEBOL;1
+team-fr;France;fr;UEFA;2
+team-es;Spain;es;UEFA;3
+team-jp;Japan;jp;AFC;15
+team-en;England;gb;UEFA;4
+team-us;United States;us;CONCACAF;11
+team-man;Manchester City;gb;UEFA;
+team-psg;Paris Saint-Germain;fr;UEFA;
+team-rm;Real Madrid;es;UEFA;
+team-bay;Bayern Munich;de;UEFA;

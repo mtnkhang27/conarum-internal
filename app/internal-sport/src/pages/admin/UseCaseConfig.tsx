@@ -246,72 +246,26 @@ export function UseCaseConfig() {
                                 onCheckedChange={(v) => setMo({ ...mo, enabled: !!v })}
                             />
                         </ConfigRow>
-                        <ConfigRow label="Points for Win">
+                        <ConfigRow label="Points for Correct" description="1 pt per correct prediction">
                             <Input
                                 type="number"
                                 className="w-20 text-right"
-                                value={mo.pointsForWin}
+                                value={mo.pointsForCorrect}
                                 onChange={(e) =>
-                                    setMo({ ...mo, pointsForWin: parseInt(e.target.value) || 0 })
+                                    setMo({ ...mo, pointsForCorrect: parseInt(e.target.value) || 0 })
                                 }
                             />
                         </ConfigRow>
-                        <ConfigRow label="Points for Draw">
-                            <Input
-                                type="number"
-                                className="w-20 text-right"
-                                value={mo.pointsForDraw}
-                                onChange={(e) =>
-                                    setMo({ ...mo, pointsForDraw: parseInt(e.target.value) || 0 })
-                                }
+                        <ConfigRow label="Auto Calculate" description="Score predictions after match ends">
+                            <Checkbox
+                                checked={mo.autoCalculateAfterMatch}
+                                onCheckedChange={(v) => setMo({ ...mo, autoCalculateAfterMatch: !!v })}
                             />
                         </ConfigRow>
-
-                        <div className="border-b border-border/30 py-2">
-                            <p className="text-xs font-bold uppercase text-muted-foreground">
-                                Match Weights
-                            </p>
-                        </div>
-                        <ConfigRow label="Regular">
-                            <Input
-                                type="number"
-                                step="0.5"
-                                className="w-20 text-right"
-                                value={mo.regularMatchWeight}
-                                onChange={(e) =>
-                                    setMo({
-                                        ...mo,
-                                        regularMatchWeight: parseFloat(e.target.value) || 0,
-                                    })
-                                }
-                            />
-                        </ConfigRow>
-                        <ConfigRow label="Important">
-                            <Input
-                                type="number"
-                                step="0.5"
-                                className="w-20 text-right"
-                                value={mo.importantMatchWeight}
-                                onChange={(e) =>
-                                    setMo({
-                                        ...mo,
-                                        importantMatchWeight: parseFloat(e.target.value) || 0,
-                                    })
-                                }
-                            />
-                        </ConfigRow>
-                        <ConfigRow label="Finals">
-                            <Input
-                                type="number"
-                                step="0.5"
-                                className="w-20 text-right"
-                                value={mo.finalMatchWeight}
-                                onChange={(e) =>
-                                    setMo({
-                                        ...mo,
-                                        finalMatchWeight: parseFloat(e.target.value) || 0,
-                                    })
-                                }
+                        <ConfigRow label="Show Live Ranking">
+                            <Checkbox
+                                checked={mo.showLiveRanking}
+                                onCheckedChange={(v) => setMo({ ...mo, showLiveRanking: !!v })}
                             />
                         </ConfigRow>
 

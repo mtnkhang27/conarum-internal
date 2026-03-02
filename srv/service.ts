@@ -19,6 +19,12 @@ export class PlayerService extends cds.ApplicationService {
         this.on('cancelMatchPrediction', this.predictionHandler.cancelMatchPrediction.bind(this.predictionHandler));
         this.on('pickChampion', this.predictionHandler.pickChampion.bind(this.predictionHandler));
 
+        // ── Functions (read-only queries) ────────────────────
+        this.on('getLatestResults', this.predictionHandler.getLatestResults.bind(this.predictionHandler));
+        this.on('getUpcomingMatches', this.predictionHandler.getUpcomingMatches.bind(this.predictionHandler));
+        this.on('getPredictionLeaderboard', this.predictionHandler.getPredictionLeaderboard.bind(this.predictionHandler));
+        this.on('getStandings', this.predictionHandler.getStandings.bind(this.predictionHandler));
+
         // ── Auto-filter MyPredictions / MyScoreBets / MyChampionPick to current user ──
         this.before('READ', 'MyPredictions', this.predictionHandler.filterByCurrentUser.bind(this.predictionHandler));
         this.before('READ', 'MyScoreBets', this.predictionHandler.filterByCurrentUser.bind(this.predictionHandler));

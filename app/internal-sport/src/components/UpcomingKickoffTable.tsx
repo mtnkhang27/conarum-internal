@@ -45,7 +45,7 @@ export function UpcomingKickoffTable({ items }: UpcomingKickoffTableProps) {
                         <div className="col-span-4">Match</div>
                         <div className="col-span-2 text-center">Kickoff</div>
                         <div className="col-span-2 text-center">Stage</div>
-                        <div className="col-span-1 text-center">Weight</div>
+                        <div className="col-span-1 text-center">Points</div>
                         <div className="col-span-1 text-center">Your Pick</div>
                         <div className="col-span-2 text-center">Action</div>
                     </div>
@@ -85,8 +85,8 @@ export function UpcomingKickoffTable({ items }: UpcomingKickoffTableProps) {
                                     {item.stage}
                                 </div>
 
-                                <div className="col-span-1 text-center text-sm font-bold text-primary">
-                                    {item.weight.toFixed(2)}
+                                <div className="col-span-1 text-center text-sm font-bold text-success">
+                                    +1
                                 </div>
 
                                 <div className="col-span-1 text-center">

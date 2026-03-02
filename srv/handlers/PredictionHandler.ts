@@ -20,13 +20,17 @@ export class PredictionHandler {
         const userId = await this.getCurrentPlayerId(req);
         if (userId) {
             // Inject filter: player_ID = current user's player ID
-            req.query.where({ player_ID: userId });
+            if (req.query.SELECT) {
+                const existingWhere = req.query.SELECT.where || [];
+                req.query.SELECT.where = [...(Array.isArray(existingWhere) ? existingWhere : [existingWhere]), 'player_ID', '=', userId];
+            }
         }
     }
 
     /**
      * Submit match outcome predictions (UC2: Win/Draw/Lose).
      * Validates: match exists, not kicked off, pick is valid.
+     * Scoring: 1 point if correct, 0 if wrong, no weight.
      */
     async submitPredictions(req: Request) {
         const { predictions } = req.data;
@@ -81,6 +85,7 @@ export class PredictionHandler {
                 await INSERT.into(Prediction).entries({
                     player_ID: playerId,
                     match_ID: pred.matchId,
+                    tournament_ID: match.tournament_ID,
                     pick: pred.pick,
                     status: 'submitted',
                     submittedAt: now.toISOString()
@@ -204,6 +209,7 @@ export class PredictionHandler {
                 await INSERT.into(Prediction).entries({
                     player_ID: playerId,
                     match_ID: matchId,
+                    tournament_ID: match.tournament_ID,
                     pick,
                     status: 'submitted',
                     submittedAt: now.toISOString()
@@ -213,6 +219,11 @@ export class PredictionHandler {
 
         // ── Save score bets ──
         if (scores && scores.length > 0) {
+            // Check if match allows score prediction
+            if (match.allowScorePrediction === false) {
+                return req.error(400, 'Score predictions are not allowed for this match');
+            }
+
             const config = await SELECT.one.from(ScorePredictionConfig);
             if (config && !config.enabled) {
                 return req.error(400, 'Score predictions are currently disabled');
@@ -306,7 +317,6 @@ export class PredictionHandler {
         // Validate team exists
         const team = await SELECT.one.from(Team).where({ ID: teamId });
         if (!team) return req.error(404, 'Team not found');
-        if (team.isEliminated) return req.error(400, 'Cannot pick an eliminated team');
 
         const playerId = await this.getOrCreatePlayerId(req);
         const now = new Date();
@@ -337,6 +347,208 @@ export class PredictionHandler {
         });
 
         return { success: true, message: `${team.name} selected as your champion prediction` };
+    }
+
+    // ── Read-Only Functions ──────────────────────────────────
+
+    /**
+     * Get latest match results for a tournament.
+     */
+    async getLatestResults(req: Request) {
+        const { tournamentId } = req.data;
+        const { Match } = cds.entities('cnma.prediction');
+
+        const matches = await SELECT.from(Match)
+            .where({ tournament_ID: tournamentId, status: 'finished' })
+            .orderBy('kickoff desc')
+            .limit(50);
+
+        // Expand team names
+        const { Team } = cds.entities('cnma.prediction');
+        const results = [];
+        for (const m of matches) {
+            const home = await SELECT.one.from(Team).where({ ID: m.homeTeam_ID });
+            const away = await SELECT.one.from(Team).where({ ID: m.awayTeam_ID });
+            results.push({
+                matchId: m.ID,
+                homeTeam: home?.name ?? '',
+                homeFlag: home?.flagCode ?? '',
+                awayTeam: away?.name ?? '',
+                awayFlag: away?.flagCode ?? '',
+                homeScore: m.homeScore,
+                awayScore: m.awayScore,
+                outcome: m.outcome,
+                kickoff: m.kickoff,
+                stage: m.stage,
+                matchday: m.matchday,
+            });
+        }
+        return results;
+    }
+
+    /**
+     * Get upcoming matches for a tournament.
+     */
+    async getUpcomingMatches(req: Request) {
+        const { tournamentId } = req.data;
+        const { Match, Team } = cds.entities('cnma.prediction');
+
+        const matches = await SELECT.from(Match)
+            .where({ tournament_ID: tournamentId, status: 'upcoming' })
+            .orderBy('kickoff asc')
+            .limit(50);
+
+        const results = [];
+        for (const m of matches) {
+            const home = await SELECT.one.from(Team).where({ ID: m.homeTeam_ID });
+            const away = await SELECT.one.from(Team).where({ ID: m.awayTeam_ID });
+            results.push({
+                matchId: m.ID,
+                homeTeam: home?.name ?? '',
+                homeFlag: home?.flagCode ?? '',
+                awayTeam: away?.name ?? '',
+                awayFlag: away?.flagCode ?? '',
+                kickoff: m.kickoff,
+                stage: m.stage,
+                matchday: m.matchday,
+                venue: m.venue ?? '',
+            });
+        }
+        return results;
+    }
+
+    /**
+     * Get prediction leaderboard for a specific tournament (UC2).
+     * Sort by totalPoints DESC, then displayName ASC (alphabetical tiebreak).
+     */
+    async getPredictionLeaderboard(req: Request) {
+        const { tournamentId } = req.data;
+        const { PlayerTournamentStats, Player } = cds.entities('cnma.prediction');
+
+        const stats = await SELECT.from(PlayerTournamentStats)
+            .where({ tournament_ID: tournamentId })
+            .orderBy('totalPoints desc');
+
+        // Enrich with player details and sort with name tiebreak
+        const enriched = [];
+        for (const s of stats) {
+            const player = await SELECT.one.from(Player).where({ ID: s.player_ID });
+            enriched.push({
+                playerId: s.player_ID,
+                displayName: player?.displayName ?? '',
+                avatarUrl: player?.avatarUrl ?? '',
+                totalPoints: Number(s.totalPoints),
+                totalCorrect: s.totalCorrect,
+                totalPredictions: s.totalPredictions,
+                _name: (player?.displayName ?? '').toLowerCase(),
+            });
+        }
+
+        // Sort: points desc, then name asc
+        enriched.sort((a, b) => {
+            if (b.totalPoints !== a.totalPoints) return b.totalPoints - a.totalPoints;
+            return a._name.localeCompare(b._name);
+        });
+
+        return enriched.map((e, i) => ({
+            rank: i + 1,
+            playerId: e.playerId,
+            displayName: e.displayName,
+            avatarUrl: e.avatarUrl,
+            totalPoints: e.totalPoints,
+            totalCorrect: e.totalCorrect,
+            totalPredictions: e.totalPredictions,
+        }));
+    }
+
+    /**
+     * Get league standings for a league-format tournament.
+     * Calculates W/D/L/GF/GA/GD/Points from finished matches.
+     */
+    async getStandings(req: Request) {
+        const { tournamentId } = req.data;
+        const { Tournament, Match, TournamentTeam, Team } = cds.entities('cnma.prediction');
+
+        // Verify tournament is league format
+        const tournament = await SELECT.one.from(Tournament).where({ ID: tournamentId });
+        if (!tournament) return req.error(404, 'Tournament not found');
+        if (tournament.format !== 'league') {
+            return req.error(400, 'Standings are only available for league-format tournaments');
+        }
+
+        // Get all teams in this tournament
+        const tTeams = await SELECT.from(TournamentTeam).where({ tournament_ID: tournamentId });
+        const teamIds = tTeams.map((t: any) => t.team_ID);
+
+        // Get all finished matches
+        const matches = await SELECT.from(Match)
+            .where({ tournament_ID: tournamentId, status: 'finished' });
+
+        // Build standings map
+        const standingsMap: Record<string, any> = {};
+        for (const tid of teamIds) {
+            standingsMap[tid] = {
+                teamId: tid,
+                played: 0, won: 0, drawn: 0, lost: 0,
+                goalsFor: 0, goalsAgainst: 0, goalDiff: 0, points: 0,
+            };
+        }
+
+        for (const m of matches) {
+            const homeId = m.homeTeam_ID;
+            const awayId = m.awayTeam_ID;
+            const hs = m.homeScore ?? 0;
+            const as_ = m.awayScore ?? 0;
+
+            if (standingsMap[homeId]) {
+                standingsMap[homeId].played++;
+                standingsMap[homeId].goalsFor += hs;
+                standingsMap[homeId].goalsAgainst += as_;
+                if (hs > as_) { standingsMap[homeId].won++; standingsMap[homeId].points += 3; }
+                else if (hs === as_) { standingsMap[homeId].drawn++; standingsMap[homeId].points += 1; }
+                else { standingsMap[homeId].lost++; }
+            }
+            if (standingsMap[awayId]) {
+                standingsMap[awayId].played++;
+                standingsMap[awayId].goalsFor += as_;
+                standingsMap[awayId].goalsAgainst += hs;
+                if (as_ > hs) { standingsMap[awayId].won++; standingsMap[awayId].points += 3; }
+                else if (as_ === hs) { standingsMap[awayId].drawn++; standingsMap[awayId].points += 1; }
+                else { standingsMap[awayId].lost++; }
+            }
+        }
+
+        // Compute goal diff and sort
+        const standings = Object.values(standingsMap);
+        for (const s of standings) {
+            s.goalDiff = s.goalsFor - s.goalsAgainst;
+        }
+        standings.sort((a: any, b: any) => {
+            if (b.points !== a.points) return b.points - a.points;
+            if (b.goalDiff !== a.goalDiff) return b.goalDiff - a.goalDiff;
+            return b.goalsFor - a.goalsFor;
+        });
+
+        // Enrich with team names
+        const result = [];
+        for (const s of standings) {
+            const team = await SELECT.one.from(Team).where({ ID: s.teamId });
+            result.push({
+                teamId: s.teamId,
+                teamName: team?.name ?? '',
+                teamFlag: team?.flagCode ?? '',
+                played: s.played,
+                won: s.won,
+                drawn: s.drawn,
+                lost: s.lost,
+                goalsFor: s.goalsFor,
+                goalsAgainst: s.goalsAgainst,
+                goalDiff: s.goalDiff,
+                points: s.points,
+            });
+        }
+
+        return result;
     }
 
     // ── Helpers ──────────────────────────────────────────────

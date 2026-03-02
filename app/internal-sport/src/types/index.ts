@@ -1,3 +1,14 @@
+// === Tournament Types ===
+export interface TournamentInfo {
+    ID: string;
+    name: string;
+    format: 'knockout' | 'league' | 'groupKnockout' | 'cup';
+    status: 'upcoming' | 'active' | 'completed' | 'cancelled';
+    startDate: string;
+    endDate: string;
+    season?: string;
+}
+
 // === Match Types ===
 export interface Team {
     name: string;
@@ -6,13 +17,13 @@ export interface Team {
 
 export interface Match {
     id: string;
-    weight: number;
     timeLabel: string;
     home: Team;
     away: Team;
     options: string[];
     selectedOption: string;
     existingScores?: { home: number; away: number }[];
+    allowScorePrediction: boolean;
 }
 
 export interface UpcomingMatch {
@@ -21,7 +32,6 @@ export interface UpcomingMatch {
     away: Team;
     kickoff: string;
     stage: string;
-    weight: number;
     pick: string;
     isSoon: boolean;
 }
@@ -29,14 +39,12 @@ export interface UpcomingMatch {
 export interface LiveMatch {
     match: string;
     minute: string;
-    weight: number;
     score: string;
 }
 
 // === Exact Score Types ===
 export interface ExactScoreMatch {
     id: string;
-    weight: number;
     timeLabel: string;
     home: Team;
     away: Team;
@@ -48,7 +56,6 @@ export interface ExactScoreHistoryItem {
     match: string;
     predictedScore: string;
     finalScore: string;
-    weight: number;
     points: number;
     status: "exact" | "close" | "miss";
 }
@@ -57,7 +64,6 @@ export interface ExactScoreHistoryItem {
 export interface SlipItem {
     match: string;
     pick: string;
-    weight: number;
 }
 
 export interface ChampionTeam {
@@ -80,7 +86,6 @@ export interface PredictionHistoryItem {
     kickoff: string;
     predictionType: string;
     pick: string;
-    weight: number;
     submissionStatus: "submitted" | "draft";
 }
 
@@ -95,6 +100,57 @@ export interface LeaderboardEntry {
     points: number;
     streak: number;
     isYou?: boolean;
+}
+
+// === Match Result Types (from API functions) ===
+export interface MatchResultItem {
+    matchId: string;
+    homeTeam: string;
+    homeFlag: string;
+    awayTeam: string;
+    awayFlag: string;
+    homeScore: number;
+    awayScore: number;
+    outcome: string;
+    kickoff: string;
+    stage: string;
+    matchday: number | null;
+}
+
+export interface UpcomingMatchItem {
+    matchId: string;
+    homeTeam: string;
+    homeFlag: string;
+    awayTeam: string;
+    awayFlag: string;
+    kickoff: string;
+    stage: string;
+    matchday: number | null;
+    venue: string;
+}
+
+export interface TournamentLeaderboardItem {
+    rank: number;
+    playerId: string;
+    displayName: string;
+    avatarUrl: string;
+    totalPoints: number;
+    totalCorrect: number;
+    totalPredictions: number;
+}
+
+export interface StandingItem {
+    teamId: string;
+    teamName: string;
+    teamFlag: string;
+    played: number;
+    won: number;
+    drawn: number;
+    lost: number;
+    goalsFor: number;
+    goalsAgainst: number;
+    goalDiff: number;
+    points: number;
 }
 
 // === Account Types ===

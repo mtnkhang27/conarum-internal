@@ -1,0 +1,6 @@
+ID;player_ID;tournament_ID;totalPoints;totalCorrect;totalPredictions;currentStreak;bestStreak;rank
+pts-1;p1;t1;2;2;2;2;2;1
+pts-2;p2;t1;0;0;2;0;0;3
+pts-3;p3;t1;1;1;2;0;1;2
+pts-4;p4;t1;0;0;0;0;0;
+pts-5;p5;t1;0;0;0;0;0;

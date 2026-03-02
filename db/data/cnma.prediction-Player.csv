@@ -1,6 +1,6 @@
 ID;displayName;email;avatarUrl;country_code;favoriteTeam_ID;totalPoints;totalCorrect;totalPredictions;currentStreak;bestStreak;rank
-p1;Nguyen Van A;nguyen.a@conarum.com;;VN;team-br;6;2;2;2;2;1
-p2;Tran Thi B;tran.b@conarum.com;;VN;team-ar;1;0;2;0;0;2
-p3;Le Van C;le.c@conarum.com;;VN;team-es;3;1;2;0;1;3
+p1;Nguyen Van A;nguyen.a@conarum.com;;VN;team-br;2;2;2;2;2;1
+p2;Tran Thi B;tran.b@conarum.com;;VN;team-ar;0;0;2;0;0;3
+p3;Le Van C;le.c@conarum.com;;VN;team-es;1;1;2;0;1;2
 p4;Pham Duc D;pham.d@conarum.com;;VN;team-fr;0;0;0;0;0;
 p5;Anonymous User;anonymous@example.com;;VN;;0;0;0;0;0;

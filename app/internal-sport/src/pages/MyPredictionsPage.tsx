@@ -96,7 +96,7 @@ export function MyPredictionsPage() {
                         <div className="col-span-2">Kickoff</div>
                         <div className="col-span-2">Prediction Type</div>
                         <div className="col-span-2">Your Pick</div>
-                        <div className="col-span-1 text-center">Weight</div>
+                        <div className="col-span-1 text-center">Points</div>
                         <div className="col-span-1 text-center">State</div>
                     </div>
 
@@ -134,8 +134,8 @@ export function MyPredictionsPage() {
                                             {item.predictionType}
                                         </div>
                                         <div className="col-span-2 text-sm font-semibold text-primary">{item.pick}</div>
-                                        <div className="col-span-1 text-center text-sm font-bold text-primary">
-                                            {item.weight.toFixed(2)}
+                                        <div className="col-span-1 text-center text-sm font-bold text-success">
+                                            +1
                                         </div>
                                         <div className="col-span-1 text-center">
                                             <span

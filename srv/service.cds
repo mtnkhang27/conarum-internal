@@ -15,7 +15,8 @@ service PlayerService {
     entity Teams                    as
         projection on db.Team {
             *,
-            members : redirected to TeamMembers
+            members    : redirected to TeamMembers,
+            tournaments : redirected to TournamentTeams
         }
         excluding {
             createdAt,
@@ -43,10 +44,26 @@ service PlayerService {
     entity Tournaments              as
         projection on db.Tournament {
             *,
-            matches : redirected to Matches
+            matches : redirected to Matches,
+            teams   : redirected to TournamentTeams
         }
         excluding {
             createdBy,
+            modifiedBy
+        };
+
+    /** Tournament-Team join — teams in a specific tournament. */
+    @readonly
+    entity TournamentTeams          as
+        projection on db.TournamentTeam {
+            *,
+            tournament : redirected to Tournaments,
+            team       : redirected to Teams
+        }
+        excluding {
+            createdAt,
+            createdBy,
+            modifiedAt,
             modifiedBy
         };
 
@@ -64,7 +81,7 @@ service PlayerService {
             modifiedBy
         };
 
-    /** Leaderboard — all players ranked by totalPoints descending. */
+    /** Global leaderboard — all players ranked by totalPoints descending. */
     @readonly
     entity Leaderboard              as
         projection on db.Player {
@@ -83,14 +100,24 @@ service PlayerService {
         order by
             totalPoints desc;
 
+    /** Per-tournament leaderboard stats. */
+    @readonly
+    entity TournamentLeaderboard    as
+        projection on db.PlayerTournamentStats {
+            *,
+            player     : redirected to Leaderboard,
+            tournament : redirected to Tournaments
+        };
+
     // ── User-Specific Views ──────────────────────────────────
 
     /** Current user's match outcome predictions. */
     entity MyPredictions            as
         projection on db.Prediction {
             *,
-            match  : redirected to Matches,
-            player : redirected to Leaderboard
+            match      : redirected to Matches,
+            player     : redirected to Leaderboard,
+            tournament : redirected to Tournaments
         }
         excluding {
             createdBy,
@@ -188,6 +215,70 @@ service PlayerService {
 
     /** Pick tournament champion (UC3). */
     action pickChampion(teamId: UUID)                                              returns ActionResult;
+
+    // ── Functions (Read-Only Queries) ────────────────────────
+
+    /** Latest match results for a tournament. */
+    type MatchResultItem {
+        matchId   : UUID;
+        homeTeam  : String;
+        homeFlag  : String;
+        awayTeam  : String;
+        awayFlag  : String;
+        homeScore : Integer;
+        awayScore : Integer;
+        outcome   : String;
+        kickoff   : DateTime;
+        stage     : String;
+        matchday  : Integer;
+    }
+
+    function getLatestResults(tournamentId: UUID) returns many MatchResultItem;
+
+    /** Upcoming matches for a tournament. */
+    type UpcomingMatchItem {
+        matchId  : UUID;
+        homeTeam : String;
+        homeFlag : String;
+        awayTeam : String;
+        awayFlag : String;
+        kickoff  : DateTime;
+        stage    : String;
+        matchday : Integer;
+        venue    : String;
+    }
+
+    function getUpcomingMatches(tournamentId: UUID) returns many UpcomingMatchItem;
+
+    /** Prediction leaderboard for a tournament (UC2). */
+    type LeaderboardItem {
+        rank         : Integer;
+        playerId     : UUID;
+        displayName  : String;
+        avatarUrl    : String;
+        totalPoints  : Decimal;
+        totalCorrect : Integer;
+        totalPredictions : Integer;
+    }
+
+    function getPredictionLeaderboard(tournamentId: UUID) returns many LeaderboardItem;
+
+    /** League standings for a league-format tournament. */
+    type StandingItem {
+        teamId       : UUID;
+        teamName     : String;
+        teamFlag     : String;
+        played       : Integer;
+        won          : Integer;
+        drawn        : Integer;
+        lost         : Integer;
+        goalsFor     : Integer;
+        goalsAgainst : Integer;
+        goalDiff     : Integer;
+        points       : Integer;
+    }
+
+    function getStandings(tournamentId: UUID)   returns many StandingItem;
 }
 
 // ────────────────────────────────────────────────────────────
@@ -204,7 +295,9 @@ service AdminService {
     entity Teams                    as projection on db.Team;
     entity TeamMembers              as projection on db.TeamMember;
     entity Tournaments              as projection on db.Tournament;
+    entity TournamentTeams          as projection on db.TournamentTeam;
     entity Players                  as projection on db.Player;
+    entity PlayerTournamentStats    as projection on db.PlayerTournamentStats;
 
     // ── Config CRUD ──────────────────────────────────────────
 
@@ -218,8 +311,9 @@ service AdminService {
     entity AllPredictions           as
         projection on db.Prediction {
             *,
-            player : redirected to Players,
-            match  : redirected to Matches
+            player     : redirected to Players,
+            match      : redirected to Matches,
+            tournament : redirected to Tournaments
         };
 
     @readonly
@@ -253,8 +347,8 @@ service AdminService {
     /** Enter match result and trigger scoring. */
     action enterMatchResult(matchId: UUID, homeScore: Integer, awayScore: Integer) returns MatchResultResponse;
 
-    /** Force recalculate leaderboard rankings. */
-    action recalculateLeaderboard()                                                returns ActionResult;
+    /** Force recalculate leaderboard rankings (all or by tournament). */
+    action recalculateLeaderboard(tournamentId: UUID)                               returns ActionResult;
 
     /** Lock champion predictions (UC3). */
     action lockChampionPredictions()                                               returns ActionResult;

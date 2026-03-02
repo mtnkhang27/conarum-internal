@@ -1,6 +1,8 @@
 /**
  * ScoringEngine — Pure stateless scoring logic.
  * No DB access, no side effects. Fully testable.
+ *
+ * UC2 scoring: correct prediction = 1 point, wrong = 0 (no weight).
  */
 export class ScoringEngine {
 
@@ -15,33 +17,20 @@ export class ScoringEngine {
 
     /**
      * Score a single UC2 prediction.
-     * Returns points earned based on config.
-     *
-     * Formula: Points = BasePoints × MatchWeight
+     * Returns 1 if correct, 0 if wrong. Simple, no weight.
      */
     scorePrediction(
         pick: string,
         actualOutcome: string,
-        matchWeight: number,
         config: any
     ): number {
-        const pointsForWin = Number(config?.pointsForWin ?? 3);
-        const pointsForDraw = Number(config?.pointsForDraw ?? 1);
-        const pointsForLose = Number(config?.pointsForLose ?? 0);
-        const weight = Number(matchWeight) || 1;
+        const pointsForCorrect = Number(config?.pointsForCorrect ?? 1);
 
         if (pick === actualOutcome) {
-            return pointsForWin * weight;
+            return pointsForCorrect;
         }
 
-        // Partial credit: if actual is draw and user predicted something else,
-        // or user predicted draw and actual is something else
-        // (configurable — default: only exact match gets full points)
-        if (pick === 'draw' || actualOutcome === 'draw') {
-            return pointsForDraw * weight;
-        }
-
-        return pointsForLose * weight;
+        return 0;
     }
 
     /**

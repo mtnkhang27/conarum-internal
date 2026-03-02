@@ -47,6 +47,9 @@ const STAGES = [
     { value: "semiFinal", label: "Semi Final" },
     { value: "thirdPlace", label: "Third Place" },
     { value: "final", label: "Final" },
+    { value: "regular", label: "Regular Season" },
+    { value: "playoff", label: "Playoff" },
+    { value: "relegation", label: "Relegation" },
 ];
 
 function statusVariant(status: string) {
@@ -87,7 +90,7 @@ export function MatchManagement() {
         kickoff: "",
         venue: "",
         stage: "group",
-        weight: "1",
+        matchday: "",
     });
 
     useEffect(() => {
@@ -121,7 +124,7 @@ export function MatchManagement() {
             kickoff: "",
             venue: "",
             stage: "group",
-            weight: "1",
+            matchday: "",
         });
         setDialogOpen(true);
     }
@@ -135,7 +138,7 @@ export function MatchManagement() {
             kickoff: match.kickoff?.slice(0, 16) || "",
             venue: match.venue || "",
             stage: match.stage,
-            weight: String(match.weight),
+            matchday: match.matchday != null ? String(match.matchday) : "",
         });
         setDialogOpen(true);
     }
@@ -149,14 +152,14 @@ export function MatchManagement() {
 
     async function handleSave() {
         try {
-            const data = {
+            const data: Record<string, any> = {
                 homeTeam_ID: form.homeTeam_ID,
                 awayTeam_ID: form.awayTeam_ID,
                 tournament_ID: form.tournament_ID,
                 kickoff: new Date(form.kickoff).toISOString(),
                 venue: form.venue || null,
                 stage: form.stage as AdminMatch["stage"],
-                weight: parseFloat(form.weight),
+                matchday: form.matchday ? parseInt(form.matchday) : null,
             };
 
             if (editing) {
@@ -274,7 +277,7 @@ export function MatchManagement() {
                                 <th className="px-4 py-3">Stage</th>
                                 <th className="px-4 py-3">Date &amp; Time</th>
                                 <th className="px-4 py-3">Venue</th>
-                                <th className="px-4 py-3">Wt</th>
+                                <th className="px-4 py-3">Day</th>
                                 <th className="px-4 py-3">Result</th>
                                 <th className="px-4 py-3">Status</th>
                                 <th className="px-4 py-3">Actions</th>
@@ -325,7 +328,7 @@ export function MatchManagement() {
                                         {m.venue || "—"}
                                     </td>
                                     <td className="px-4 py-3 text-center font-mono text-muted-foreground">
-                                        {m.weight}x
+                                        {m.matchday ?? "—"}
                                     </td>
                                     <td className="px-4 py-3 font-mono text-white">
                                         {m.status === "finished"
@@ -491,15 +494,15 @@ export function MatchManagement() {
                             </div>
                             <div className="space-y-2">
                                 <label className="text-xs font-medium text-muted-foreground">
-                                    Weight
+                                    Matchday
                                 </label>
                                 <Input
                                     type="number"
                                     min="1"
-                                    max="10"
-                                    step="0.5"
-                                    value={form.weight}
-                                    onChange={(e) => setForm({ ...form, weight: e.target.value })}
+                                    max="99"
+                                    value={form.matchday}
+                                    onChange={(e) => setForm({ ...form, matchday: e.target.value })}
+                                    placeholder="e.g. 1-38"
                                 />
                             </div>
                         </div>

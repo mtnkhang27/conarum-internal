@@ -35,8 +35,16 @@ export interface ODataTeam {
     flagCode: string;
     confederation: string | null;
     fifaRanking: number | null;
-    groupName: string | null;
-    isEliminated: boolean;
+}
+
+export interface ODataTournament {
+    ID: string;
+    name: string;
+    format: string;
+    status: string;
+    startDate: string;
+    endDate: string;
+    season: string | null;
 }
 
 export interface ODataMatch {
@@ -50,9 +58,11 @@ export interface ODataMatch {
     status: "upcoming" | "live" | "finished";
     homeScore: number | null;
     awayScore: number | null;
-    weight: number;
+    matchday: number | null;
+    allowScorePrediction: boolean | null;
     homeTeam?: ODataTeam;
     awayTeam?: ODataTeam;
+    tournament?: ODataTournament;
 }
 
 export interface ODataLeaderboardEntry {
@@ -72,6 +82,7 @@ export interface ODataPrediction {
     ID: string;
     player_ID: string;
     match_ID: string;
+    tournament_ID: string | null;
     pick: string;
     isCorrect: boolean | null;
     pointsEarned: number;
@@ -112,6 +123,11 @@ import type {
     LeaderboardEntry,
     PredictionHistoryItem,
     PredictionSummary,
+    TournamentInfo,
+    MatchResultItem,
+    UpcomingMatchItem,
+    TournamentLeaderboardItem,
+    StandingItem,
 } from "@/types";
 
 // ─── Transform helpers ──────────────────────────────────────
@@ -137,12 +153,12 @@ function toMatch(m: ODataMatch): Match {
     const away = m.awayTeam || { name: m.awayTeam_ID, flagCode: "" } as any;
     return {
         id: m.ID,
-        weight: m.weight,
         timeLabel: formatKickoff(m.kickoff),
         home: { name: home.name, flag: home.flagCode },
         away: { name: away.name, flag: away.flagCode },
         options: [home.name, "Draw", away.name],
         selectedOption: "",
+        allowScorePrediction: m.allowScorePrediction !== false, // default true
     };
 }
 
@@ -156,7 +172,6 @@ function toUpcomingMatch(m: ODataMatch): UpcomingMatch {
         away: { name: away.name, flag: away.flagCode },
         kickoff: formatKickoff(m.kickoff),
         stage: m.stage,
-        weight: m.weight,
         pick: "",
         isSoon: diff < 2 * 60 * 60 * 1000, // < 2 hours
     };
@@ -168,7 +183,6 @@ function toLiveMatch(m: ODataMatch): LiveMatch {
     return {
         match: `${home} vs ${away}`,
         minute: "LIVE",
-        weight: m.weight,
         score: `${m.homeScore ?? 0} - ${m.awayScore ?? 0}`,
     };
 }
@@ -178,7 +192,6 @@ function toExactScoreMatch(m: ODataMatch): ExactScoreMatch {
     const away = m.awayTeam || { name: m.awayTeam_ID, flagCode: "" } as any;
     return {
         id: m.ID,
-        weight: m.weight,
         timeLabel: formatKickoff(m.kickoff),
         home: { name: home.name, flag: home.flagCode },
         away: { name: away.name, flag: away.flagCode },
@@ -203,12 +216,49 @@ function toLeaderboardEntry(p: ODataLeaderboardEntry, idx: number): LeaderboardE
 
 // ─── Public API ──────────────────────────────────────────────
 
+export const playerTournamentsApi = {
+    /** Get all tournaments. */
+    async getAll(): Promise<TournamentInfo[]> {
+        const tournaments = await json<ODataTournament[]>(
+            `${BASE}/Tournaments?$orderby=startDate desc`
+        );
+        return tournaments.map((t) => ({
+            ID: t.ID,
+            name: t.name,
+            format: t.format as TournamentInfo["format"],
+            status: t.status as TournamentInfo["status"],
+            startDate: t.startDate,
+            endDate: t.endDate,
+            season: t.season ?? undefined,
+        }));
+    },
+
+    /** Get active/upcoming tournaments. */
+    async getActive(): Promise<TournamentInfo[]> {
+        const tournaments = await json<ODataTournament[]>(
+            `${BASE}/Tournaments?$filter=status eq 'active' or status eq 'upcoming'&$orderby=startDate desc`
+        );
+        return tournaments.map((t) => ({
+            ID: t.ID,
+            name: t.name,
+            format: t.format as TournamentInfo["format"],
+            status: t.status as TournamentInfo["status"],
+            startDate: t.startDate,
+            endDate: t.endDate,
+            season: t.season ?? undefined,
+        }));
+    },
+};
+
 export const playerMatchesApi = {
-    /** Available (upcoming) matches for prediction cards, with user's existing picks and score bets. */
-    async getAvailable(): Promise<Match[]> {
+    /** Available (upcoming) matches for prediction cards, optionally filtered by tournament. */
+    async getAvailable(tournamentId?: string): Promise<Match[]> {
+        let filter = "status eq 'upcoming'";
+        if (tournamentId) filter += ` and tournament_ID eq '${tournamentId}'`;
+
         const [matches, predictions, scoreBets] = await Promise.all([
             json<ODataMatch[]>(
-                `${BASE}/Matches?$filter=status eq 'upcoming'&$expand=homeTeam,awayTeam&$orderby=kickoff asc`
+                `${BASE}/Matches?$filter=${encodeURIComponent(filter)}&$expand=homeTeam,awayTeam&$orderby=kickoff asc`
             ),
             json<ODataPrediction[]>(`${BASE}/MyPredictions`).catch(() => [] as ODataPrediction[]),
             json<ODataScoreBet[]>(`${BASE}/MyScoreBets`).catch(() => [] as ODataScoreBet[]),
@@ -239,15 +289,18 @@ export const playerMatchesApi = {
         });
     },
 
-    /** Completed (finished) matches. */
-    async getCompleted(): Promise<Match[]> {
+    /** Completed (finished) matches, optionally filtered by tournament. */
+    async getCompleted(tournamentId?: string): Promise<Match[]> {
+        let filter = "status eq 'finished'";
+        if (tournamentId) filter += ` and tournament_ID eq '${tournamentId}'`;
+
         const matches = await json<ODataMatch[]>(
-            `${BASE}/Matches?$filter=status eq 'finished'&$expand=homeTeam,awayTeam&$orderby=kickoff desc`
+            `${BASE}/Matches?$filter=${encodeURIComponent(filter)}&$expand=homeTeam,awayTeam&$orderby=kickoff desc`
         );
         return matches.map((m) => ({
             ...toMatch(m),
             timeLabel: "Locked",
-            selectedOption: "", // No pick info at this level — will be enriched by predictions
+            selectedOption: "",
         }));
     },
 
@@ -259,10 +312,13 @@ export const playerMatchesApi = {
         return matches.map(toLiveMatch);
     },
 
-    /** Upcoming kickoff list for the sidebar table. */
-    async getUpcoming(): Promise<UpcomingMatch[]> {
+    /** Upcoming kickoff list for the sidebar table, optionally filtered by tournament. */
+    async getUpcoming(tournamentId?: string): Promise<UpcomingMatch[]> {
+        let filter = "status eq 'upcoming'";
+        if (tournamentId) filter += ` and tournament_ID eq '${tournamentId}'`;
+
         const matches = await json<ODataMatch[]>(
-            `${BASE}/Matches?$filter=status eq 'upcoming'&$expand=homeTeam,awayTeam&$orderby=kickoff asc&$top=10`
+            `${BASE}/Matches?$filter=${encodeURIComponent(filter)}&$expand=homeTeam,awayTeam&$orderby=kickoff asc&$top=10`
         );
         return matches.map(toUpcomingMatch);
     },
@@ -277,11 +333,20 @@ export const playerMatchesApi = {
 };
 
 export const playerLeaderboardApi = {
+    /** Global leaderboard. */
     async getAll(): Promise<LeaderboardEntry[]> {
         const entries = await json<ODataLeaderboardEntry[]>(
             `${BASE}/Leaderboard?$orderby=totalPoints desc`
         );
         return entries.map(toLeaderboardEntry);
+    },
+
+    /** Tournament-specific prediction leaderboard (UC2). */
+    async getByTournament(tournamentId: string): Promise<TournamentLeaderboardItem[]> {
+        return post<TournamentLeaderboardItem[]>(
+            `${BASE}/getPredictionLeaderboard`,
+            { tournamentId }
+        );
     },
 };
 
@@ -289,7 +354,7 @@ export const playerTeamsApi = {
     /** Teams for champion picker. */
     async getAll(): Promise<ChampionTeam[]> {
         const teams = await json<ODataTeam[]>(
-            `${BASE}/Teams?$filter=isEliminated eq false&$orderby=fifaRanking asc`
+            `${BASE}/Teams?$orderby=fifaRanking asc`
         );
         return teams.map((t) => ({
             name: t.name,
@@ -328,7 +393,6 @@ export const playerPredictionsApi = {
                 kickoff: m ? formatKickoff(m.kickoff) : "",
                 predictionType: "Match Winner",
                 pick: p.pick,
-                weight: m?.weight || 1,
                 submissionStatus: p.submittedAt ? "submitted" : "draft",
             });
         }
@@ -343,7 +407,6 @@ export const playerPredictionsApi = {
                 kickoff: m ? formatKickoff(m.kickoff) : "",
                 predictionType: "Exact Score",
                 pick: `${sb.predictedHomeScore} - ${sb.predictedAwayScore}`,
-                weight: m?.weight || 1,
                 submissionStatus: sb.submittedAt ? "submitted" : "draft",
             });
         }
@@ -404,6 +467,33 @@ export const playerActionsApi = {
         return post<{ success: boolean; message: string }>(
             `${BASE}/pickChampion`,
             { teamId }
+        );
+    },
+};
+
+/** Tournament-specific query functions. */
+export const playerTournamentQueryApi = {
+    /** Get latest results for a tournament. */
+    async getLatestResults(tournamentId: string): Promise<MatchResultItem[]> {
+        return post<MatchResultItem[]>(
+            `${BASE}/getLatestResults`,
+            { tournamentId }
+        );
+    },
+
+    /** Get upcoming matches for a tournament. */
+    async getUpcomingMatches(tournamentId: string): Promise<UpcomingMatchItem[]> {
+        return post<UpcomingMatchItem[]>(
+            `${BASE}/getUpcomingMatches`,
+            { tournamentId }
+        );
+    },
+
+    /** Get league standings for a tournament. */
+    async getStandings(tournamentId: string): Promise<StandingItem[]> {
+        return post<StandingItem[]>(
+            `${BASE}/getStandings`,
+            { tournamentId }
         );
     },
 };

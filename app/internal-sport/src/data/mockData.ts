@@ -14,7 +14,6 @@ import type {
 export const availableMatches: Match[] = [
     {
         id: "arg-fr",
-        weight: 1.85,
         timeLabel: "Today / 22:00",
         home: { name: "Argentina", flag: "ar" },
         away: { name: "France", flag: "fr" },
@@ -23,7 +22,6 @@ export const availableMatches: Match[] = [
     },
     {
         id: "bra-kor",
-        weight: 1.65,
         timeLabel: "Today / 18:00",
         home: { name: "Brazil", flag: "br" },
         away: { name: "Korea Rep.", flag: "kr" },
@@ -32,7 +30,6 @@ export const availableMatches: Match[] = [
     },
     {
         id: "jpn-cro",
-        weight: 2.1,
         timeLabel: "Tomorrow / 14:00",
         home: { name: "Japan", flag: "jp" },
         away: { name: "Croatia", flag: "hr" },
@@ -48,7 +45,6 @@ export const upcomingKickoffMatches: UpcomingMatch[] = [
         away: { name: "Korea Rep.", flag: "kr" },
         kickoff: "Today / 18:00",
         stage: "Round of 16",
-        weight: 1.65,
         pick: "",
         isSoon: true,
     },
@@ -58,7 +54,6 @@ export const upcomingKickoffMatches: UpcomingMatch[] = [
         away: { name: "France", flag: "fr" },
         kickoff: "Today / 22:00",
         stage: "Final",
-        weight: 1.85,
         pick: "Argentina",
         isSoon: true,
     },
@@ -68,7 +63,6 @@ export const upcomingKickoffMatches: UpcomingMatch[] = [
         away: { name: "Croatia", flag: "hr" },
         kickoff: "Tomorrow / 14:00",
         stage: "Round of 16",
-        weight: 2.1,
         pick: "",
         isSoon: false,
     },
@@ -78,7 +72,6 @@ export const upcomingKickoffMatches: UpcomingMatch[] = [
         away: { name: "France", flag: "fr" },
         kickoff: "Tomorrow / 20:00",
         stage: "Quarter Final",
-        weight: 1.95,
         pick: "France",
         isSoon: false,
     },
@@ -88,7 +81,6 @@ export const upcomingKickoffMatches: UpcomingMatch[] = [
         away: { name: "Morocco", flag: "ma" },
         kickoff: "Dec 10 / 22:00",
         stage: "Quarter Final",
-        weight: 2.05,
         pick: "",
         isSoon: false,
     },
@@ -97,7 +89,6 @@ export const upcomingKickoffMatches: UpcomingMatch[] = [
 export const completedMatches: Match[] = [
     {
         id: "qat-ecu",
-        weight: 14,
         timeLabel: "Locked",
         home: { name: "Qatar", flag: "qa" },
         away: { name: "Ecuador", flag: "ec" },
@@ -106,7 +97,6 @@ export const completedMatches: Match[] = [
     },
     {
         id: "eng-irn",
-        weight: 1.25,
         timeLabel: "Locked",
         home: { name: "England", flag: "gb" },
         away: { name: "Iran", flag: "ir" },
@@ -115,7 +105,6 @@ export const completedMatches: Match[] = [
     },
     {
         id: "arg-fra-final",
-        weight: 1.85,
         timeLabel: "Locked",
         home: { name: "Argentina", flag: "ar" },
         away: { name: "France", flag: "fr" },
@@ -125,14 +114,13 @@ export const completedMatches: Match[] = [
 ];
 
 export const liveMatches: LiveMatch[] = [
-    { match: "Qatar vs Ecuador", minute: "2H 45'", weight: 14, score: "0 - 2" },
-    { match: "England vs Iran", minute: "1H 15'", weight: 1.25, score: "1 - 0" },
+    { match: "Qatar vs Ecuador", minute: "2H 45'", score: "0 - 2" },
+    { match: "England vs Iran", minute: "1H 15'", score: "1 - 0" },
 ];
 
 export const exactScoreMatches: ExactScoreMatch[] = [
     {
         id: "arg-fra-es",
-        weight: 2.9,
         timeLabel: "Today / 22:00",
         home: { name: "Argentina", flag: "ar" },
         away: { name: "France", flag: "fr" },
@@ -140,7 +128,6 @@ export const exactScoreMatches: ExactScoreMatch[] = [
     },
     {
         id: "bra-kor-es",
-        weight: 2.35,
         timeLabel: "Today / 18:00",
         home: { name: "Brazil", flag: "br" },
         away: { name: "Korea Rep.", flag: "kr" },
@@ -148,7 +135,6 @@ export const exactScoreMatches: ExactScoreMatch[] = [
     },
     {
         id: "jpn-cro-es",
-        weight: 3.1,
         timeLabel: "Tomorrow / 14:00",
         home: { name: "Japan", flag: "jp" },
         away: { name: "Croatia", flag: "hr" },
@@ -157,8 +143,8 @@ export const exactScoreMatches: ExactScoreMatch[] = [
 ];
 
 export const slipItems: SlipItem[] = [
-    { match: "Argentina vs France", pick: "Argentina", weight: 1.85 },
-    { match: "Brazil vs Korea Republic", pick: "Brazil", weight: 1.65 },
+    { match: "Argentina vs France", pick: "Argentina" },
+    { match: "Brazil vs Korea Republic", pick: "Brazil" },
 ];
 
 export const championTeams: ChampionTeam[] = [
@@ -188,26 +174,26 @@ export const myPredictionSummary: PredictionSummary = {
 };
 
 export const myPredictionHistory: PredictionHistoryItem[] = [
-    { id: "arg-fra-final", match: "Argentina vs France", kickoff: "Dec 18 / 22:00", predictionType: "Match Winner", pick: "Argentina", weight: 1.85, submissionStatus: "submitted" },
-    { id: "eng-irn", match: "England vs Iran", kickoff: "Nov 21 / 20:00", predictionType: "Match Winner", pick: "England", weight: 1.25, submissionStatus: "submitted" },
-    { id: "jpn-cro", match: "Japan vs Croatia", kickoff: "Dec 05 / 22:00", predictionType: "Match Winner", pick: "Japan", weight: 2.1, submissionStatus: "submitted" },
-    { id: "bra-kor", match: "Brazil vs Korea Republic", kickoff: "Dec 05 / 02:00", predictionType: "Match Winner", pick: "Brazil", weight: 1.65, submissionStatus: "submitted" },
-    { id: "ned-usa", match: "Netherlands vs USA", kickoff: "Dec 03 / 22:00", predictionType: "Match Winner", pick: "Draw", weight: 1.4, submissionStatus: "submitted" },
-    { id: "por-sui", match: "Portugal vs Switzerland", kickoff: "Dec 06 / 22:00", predictionType: "Match Winner", pick: "Portugal", weight: 1.5, submissionStatus: "submitted" },
-    { id: "arg-fra-es", match: "Argentina vs France", kickoff: "Dec 18 / 22:00", predictionType: "Exact Score", pick: "2 - 1", weight: 2.9, submissionStatus: "submitted" },
-    { id: "bra-kor-es", match: "Brazil vs Korea Republic", kickoff: "Dec 05 / 02:00", predictionType: "Exact Score", pick: "3 - 1", weight: 2.35, submissionStatus: "submitted" },
-    { id: "jpn-cro-es", match: "Japan vs Croatia", kickoff: "Dec 05 / 22:00", predictionType: "Exact Score", pick: "1 - 1", weight: 3.1, submissionStatus: "draft" },
+    { id: "arg-fra-final", match: "Argentina vs France", kickoff: "Dec 18 / 22:00", predictionType: "Match Winner", pick: "Argentina", submissionStatus: "submitted" },
+    { id: "eng-irn", match: "England vs Iran", kickoff: "Nov 21 / 20:00", predictionType: "Match Winner", pick: "England", submissionStatus: "submitted" },
+    { id: "jpn-cro", match: "Japan vs Croatia", kickoff: "Dec 05 / 22:00", predictionType: "Match Winner", pick: "Japan", submissionStatus: "submitted" },
+    { id: "bra-kor", match: "Brazil vs Korea Republic", kickoff: "Dec 05 / 02:00", predictionType: "Match Winner", pick: "Brazil", submissionStatus: "submitted" },
+    { id: "ned-usa", match: "Netherlands vs USA", kickoff: "Dec 03 / 22:00", predictionType: "Match Winner", pick: "Draw", submissionStatus: "submitted" },
+    { id: "por-sui", match: "Portugal vs Switzerland", kickoff: "Dec 06 / 22:00", predictionType: "Match Winner", pick: "Portugal", submissionStatus: "submitted" },
+    { id: "arg-fra-es", match: "Argentina vs France", kickoff: "Dec 18 / 22:00", predictionType: "Exact Score", pick: "2 - 1", submissionStatus: "submitted" },
+    { id: "bra-kor-es", match: "Brazil vs Korea Republic", kickoff: "Dec 05 / 02:00", predictionType: "Exact Score", pick: "3 - 1", submissionStatus: "submitted" },
+    { id: "jpn-cro-es", match: "Japan vs Croatia", kickoff: "Dec 05 / 22:00", predictionType: "Exact Score", pick: "1 - 1", submissionStatus: "draft" },
 ];
 
 export const leaderboardEntries: LeaderboardEntry[] = [
-    { rank: 1, name: "Alex Carter", flag: "gb", correctPicks: 34, totalPicks: 42, accuracy: 81, points: 86.75, streak: 8 },
-    { rank: 2, name: "Minh Tran", flag: "vn", correctPicks: 33, totalPicks: 42, accuracy: 79, points: 84.9, streak: 6 },
-    { rank: 3, name: "Sofia Rossi", flag: "it", correctPicks: 32, totalPicks: 41, accuracy: 78, points: 82.4, streak: 4 },
-    { rank: 4, name: "Mateo Silva", flag: "br", correctPicks: 31, totalPicks: 41, accuracy: 76, points: 79.6, streak: 5 },
-    { rank: 5, name: "Nina Muller", flag: "de", correctPicks: 30, totalPicks: 40, accuracy: 75, points: 76.85, streak: 3 },
-    { rank: 6, name: "Ethan Brooks", flag: "us", correctPicks: 29, totalPicks: 40, accuracy: 73, points: 75.4, streak: 2 },
-    { rank: 7, name: "You", flag: "vn", correctPicks: 17, totalPicks: 25, accuracy: 68, points: 42.8, streak: 2, isYou: true },
-    { rank: 8, name: "Noah Kim", flag: "kr", correctPicks: 16, totalPicks: 25, accuracy: 64, points: 40.2, streak: 1 },
+    { rank: 1, name: "Alex Carter", flag: "gb", correctPicks: 34, totalPicks: 42, accuracy: 81, points: 34, streak: 8 },
+    { rank: 2, name: "Minh Tran", flag: "vn", correctPicks: 33, totalPicks: 42, accuracy: 79, points: 33, streak: 6 },
+    { rank: 3, name: "Sofia Rossi", flag: "it", correctPicks: 32, totalPicks: 41, accuracy: 78, points: 32, streak: 4 },
+    { rank: 4, name: "Mateo Silva", flag: "br", correctPicks: 31, totalPicks: 41, accuracy: 76, points: 31, streak: 5 },
+    { rank: 5, name: "Nina Muller", flag: "de", correctPicks: 30, totalPicks: 40, accuracy: 75, points: 30, streak: 3 },
+    { rank: 6, name: "Ethan Brooks", flag: "us", correctPicks: 29, totalPicks: 40, accuracy: 73, points: 29, streak: 2 },
+    { rank: 7, name: "You", flag: "vn", correctPicks: 17, totalPicks: 25, accuracy: 68, points: 17, streak: 2, isYou: true },
+    { rank: 8, name: "Noah Kim", flag: "kr", correctPicks: 16, totalPicks: 25, accuracy: 64, points: 16, streak: 1 },
 ];
 
 export const defaultProfile: UserProfile = {

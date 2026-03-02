@@ -22,7 +22,7 @@ export function LiveMatchesTable({ items }: LiveMatchesTableProps) {
             <div className="overflow-hidden rounded-lg border border-border bg-card">
                 <div className="grid grid-cols-12 gap-2 border-b border-border bg-surface/50 px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
                     <div className="col-span-6">In-Play Match</div>
-                    <div className="col-span-2 text-center">Weight</div>
+                    <div className="col-span-2 text-center">Points</div>
                     <div className="col-span-2 text-center">Score</div>
                     <div className="col-span-2 text-center">Pick</div>
                 </div>
@@ -45,7 +45,7 @@ export function LiveMatchesTable({ items }: LiveMatchesTableProps) {
                             </div>
 
                             <div className="col-span-2 text-center">
-                                <span className="text-sm font-bold text-primary">{item.weight.toFixed(2)}</span>
+                                <span className="text-sm font-bold text-success">+1</span>
                             </div>
 
                             <div className="col-span-2 text-center">

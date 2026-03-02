@@ -6,8 +6,6 @@ export interface AdminTeam {
     flagCode: string;
     confederation: string | null;
     fifaRanking: number | null;
-    groupName: string | null;
-    isEliminated: boolean;
 }
 
 export interface AdminTournament {
@@ -16,7 +14,19 @@ export interface AdminTournament {
     startDate: string;
     endDate: string;
     status: "upcoming" | "active" | "completed" | "cancelled";
+    format: "knockout" | "league" | "groupKnockout" | "cup";
     description: string | null;
+    season: string | null;
+}
+
+export interface AdminTournamentTeam {
+    ID: string;
+    tournament_ID: string;
+    team_ID: string;
+    groupName: string | null;
+    isEliminated: boolean;
+    team?: AdminTeam;
+    tournament?: AdminTournament;
 }
 
 export interface AdminMatch {
@@ -29,10 +39,10 @@ export interface AdminMatch {
     tournament?: AdminTournament;
     kickoff: string;
     venue: string | null;
-    stage: "group" | "roundOf16" | "quarterFinal" | "semiFinal" | "thirdPlace" | "final";
+    stage: "group" | "roundOf16" | "quarterFinal" | "semiFinal" | "thirdPlace" | "final" | "regular" | "playoff" | "relegation";
     status: "upcoming" | "live" | "finished" | "cancelled";
-    weight: number;
     matchNumber: number | null;
+    matchday: number | null;
     homeScore: number | null;
     awayScore: number | null;
     outcome: "home" | "draw" | "away" | null;
@@ -76,13 +86,7 @@ export interface ScorePredictionConfig {
 export interface MatchOutcomeConfig {
     ID: string;
     enabled: boolean;
-    pointsForWin: number;
-    pointsForDraw: number;
-    pointsForLose: number;
-    regularMatchWeight: number;
-    importantMatchWeight: number;
-    semifinalWeight: number;
-    finalMatchWeight: number;
+    pointsForCorrect: number;
     firstPlacePrize: string;
     firstPlaceValue: number;
     secondPlacePrize: string;
@@ -93,10 +97,7 @@ export interface MatchOutcomeConfig {
     consolationValue: number;
     autoCalculateAfterMatch: boolean;
     calculateDelay: number;
-    tieBreakRule: string;
     showLiveRanking: boolean;
-    perfectWeekBonus: number;
-    consecutiveWinsBonus: number;
     leaderboardUpdateInterval: number;
 }
 

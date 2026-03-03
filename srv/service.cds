@@ -45,7 +45,8 @@ service PlayerService {
         projection on db.Tournament {
             *,
             matches : redirected to Matches,
-            teams   : redirected to TournamentTeams
+            teams   : redirected to TournamentTeams,
+            bracket : redirected to BracketSlots
         }
         excluding {
             createdBy,
@@ -72,6 +73,25 @@ service PlayerService {
     entity MatchScoreBetConfigs     as projection on db.MatchScoreBetConfig { * }
         excluding { createdAt, createdBy, modifiedAt, modifiedBy };
 
+    /** Knockout bracket slots — for rendering the bracket tree. */
+    @readonly
+    entity BracketSlots             as
+        projection on db.BracketSlot {
+            *,
+            tournament : redirected to Tournaments,
+            homeTeam   : redirected to Teams,
+            awayTeam   : redirected to Teams,
+            winner     : redirected to Teams,
+            leg1       : redirected to Matches,
+            leg2       : redirected to Matches
+        }
+        excluding {
+            createdAt,
+            createdBy,
+            modifiedAt,
+            modifiedBy
+        };
+
     /** Matches with team details — the core view for all prediction pages. */
     @readonly
     entity Matches                  as
@@ -80,7 +100,8 @@ service PlayerService {
             homeTeam       : redirected to Teams,
             awayTeam       : redirected to Teams,
             tournament     : redirected to Tournaments,
-            scoreBetConfig : redirected to MatchScoreBetConfigs
+            scoreBetConfig : redirected to MatchScoreBetConfigs,
+            bracketSlot    : redirected to BracketSlots
         }
         excluding {
             createdBy,
@@ -198,8 +219,10 @@ service PlayerService {
         matchId   : UUID;
         homeTeam  : String;
         homeFlag  : String;
+        homeCrest : String;
         awayTeam  : String;
         awayFlag  : String;
+        awayCrest : String;
         homeScore : Integer;
         awayScore : Integer;
         outcome   : String;
@@ -215,8 +238,10 @@ service PlayerService {
         matchId  : UUID;
         homeTeam : String;
         homeFlag : String;
+        homeCrest : String;
         awayTeam : String;
         awayFlag : String;
+        awayCrest : String;
         kickoff  : DateTime;
         stage    : String;
         matchday : Integer;
@@ -255,8 +280,10 @@ service PlayerService {
         matchId        : UUID;
         homeTeam       : String;
         homeFlag       : String;
+        homeCrest      : String;
         awayTeam       : String;
         awayFlag       : String;
+        awayCrest      : String;
         tournamentName : String;
         pick           : String;
         status         : String;
@@ -276,6 +303,7 @@ service PlayerService {
         teamId       : UUID;
         teamName     : String;
         teamFlag     : String;
+        teamCrest    : String;
         played       : Integer;
         won          : Integer;
         drawn        : Integer;
@@ -287,6 +315,38 @@ service PlayerService {
     }
 
     function getStandings(tournamentId: UUID)   returns many StandingItem;
+
+    /** Knockout bracket for a tournament. */
+    type BracketSlotItem {
+        slotId       : UUID;
+        stage        : String;
+        position     : Integer;
+        label        : String;
+        homeTeamId   : UUID;
+        homeTeamName : String;
+        homeTeamFlag : String;
+        homeTeamCrest: String;
+        awayTeamId   : UUID;
+        awayTeamName : String;
+        awayTeamFlag : String;
+        awayTeamCrest: String;
+        leg1Id       : UUID;
+        leg1HomeScore: Integer;
+        leg1AwayScore: Integer;
+        leg1Status   : String;
+        leg2Id       : UUID;
+        leg2HomeScore: Integer;
+        leg2AwayScore: Integer;
+        leg2Status   : String;
+        homeAgg      : Integer;
+        awayAgg      : Integer;
+        winnerId     : UUID;
+        winnerName   : String;
+        nextSlotId   : UUID;
+        nextSlotSide : String;
+    }
+
+    function getTournamentBracket(tournamentId: UUID) returns many BracketSlotItem;
 }
 
 // ────────────────────────────────────────────────────────────
@@ -306,6 +366,10 @@ service AdminService {
     entity TournamentTeams          as projection on db.TournamentTeam;
     entity Players                  as projection on db.Player;
     entity PlayerTournamentStats    as projection on db.PlayerTournamentStats;
+
+    // ── Bracket CRUD ────────────────────────────────────────
+
+    entity BracketSlots             as projection on db.BracketSlot;
 
     // ── Per-Match Config CRUD ────────────────────────────────
 

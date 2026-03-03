@@ -176,12 +176,16 @@ export function MatchDetail() {
           <div>
             <h1 className="text-2xl font-bold text-white">
               {match.homeTeam && (
-                <span className={`fi fi-${match.homeTeam.flagCode} mr-2`} />
+                match.homeTeam.crest
+                  ? <img src={match.homeTeam.crest} alt="" className="mr-2 inline h-6 w-6 object-contain align-middle" />
+                  : <span className={`fi fi-${match.homeTeam.flagCode} mr-2`} />
               )}
               {homeTeamName}
               <span className="mx-3 text-muted-foreground">vs</span>
               {match.awayTeam && (
-                <span className={`fi fi-${match.awayTeam.flagCode} mr-2`} />
+                match.awayTeam.crest
+                  ? <img src={match.awayTeam.crest} alt="" className="mr-2 inline h-6 w-6 object-contain align-middle" />
+                  : <span className={`fi fi-${match.awayTeam.flagCode} mr-2`} />
               )}
               {awayTeamName}
             </h1>

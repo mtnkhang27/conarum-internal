@@ -30,12 +30,16 @@ export function UpcomingKickoffTable({ items }: UpcomingKickoffTableProps) {
                                 <div className="col-span-5">
                                     <div className="flex flex-wrap items-center gap-1.5">
                                         <span className="flex items-center gap-1 text-sm font-bold text-white">
-                                            <span className={`fi fi-${item.home.flag} rounded-sm`} />
+                                            {item.home.crest
+                                                ? <img src={item.home.crest} alt={item.home.name} className="h-4 w-4 object-contain" />
+                                                : <span className={`fi fi-${item.home.flag} rounded-sm`} />}
                                             {item.home.name}
                                         </span>
                                         <span className="text-[10px] font-black text-muted-foreground">VS</span>
                                         <span className="flex items-center gap-1 text-sm font-bold text-white">
-                                            <span className={`fi fi-${item.away.flag} rounded-sm`} />
+                                            {item.away.crest
+                                                ? <img src={item.away.crest} alt={item.away.name} className="h-4 w-4 object-contain" />
+                                                : <span className={`fi fi-${item.away.flag} rounded-sm`} />}
                                             {item.away.name}
                                         </span>
                                     </div>

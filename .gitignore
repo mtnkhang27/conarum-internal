@@ -34,3 +34,10 @@ mta_archives/
 @cds-models
 
 @cds-models
+db/mock/areas.json
+db/mock/CL.json
+db/mock/CLmatches.json
+db/mock/CLstandings.json
+db/mock/CLteams.json
+db/mock/tournament.json
+app/internal-sport/.env

@@ -1,7 +1,9 @@
 import type {
     AdminMatch,
     AdminTeam,
+    AdminTeamMember,
     AdminTournament,
+    AdminTournamentTeam,
     AdminPlayer,
     MatchScoreBetConfig,
     ActionResult,
@@ -86,6 +88,10 @@ export const matchScoreBetConfigApi = {
 
 export const teamsApi = {
     list: () => odataList<AdminTeam>("/Teams?$orderby=name asc"),
+    get: (id: string) =>
+        odata<AdminTeam>(
+            `/Teams('${id}')?$expand=members,tournaments($expand=tournament)`
+        ),
     create: (data: Partial<AdminTeam>) =>
         odata<AdminTeam>("/Teams", {
             method: "POST",
@@ -98,6 +104,36 @@ export const teamsApi = {
         }),
     delete: (id: string) =>
         odata<void>(`/Teams('${id}')`, { method: "DELETE" }),
+};
+
+// ── Team Members ───────────────────────────────────────────
+
+export const teamMembersApi = {
+    list: (teamId: string) =>
+        odataList<AdminTeamMember>(
+            `/TeamMembers?$filter=team_ID eq '${teamId}'&$orderby=role asc,jerseyNumber asc`
+        ),
+    create: (data: Partial<AdminTeamMember>) =>
+        odata<AdminTeamMember>("/TeamMembers", {
+            method: "POST",
+            body: JSON.stringify(data),
+        }),
+    update: (id: string, data: Partial<AdminTeamMember>) =>
+        odata<void>(`/TeamMembers('${id}')`, {
+            method: "PATCH",
+            body: JSON.stringify(data),
+        }),
+    delete: (id: string) =>
+        odata<void>(`/TeamMembers('${id}')`, { method: "DELETE" }),
+};
+
+// ── Tournament Teams ───────────────────────────────────────
+
+export const tournamentTeamsApi = {
+    listByTournament: (tournamentId: string) =>
+        odataList<AdminTournamentTeam>(
+            `/TournamentTeams?$filter=tournament_ID eq '${tournamentId}'&$expand=team`
+        ),
 };
 
 // ── Tournaments ────────────────────────────────────────────

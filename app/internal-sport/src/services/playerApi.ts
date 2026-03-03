@@ -32,6 +32,9 @@ async function post<T>(url: string, body: unknown): Promise<T> {
 export interface ODataTeam {
     ID: string;
     name: string;
+    shortName: string | null;
+    tla: string | null;
+    crest: string | null;
     flagCode: string;
     confederation: string | null;
     fifaRanking: number | null;
@@ -63,6 +66,7 @@ export interface ODataMatch {
     homeTeam?: ODataTeam;
     awayTeam?: ODataTeam;
     tournament?: ODataTournament;
+    outcomePoints?: number; // Points earned for correct outcome prediction (home/draw/away)
 }
 
 export interface ODataLeaderboardEntry {
@@ -154,11 +158,12 @@ function toMatch(m: ODataMatch): Match {
     return {
         id: m.ID,
         timeLabel: formatKickoff(m.kickoff),
-        home: { name: home.name, flag: home.flagCode },
-        away: { name: away.name, flag: away.flagCode },
+        home: { name: home.name, flag: home.flagCode, crest: home.crest },
+        away: { name: away.name, flag: away.flagCode, crest: away.crest },
         options: [home.name, "Draw", away.name],
         selectedOption: "",
         scoreBettingEnabled: false, // will be set based on MatchScoreBetConfig existence
+        outcomePoints: m.outcomePoints ?? 0,
     };
 }
 
@@ -168,8 +173,8 @@ function toUpcomingMatch(m: ODataMatch): UpcomingMatch {
     const diff = new Date(m.kickoff).getTime() - Date.now();
     return {
         id: m.ID,
-        home: { name: home.name, flag: home.flagCode },
-        away: { name: away.name, flag: away.flagCode },
+        home: { name: home.name, flag: home.flagCode, crest: home.crest },
+        away: { name: away.name, flag: away.flagCode, crest: away.crest },
         kickoff: formatKickoff(m.kickoff),
         stage: m.stage,
         pick: "",
@@ -193,8 +198,8 @@ function toExactScoreMatch(m: ODataMatch): ExactScoreMatch {
     return {
         id: m.ID,
         timeLabel: formatKickoff(m.kickoff),
-        home: { name: home.name, flag: home.flagCode },
-        away: { name: away.name, flag: away.flagCode },
+        home: { name: home.name, flag: home.flagCode, crest: home.crest },
+        away: { name: away.name, flag: away.flagCode, crest: away.crest },
         defaultScore: { home: 0, away: 0 },
     };
 }
@@ -283,7 +288,11 @@ export const playerMatchesApi = {
             // Determine if score betting is enabled from expanded scoreBetConfig
             const scoreBetConfigs = (m as any).scoreBetConfig;
             if (scoreBetConfigs && Array.isArray(scoreBetConfigs) && scoreBetConfigs.length > 0) {
-                match.scoreBettingEnabled = scoreBetConfigs.some((cfg: any) => cfg.enabled);
+                const enabledCfg = scoreBetConfigs.find((cfg: any) => cfg.enabled);
+                match.scoreBettingEnabled = !!enabledCfg;
+                if (enabledCfg) {
+                    match.maxBets = enabledCfg.maxBets ?? 3;
+                }
             }
 
             const rawPick = pickMap.get(m.ID);
@@ -383,6 +392,7 @@ export const playerTeamsApi = {
         return teams.map((t) => ({
             name: t.name,
             flag: t.flagCode,
+            crest: t.crest ?? undefined,
             confederation: t.confederation || "",
             selected: false,
             ID: t.ID,
@@ -399,6 +409,7 @@ export const playerTeamsApi = {
             .map((e) => ({
                 name: e.team!.name,
                 flag: e.team!.flagCode,
+                crest: e.team!.crest ?? undefined,
                 confederation: e.team!.confederation || "",
                 selected: false,
                 ID: e.team!.ID,
@@ -541,6 +552,13 @@ export const playerTournamentQueryApi = {
     async getMyRecentPredictions(limit: number = 20): Promise<RecentPredictionItem[]> {
         return json<RecentPredictionItem[]>(
             `${BASE}/getMyRecentPredictions(limit=${limit})`
+        );
+    },
+
+    /** Get the tournament bracket (knockout tree). */
+    async getTournamentBracket(tournamentId: string) {
+        return json<any[]>(
+            `${BASE}/getTournamentBracket(tournamentId='${tournamentId}')`
         );
     },
 };

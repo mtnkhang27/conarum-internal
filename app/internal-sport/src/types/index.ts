@@ -14,6 +14,7 @@ export interface TournamentInfo {
 export interface Team {
     name: string;
     flag: string; // ISO country code e.g. "ar", "fr"
+    crest?: string; // Team badge/logo URL
 }
 
 export interface Match {
@@ -26,12 +27,15 @@ export interface Match {
     existingScores?: { home: number; away: number }[];
     /** Whether this match has score betting enabled (MatchScoreBetConfig exists and is enabled) */
     scoreBettingEnabled: boolean;
+    /** Max score bets per player (from admin MatchScoreBetConfig, default 3) */
+    maxBets?: number;
     /** Final result score (only present for completed matches) */
     finalScore?: { home: number; away: number };
     /** Match kickoff ISO string (for completed table display) */
     kickoffIso?: string;
     /** Match stage label */
     stage?: string;
+    outcomePoints?: number; // Points earned for correct outcome prediction (home/draw/away)
 }
 
 export interface UpcomingMatch {
@@ -78,6 +82,7 @@ export interface ChampionTeam {
     ID: string;
     name: string;
     flag: string;
+    crest?: string;
     confederation: string;
     selected: boolean;
 }
@@ -116,8 +121,10 @@ export interface MatchResultItem {
     matchId: string;
     homeTeam: string;
     homeFlag: string;
+    homeCrest: string;
     awayTeam: string;
     awayFlag: string;
+    awayCrest: string;
     homeScore: number;
     awayScore: number;
     outcome: string;
@@ -130,8 +137,10 @@ export interface UpcomingMatchItem {
     matchId: string;
     homeTeam: string;
     homeFlag: string;
+    homeCrest: string;
     awayTeam: string;
     awayFlag: string;
+    awayCrest: string;
     kickoff: string;
     stage: string;
     matchday: number | null;
@@ -153,6 +162,7 @@ export interface StandingItem {
     teamId: string;
     teamName: string;
     teamFlag: string;
+    teamCrest: string;
     played: number;
     won: number;
     drawn: number;
@@ -193,8 +203,10 @@ export interface RecentPredictionItem {
     matchId: string;
     homeTeam: string;
     homeFlag: string;
+    homeCrest: string;
     awayTeam: string;
     awayFlag: string;
+    awayCrest: string;
     tournamentName: string;
     pick: string;
     status: string;

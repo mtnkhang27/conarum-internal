@@ -97,10 +97,15 @@ type TeamMemberRole   : String enum {
 }
 
 type TournamentFormat : String enum {
-    knockout;      // World Cup, Champions League
+    knockout;      // Champions League (league phase + knockout)
     league;        // Premier League, La Liga
     groupKnockout; // World Cup (group stage + knockout)
     cup;           // FA Cup (straight knockout)
+}
+
+type BracketSide : String enum {
+    home;
+    away;
 }
 
 // ────────────────────────────────────────────────────────────
@@ -127,6 +132,8 @@ entity Tournament : cuid, managed {
                          on matches.tournament = $self;
     teams          : Composition of many TournamentTeam
                          on teams.tournament = $self;
+    bracket        : Composition of many BracketSlot
+                         on bracket.tournament = $self;
     // ── UC2: Outcome Prediction Prize (single prize description) ──
     outcomePrize : String(200) default 'iPhone 15 Pro Max';
     // ── UC3: Champion Prediction Config & Prize Pool ──
@@ -143,7 +150,10 @@ entity Tournament : cuid, managed {
  */
 entity Team : cuid, managed {
     name          : String(100) @mandatory;
-    flagCode      : String(5)   @mandatory; // ISO 3166-1 alpha-2 (e.g., 'br', 'de')
+    shortName     : String(50);              // e.g., 'Arsenal', 'Bayern'
+    tla           : String(10);              // Three-letter abbreviation (e.g., 'ARS', 'FCB')
+    crest         : String(500);             // URL to team crest/badge image
+    flagCode      : String(5)   @mandatory;  // ISO 3166-1 alpha-2 (e.g., 'br', 'de')
     confederation : Confederation;
     fifaRanking   : Integer;
     members       : Composition of many TeamMember
@@ -157,10 +167,13 @@ entity Team : cuid, managed {
  * Holds tournament-specific info like group assignment and elimination status.
  */
 entity TournamentTeam : cuid, managed {
-    tournament   : Association to Tournament @mandatory;
-    team         : Association to Team       @mandatory;
-    groupName    : String(5);    // e.g., 'A', 'B' — for groupKnockout format
-    isEliminated : Boolean default false;
+    tournament     : Association to Tournament @mandatory;
+    team           : Association to Team       @mandatory;
+    groupName      : String(5);    // e.g., 'A', 'B' — for groupKnockout format
+    isEliminated   : Boolean default false;
+    eliminatedAt   : MatchStage;   // stage where the team was eliminated
+    leaguePosition : Integer;      // final league-phase standing (1–36 for CL)
+    finalPosition  : Integer;      // final tournament position: 1 = champion, 2 = runner-up
 }
 
 annotate TournamentTeam with @assert.unique: {tournamentTeam: [tournament, team]};
@@ -197,6 +210,7 @@ entity Match : cuid, managed {
     matchNumber : Integer;
     matchday    : Integer;  // for league format (e.g., matchday 1–38)
     leg         : Integer;  // for two-leg ties (1 or 2), null for single match
+    bracketSlot : Association to BracketSlot; // link to bracket position (for knockout matches)
     // Points earned for correct outcome prediction (always enabled)
     outcomePoints  : Points default 1;
     // Result (null until finished)
@@ -336,6 +350,45 @@ entity MatchScoreBetConfig : cuid, managed {
 }
 
 annotate MatchScoreBetConfig with @assert.unique: {perMatch: [match]};
+
+// ────────────────────────────────────────────────────────────
+//  Knockout Bracket
+// ────────────────────────────────────────────────────────────
+
+/**
+ * Knockout bracket slot — one position in the bracket tree.
+ * Links two matches (two-leg tie) or a single match to the bracket.
+ * When both legs are done, `winner` is resolved and propagated
+ * to the next slot via `nextSlot` + `nextSlotSide`.
+ *
+ * Example CL R16 slot:
+ *   stage=roundOf16, position=1, label='R16-1'
+ *   leg1 → Match (home first leg), leg2 → Match (away second leg)
+ *   homeTeam=Arsenal, awayTeam=Real Madrid
+ *   After both legs: winner=Arsenal → goes to nextSlot (QF1) as home/away
+ */
+entity BracketSlot : cuid, managed {
+    tournament    : Association to Tournament @mandatory;
+    stage         : MatchStage               @mandatory;  // roundOf16, quarterFinal, semiFinal, final, playoff
+    position      : Integer                  @mandatory;  // 1..N within stage
+    label         : String(50);                           // display: 'R16-1', 'QF-2', 'SF-1', 'Final'
+    // ── Teams ──
+    homeTeam      : Association to Team;                  // seeded/higher-ranked team
+    awayTeam      : Association to Team;                  // lower-ranked team
+    // ── Matches (two-leg or single) ──
+    leg1          : Association to Match;                 // first leg
+    leg2          : Association to Match;                 // second leg (null for single-match finals)
+    // ── Aggregate scores ──
+    homeAgg       : Integer default 0;                    // aggregate score home team
+    awayAgg       : Integer default 0;                    // aggregate score away team
+    // ── Result ──
+    winner        : Association to Team;                  // resolved after tie is decided
+    // ── Bracket tree ──
+    nextSlot      : Association to BracketSlot;           // where the winner advances to
+    nextSlotSide  : BracketSide;                          // home or away in the next slot
+}
+
+annotate BracketSlot with @assert.unique: {stagePosition: [tournament, stage, position]};
 
 
 

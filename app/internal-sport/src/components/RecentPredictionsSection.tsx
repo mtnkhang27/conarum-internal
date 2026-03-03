@@ -282,7 +282,9 @@ export function RecentPredictionsSection({ predictions, loading }: RecentPredict
                                             <div className="flex-1">
                                                 <div className="flex flex-wrap items-center gap-2">
                                                     <span className="flex items-center gap-1.5 text-sm font-bold text-white">
-                                                        {item.homeFlag && (
+                                                        {item.homeCrest
+                                                            ? <img src={item.homeCrest} alt={item.homeTeam} className="h-4 w-4 object-contain" />
+                                                            : item.homeFlag && (
                                                             <span
                                                                 className={`fi fi-${item.homeFlag} rounded-sm`}
                                                             />
@@ -300,7 +302,9 @@ export function RecentPredictionsSection({ predictions, loading }: RecentPredict
                                                         </span>
                                                     )}
                                                     <span className="flex items-center gap-1.5 text-sm font-bold text-white">
-                                                        {item.awayFlag && (
+                                                        {item.awayCrest
+                                                            ? <img src={item.awayCrest} alt={item.awayTeam} className="h-4 w-4 object-contain" />
+                                                            : item.awayFlag && (
                                                             <span
                                                                 className={`fi fi-${item.awayFlag} rounded-sm`}
                                                             />

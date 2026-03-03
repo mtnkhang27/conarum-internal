@@ -1,12 +1,12 @@
 import { useEffect, useState, useCallback } from "react";
 import { useLocation } from "react-router-dom";
 import { MatchCard } from "@/components/MatchCard";
-import { UpcomingKickoffTable } from "@/components/UpcomingKickoffTable";
 import { LiveMatchesTable } from "@/components/LiveMatchesTable";
 import { CompletedMatchesTable } from "@/components/CompletedMatchesTable";
 import { TournamentSelector } from "@/components/TournamentSelector";
 import { LeaderboardSection } from "@/components/LeaderboardSection";
 import { RecentPredictionsSection } from "@/components/RecentPredictionsSection";
+import { TournamentBracket } from "@/components/TournamentBracket";
 import {
     playerMatchesApi,
     playerTournamentQueryApi,
@@ -21,9 +21,10 @@ import type {
 // ─── Section IDs ──────────────────────────────────────────────
 export const SECTION = {
     leaderboard: "leaderboard",
+    bracket: "bracket",
     matches: "matches",
     completed: "completed",
-    recent: "recent",
+    recent: "recent",   
 } as const;
 
 export function scrollToSection(id: string) {
@@ -111,6 +112,12 @@ export function SportPage() {
         loadPredictions();
     }, [loadPredictions, location.key]);
 
+    // Callback for MatchCard to trigger refresh after submit/cancel
+    const refreshAll = useCallback(() => {
+        loadMatchData(tournamentId);
+        loadPredictions();
+    }, [tournamentId, loadMatchData, loadPredictions]);
+
     // Scroll to hash section on mount / navigation
     useEffect(() => {
         const hash = location.hash.replace("#", "");
@@ -152,6 +159,19 @@ export function SportPage() {
                     <LeaderboardSection tournamentId={tournamentId} />
                 </section>
 
+                <section className="mb-14">
+                    <SectionHeading
+                        id={SECTION.bracket}
+                        color="bg-primary"
+                        title="Tournament Bracket"
+                        subtitle="Pick the winner for each upcoming match. Use the cards below to submit your prediction."
+                    />
+                     <TournamentBracket
+                     
+                    //  subtitle="Tournament bracket — 1 point per correct prediction. Ties broken by name (A→Z)." 
+                     tournamentId={tournamentId} />
+                </section>
+
                 {/* ══════════════════════════════════════════
                     SECTION 2 — Matches (Available + Live + Upcoming)
                 ══════════════════════════════════════════ */}
@@ -175,7 +195,7 @@ export function SportPage() {
                     ) : (
                         <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
                             {matches.map((match) => (
-                                <MatchCard key={match.id} match={match} />
+                                <MatchCard key={match.id} match={match} onPredictionChange={refreshAll} />
                             ))}
                         </div>
                     )}

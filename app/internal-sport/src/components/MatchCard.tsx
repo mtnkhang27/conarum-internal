@@ -31,27 +31,21 @@ function getTeamButtonClass(option: string, selected: string, isCompleted: boole
 interface MatchCardProps {
     match: Match;
     isCompleted?: boolean;
+    onPredictionChange?: () => void;
 }
 
-export function MatchCard({ match, isCompleted = false }: MatchCardProps) {
+export function MatchCard({ match, isCompleted = false, onPredictionChange }: MatchCardProps) {
+    const maxBets = match.maxBets ?? 3;
     // Track the initial state loaded from server to distinguish "has existing prediction" vs "new pick"
     const [initialOption, setInitialOption] = useState(match.selectedOption || "");
     const [selectedOption, setSelectedOption] = useState(match.selectedOption || "");
     const [scores, setScores] = useState<{ home: number; away: number }[]>(() => {
         const existing = match.existingScores || [];
-        return [
-            existing[0] || { home: 0, away: 0 },
-            existing[1] || { home: 0, away: 0 },
-            existing[2] || { home: 0, away: 0 },
-        ];
+        return Array.from({ length: maxBets }, (_, i) => existing[i] || { home: 0, away: 0 });
     });
     const [initialScores, setInitialScores] = useState<{ home: number; away: number }[]>(() => {
         const existing = match.existingScores || [];
-        return [
-            existing[0] || { home: 0, away: 0 },
-            existing[1] || { home: 0, away: 0 },
-            existing[2] || { home: 0, away: 0 },
-        ];
+        return Array.from({ length: maxBets }, (_, i) => existing[i] || { home: 0, away: 0 });
     });
     const [isSaving, setIsSaving] = useState(false);
     const [cancelConfirmOpen, setCancelConfirmOpen] = useState(false);
@@ -65,14 +59,10 @@ export function MatchCard({ match, isCompleted = false }: MatchCardProps) {
 
     useEffect(() => {
         const existing = match.existingScores || [];
-        const newScores = [
-            existing[0] || { home: 0, away: 0 },
-            existing[1] || { home: 0, away: 0 },
-            existing[2] || { home: 0, away: 0 },
-        ];
+        const newScores = Array.from({ length: maxBets }, (_, i) => existing[i] || { home: 0, away: 0 });
         setScores(newScores);
         setInitialScores(newScores);
-    }, [match.existingScores]);
+    }, [match.existingScores, maxBets]);
 
     const hasExistingPrediction = !!initialOption;
     const hasCurrentSelection = !!selectedOption;
@@ -116,11 +106,7 @@ export function MatchCard({ match, isCompleted = false }: MatchCardProps) {
         } else {
             // No existing prediction → just clear the local selection
             setSelectedOption("");
-            setScores([
-                { home: 0, away: 0 },
-                { home: 0, away: 0 },
-                { home: 0, away: 0 },
-            ]);
+            setScores(Array.from({ length: maxBets }, () => ({ home: 0, away: 0 })));
         }
     };
 
@@ -136,18 +122,13 @@ export function MatchCard({ match, isCompleted = false }: MatchCardProps) {
             // Clear all local state
             setSelectedOption("");
             setInitialOption("");
-            setScores([
-                { home: 0, away: 0 },
-                { home: 0, away: 0 },
-                { home: 0, away: 0 },
-            ]);
-            setInitialScores([
-                { home: 0, away: 0 },
-                { home: 0, away: 0 },
-                { home: 0, away: 0 },
-            ]);
+            const emptyScores = Array.from({ length: maxBets }, () => ({ home: 0, away: 0 }));
+            setScores(emptyScores);
+            setInitialScores(emptyScores);
             // Keep Submit active so user can make a new prediction if they want
             setJustCancelled(true);
+            // Notify parent to refresh predictions list
+            onPredictionChange?.();
         } catch (e: any) {
             toast.error("Failed to remove prediction", {
                 description: e.message || "Please try again.",
@@ -182,6 +163,8 @@ export function MatchCard({ match, isCompleted = false }: MatchCardProps) {
             // Update initial state to reflect saved prediction
             setInitialOption(selectedOption);
             setInitialScores([...scores]);
+            // Notify parent to refresh predictions list
+            onPredictionChange?.();
         } catch (e: any) {
             toast.error("Failed to save", {
                 description: e.message || "Please try again.",
@@ -197,7 +180,7 @@ export function MatchCard({ match, isCompleted = false }: MatchCardProps) {
                 <div>
                     <div className="mb-4 flex items-center justify-between">
                         <span className="rounded bg-success/15 px-2 py-1 text-[10px] font-bold text-success">
-                            +1 PT
+                            {match.outcomePoints} pts
                         </span>
                         <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
                             {match.timeLabel}
@@ -206,7 +189,9 @@ export function MatchCard({ match, isCompleted = false }: MatchCardProps) {
 
                     <div className="mb-4 flex items-center justify-between border-y border-border/50 py-4">
                         <div className="flex flex-1 flex-col items-center">
-                            <span className={`fi fi-${match.home.flag} mb-2 !w-8 rounded-sm text-2xl shadow-md`} />
+                            {match.home.crest
+                                ? <img src={match.home.crest} alt={match.home.name} className="mb-2 h-8 w-8 object-contain" />
+                                : <span className={`fi fi-${match.home.flag} mb-2 !w-8 rounded-sm text-2xl shadow-md`} />}
                             <span className="text-sm font-bold text-white">{match.home.name}</span>
                         </div>
 
@@ -243,7 +228,9 @@ export function MatchCard({ match, isCompleted = false }: MatchCardProps) {
                         </div>
 
                         <div className="flex flex-1 flex-col items-center">
-                            <span className={`fi fi-${match.away.flag} mb-2 !w-8 rounded-sm text-2xl shadow-md`} />
+                            {match.away.crest
+                                ? <img src={match.away.crest} alt={match.away.name} className="mb-2 h-8 w-8 object-contain" />
+                                : <span className={`fi fi-${match.away.flag} mb-2 !w-8 rounded-sm text-2xl shadow-md`} />}
                             <span className="text-sm font-bold text-white">{match.away.name}</span>
                         </div>
                     </div>

@@ -72,6 +72,8 @@ export function MatchManagement() {
     const [matches, setMatches] = useState<AdminMatch[]>([]);
     const [teams, setTeams] = useState<AdminTeam[]>([]);
     const [tournaments, setTournaments] = useState<AdminTournament[]>([]);
+    const [selectedTournament, setSelectedTournament] = useState<string>("all");
+    const [selectedStatus, setSelectedStatus] = useState<string>("upcoming");
     const [loading, setLoading] = useState(true);
 
     // Dialog state
@@ -111,6 +113,11 @@ export function MatchManagement() {
             setMatches(m);
             setTeams(t);
             setTournaments(tr);
+            // Auto-select active tournament if available
+            const active = tr.find((tournament) => tournament.status === "active");
+            if (active) {
+                setSelectedTournament(active.ID);
+            }
         } catch (e: any) {
             toast.error(e.message);
         } finally {
@@ -207,9 +214,16 @@ export function MatchManagement() {
         }
     }
 
-    const upcoming = matches.filter((m) => m.status === "upcoming").length;
-    const live = matches.filter((m) => m.status === "live").length;
-    const finished = matches.filter((m) => m.status === "finished").length;
+    // Filter matches based on selected filters
+    const filteredMatches = matches.filter((match) => {
+        const tournamentMatch = selectedTournament === "all" || match.tournament_ID === selectedTournament;
+        const statusMatch = selectedStatus === "all" || match.status === selectedStatus;
+        return tournamentMatch && statusMatch;
+    });
+
+    const upcoming = filteredMatches.filter((m) => m.status === "upcoming").length;
+    const live = filteredMatches.filter((m) => m.status === "live").length;
+    const finished = filteredMatches.filter((m) => m.status === "finished").length;
 
     function teamName(id: string) {
         return teams.find((t) => t.ID === id)?.name || id;
@@ -233,10 +247,44 @@ export function MatchManagement() {
                         Manage all matches and schedules
                     </p>
                 </div>
-                <Button onClick={openAdd}>
-                    <Plus className="mr-2 h-4 w-4" />
-                    Add Match
-                </Button>
+                <div className="flex items-center gap-3">
+                    {/* Tournament filter */}
+                    <Select
+                        value={selectedTournament}
+                        onValueChange={setSelectedTournament}
+                    >
+                        <SelectTrigger className="w-[200px]">
+                            <SelectValue placeholder="Filter by tournament" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="all">All Tournaments</SelectItem>
+                            {tournaments.map((t) => (
+                                <SelectItem key={t.ID} value={t.ID}>
+                                    {t.name}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                    {/* Status filter */}
+                    <Select
+                        value={selectedStatus}
+                        onValueChange={setSelectedStatus}
+                    >
+                        <SelectTrigger className="w-[150px]">
+                            <SelectValue placeholder="Filter by status" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="all">All Status</SelectItem>
+                            <SelectItem value="upcoming">Upcoming</SelectItem>
+                            <SelectItem value="live">Live</SelectItem>
+                            <SelectItem value="finished">Finished</SelectItem>
+                        </SelectContent>
+                    </Select>
+                    <Button onClick={openAdd}>
+                        <Plus className="mr-2 h-4 w-4" />
+                        Add Match
+                    </Button>
+                </div>
             </div>
 
             {/* Stats */}
@@ -287,7 +335,7 @@ export function MatchManagement() {
                             </tr>
                         </thead>
                         <tbody>
-                            {matches.map((m) => (
+                            {filteredMatches.map((m) => (
                                 <tr
                                     key={m.ID}
                                     className="border-b border-border/50 transition-colors hover:bg-surface"
@@ -297,7 +345,9 @@ export function MatchManagement() {
                                             {m.homeTeam
                                                 ? (
                                                     <>
-                                                        <span className={`fi fi-${m.homeTeam.flagCode} mr-1`} />
+                                                        {m.homeTeam.crest
+                                                            ? <img src={m.homeTeam.crest} alt="" className="mr-1 inline h-5 w-5 object-contain align-middle" />
+                                                            : <span className={`fi fi-${m.homeTeam.flagCode} mr-1`} />}
                                                         {m.homeTeam.name}
                                                     </>
                                                 )
@@ -306,7 +356,9 @@ export function MatchManagement() {
                                             {m.awayTeam
                                                 ? (
                                                     <>
-                                                        <span className={`fi fi-${m.awayTeam.flagCode} mr-1`} />
+                                                        {m.awayTeam.crest
+                                                            ? <img src={m.awayTeam.crest} alt="" className="mr-1 inline h-5 w-5 object-contain align-middle" />
+                                                            : <span className={`fi fi-${m.awayTeam.flagCode} mr-1`} />}
                                                         {m.awayTeam.name}
                                                     </>
                                                 )
@@ -351,6 +403,7 @@ export function MatchManagement() {
                                                 className="h-8 w-8 p-0 text-primary hover:text-primary/80"
                                                 title="Configure match"
                                                 onClick={() => navigate(`/admin/matches/${m.ID}`)}
+                                                disabled={m.status === "finished"}
                                             >
                                                 <Settings className="h-4 w-4" />
                                             </Button>
@@ -365,26 +418,40 @@ export function MatchManagement() {
                                                     <Trophy className="h-4 w-4" />
                                                 </Button>
                                             )}
-                                            <Button
-                                                variant="ghost"
-                                                size="sm"
-                                                className="h-8 w-8 p-0 text-muted-foreground hover:text-white"
-                                                onClick={() => openEdit(m)}
-                                            >
-                                                <Edit className="h-4 w-4" />
-                                            </Button>
-                                            <Button
-                                                variant="ghost"
-                                                size="sm"
-                                                className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
-                                                onClick={() => setDeleteId(m.ID)}
-                                            >
-                                                <Trash2 className="h-4 w-4" />
-                                            </Button>
+                                            {m.status !== "finished" && (
+                                                <>
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        className="h-8 w-8 p-0 text-muted-foreground hover:text-white"
+                                                        onClick={() => openEdit(m)}
+                                                    >
+                                                        <Edit className="h-4 w-4" />
+                                                    </Button>
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
+                                                        onClick={() => setDeleteId(m.ID)}
+                                                    >
+                                                        <Trash2 className="h-4 w-4" />
+                                                    </Button>
+                                                </>
+                                            )}
                                         </div>
                                     </td>
                                 </tr>
                             ))}
+                            {filteredMatches.length === 0 && (
+                                <tr>
+                                    <td
+                                        colSpan={8}
+                                        className="px-4 py-8 text-center text-muted-foreground"
+                                    >
+                                        No matches found
+                                    </td>
+                                </tr>
+                            )}
                         </tbody>
                     </table>
                 </div>

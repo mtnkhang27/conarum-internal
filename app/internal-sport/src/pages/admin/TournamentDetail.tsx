@@ -164,7 +164,7 @@ export function TournamentDetail() {
                 </Button>
             </div>
 
-            <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+            <div className="grid grid-cols-1 gap-6">
                 <Card className="border-border bg-card p-5">
                     <div className="space-y-0">
                         {championBettingStatus === "locked" && (

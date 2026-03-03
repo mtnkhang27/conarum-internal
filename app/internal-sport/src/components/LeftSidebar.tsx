@@ -16,6 +16,7 @@ function pageLink(active: boolean) {
 
 const SECTIONS = [
     { id: SECTION.leaderboard, label: "Leaderboard", dot: "bg-yellow-400" },
+    { id: SECTION.bracket, label: "Tournament Bracket", dot: "bg-secondary" },
     { id: SECTION.matches, label: "Matches & Live", dot: "bg-primary" },
     { id: SECTION.completed, label: "Completed Matches", dot: "bg-foreground/30" },
     { id: SECTION.recent, label: "My Predictions", dot: "bg-secondary" },

@@ -120,6 +120,12 @@ export class AdminHandler {
             .where({ match_ID: matchId, status: { in: ['draft', 'submitted'] } })
             .set({ status: 'locked', lockedAt: new Date().toISOString() });
 
+        // ── Bracket Progression ──────────────────────────────
+        // If this match belongs to a bracket slot, update aggregates & advance winner
+        if (match.bracketSlot_ID) {
+            await this.updateBracketProgression(match.bracketSlot_ID, matchId);
+        }
+
         return {
             success: true,
             message: `Match result ${homeScore}-${awayScore} entered. ${predictionsScored} predictions, ${scoreBetsScored} score bets scored.`,
@@ -321,5 +327,158 @@ export class AdminHandler {
             currentStreak: newStreak,
             bestStreak: newBest
         });
+    }
+
+    /**
+     * Update bracket slot aggregates after a match result.
+     * If both legs are finished (or single-leg tie), determine winner and advance.
+     */
+    private async updateBracketProgression(slotId: string, matchId: string) {
+        const { BracketSlot, Match, TournamentTeam } = cds.entities('cnma.prediction');
+
+        const slot = await SELECT.one.from(BracketSlot).where({ ID: slotId });
+        if (!slot) return;
+
+        // Fetch both legs
+        const leg1 = slot.leg1_ID ? await SELECT.one.from(Match).where({ ID: slot.leg1_ID }) : null;
+        const leg2 = slot.leg2_ID ? await SELECT.one.from(Match).where({ ID: slot.leg2_ID }) : null;
+
+        // Single-leg tie (e.g., final)
+        if (!slot.leg2_ID) {
+            if (leg1 && leg1.status === 'finished') {
+                const homeAgg = leg1.homeScore ?? 0;
+                const awayAgg = leg1.awayScore ?? 0;
+                const winnerId = homeAgg > awayAgg ? slot.homeTeam_ID
+                    : homeAgg < awayAgg ? slot.awayTeam_ID
+                    : null; // draw → admin decides (penalties)
+
+                await UPDATE(BracketSlot).where({ ID: slotId }).set({
+                    homeAgg, awayAgg, winner_ID: winnerId
+                });
+
+                if (winnerId) {
+                    await this.advanceWinner(slot, winnerId);
+                }
+            }
+            return;
+        }
+
+        // Two-leg tie: both legs must be finished
+        if (leg1?.status === 'finished' && leg2?.status === 'finished') {
+            // In CL two-leg: leg1 homeTeam = slot.homeTeam, leg2 homeTeam = slot.awayTeam
+            const homeAgg = (leg1.homeScore ?? 0) + (leg2.awayScore ?? 0);
+            const awayAgg = (leg1.awayScore ?? 0) + (leg2.homeScore ?? 0);
+
+            let winnerId: string | null = null;
+            if (homeAgg > awayAgg) {
+                winnerId = slot.homeTeam_ID;
+            } else if (awayAgg > homeAgg) {
+                winnerId = slot.awayTeam_ID;
+            }
+            // If aggregate tied → away goals rule abolished in CL since 2021
+            // Admin should update the second leg score to include extra time/penalties
+
+            await UPDATE(BracketSlot).where({ ID: slotId }).set({
+                homeAgg, awayAgg, winner_ID: winnerId
+            });
+
+            if (winnerId) {
+                await this.advanceWinner(slot, winnerId);
+            }
+        }
+    }
+
+    /**
+     * Advance the winner of a bracket slot to the next slot in the bracket tree.
+     * Also marks loser as eliminated and handles final (champion assignment).
+     */
+    private async advanceWinner(slot: any, winnerId: string) {
+        const { BracketSlot, TournamentTeam, Match } = cds.entities('cnma.prediction');
+
+        const loserId = winnerId === slot.homeTeam_ID ? slot.awayTeam_ID : slot.homeTeam_ID;
+
+        // Mark loser as eliminated
+        if (loserId) {
+            await UPDATE(TournamentTeam)
+                .where({ tournament_ID: slot.tournament_ID, team_ID: loserId })
+                .set({ isEliminated: true, eliminatedAt: slot.stage });
+        }
+
+        // If this was the final → champion
+        if (slot.stage === 'final') {
+            if (winnerId) {
+                await UPDATE(TournamentTeam)
+                    .where({ tournament_ID: slot.tournament_ID, team_ID: winnerId })
+                    .set({ finalPosition: 1 });
+            }
+            if (loserId) {
+                await UPDATE(TournamentTeam)
+                    .where({ tournament_ID: slot.tournament_ID, team_ID: loserId })
+                    .set({ finalPosition: 2 });
+            }
+            return;
+        }
+
+        // Advance to next slot
+        if (slot.nextSlot_ID) {
+            const field = slot.nextSlotSide === 'home' ? 'homeTeam_ID' : 'awayTeam_ID';
+            await UPDATE(BracketSlot).where({ ID: slot.nextSlot_ID }).set({
+                [field]: winnerId,
+            });
+
+            // Check if both teams in next slot are now known
+            const nextSlot = await SELECT.one.from(BracketSlot).where({ ID: slot.nextSlot_ID });
+
+            if (nextSlot.homeTeam_ID && nextSlot.awayTeam_ID) {
+                // If pre-created matches exist (leg1_ID is set), UPDATE them with the teams
+                if (nextSlot.leg1_ID) {
+                    await UPDATE(Match).where({ ID: nextSlot.leg1_ID }).set({
+                        homeTeam_ID: nextSlot.homeTeam_ID,
+                        awayTeam_ID: nextSlot.awayTeam_ID,
+                    });
+
+                    // Also update leg2 if it exists (reversed home/away for second leg)
+                    if (nextSlot.leg2_ID) {
+                        await UPDATE(Match).where({ ID: nextSlot.leg2_ID }).set({
+                            homeTeam_ID: nextSlot.awayTeam_ID,
+                            awayTeam_ID: nextSlot.homeTeam_ID,
+                        });
+                    }
+                } else {
+                    // No pre-created matches → create them (original behavior)
+                    const matchId = cds.utils.uuid();
+                    await INSERT.into(Match).entries({
+                        ID: matchId,
+                        tournament_ID: slot.tournament_ID,
+                        homeTeam_ID: nextSlot.homeTeam_ID,
+                        awayTeam_ID: nextSlot.awayTeam_ID,
+                        kickoff: new Date().toISOString(),
+                        stage: nextSlot.stage,
+                        status: 'upcoming',
+                        leg: 1,
+                        bracketSlot_ID: nextSlot.ID,
+                    });
+                    await UPDATE(BracketSlot).where({ ID: nextSlot.ID }).set({ leg1_ID: matchId });
+
+                    const { Tournament } = cds.entities('cnma.prediction');
+                    const tournament = await SELECT.one.from(Tournament).where({ ID: slot.tournament_ID });
+                    if (tournament?.hasLegs && nextSlot.stage !== 'final') {
+                        const leg2Id = cds.utils.uuid();
+                        await INSERT.into(Match).entries({
+                            ID: leg2Id,
+                            tournament_ID: slot.tournament_ID,
+                            homeTeam_ID: nextSlot.awayTeam_ID,
+                            awayTeam_ID: nextSlot.homeTeam_ID,
+                            kickoff: new Date().toISOString(),
+                            stage: nextSlot.stage,
+                            status: 'upcoming',
+                            leg: 2,
+                            bracketSlot_ID: nextSlot.ID,
+                        });
+                        await UPDATE(BracketSlot).where({ ID: nextSlot.ID }).set({ leg2_ID: leg2Id });
+                    }
+                }
+            }
+        }
     }
 }

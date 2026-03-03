@@ -22,7 +22,7 @@ export function PredictionSlip() {
     const isHiddenPage = ["/exact-score", "/my-predictions", "/leaderboard"].includes(pathname);
 
     const [items, setItems] = useState<SlipItem[]>(initialSlipItems);
-    const [championPick, setChampionPick] = useState<{ team: string; flag: string } | null>({
+    const [championPick, setChampionPick] = useState<{ team: string; flag: string; crest?: string } | null>({
         team: "Brazil",
         flag: "br",
     });
@@ -108,7 +108,9 @@ export function PredictionSlip() {
                                 <div className="mb-2 text-xs font-bold text-white">Champion Pick: {championPick.team}</div>
                                 <div className="flex items-center justify-between rounded border border-border/50 bg-surface-dark p-2">
                                     <div className="flex items-center gap-2">
-                                        <span className={`fi fi-${championPick.flag} h-3 w-4 rounded-sm`} />
+                                        {championPick.crest
+                                            ? <img src={championPick.crest} alt={championPick.team} className="h-4 w-4 object-contain" />
+                                            : <span className={`fi fi-${championPick.flag} h-3 w-4 rounded-sm`} />}
                                         <span className="text-[10px] font-bold text-primary">{championPick.team}</span>
                                     </div>
                                     <div className="text-[10px] italic text-muted-foreground">Admin Reward</div>

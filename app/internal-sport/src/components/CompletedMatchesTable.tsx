@@ -67,12 +67,16 @@ export function CompletedMatchesTable({ matches }: CompletedMatchesTableProps) {
                                 <div className="col-span-5">
                                     <div className="flex flex-wrap items-center gap-1.5">
                                         <span className="flex items-center gap-1 text-sm font-bold text-white">
-                                            <span className={`fi fi-${match.home.flag} rounded-sm`} />
+                                            {match.home.crest
+                                                ? <img src={match.home.crest} alt={match.home.name} className="h-4 w-4 object-contain" />
+                                                : <span className={`fi fi-${match.home.flag} rounded-sm`} />}
                                             {match.home.name}
                                         </span>
                                         <span className="text-[10px] font-black text-muted-foreground">VS</span>
                                         <span className="flex items-center gap-1 text-sm font-bold text-white">
-                                            <span className={`fi fi-${match.away.flag} rounded-sm`} />
+                                            {match.away.crest
+                                                ? <img src={match.away.crest} alt={match.away.name} className="h-4 w-4 object-contain" />
+                                                : <span className={`fi fi-${match.away.flag} rounded-sm`} />}
                                             {match.away.name}
                                         </span>
                                     </div>

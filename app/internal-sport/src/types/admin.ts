@@ -3,9 +3,25 @@
 export interface AdminTeam {
     ID: string;
     name: string;
+    shortName: string | null;
+    tla: string | null;
+    crest: string | null;
     flagCode: string;
     confederation: string | null;
     fifaRanking: number | null;
+    members?: AdminTeamMember[];
+    tournaments?: AdminTournamentTeam[];
+}
+
+export interface AdminTeamMember {
+    ID: string;
+    team_ID: string;
+    name: string;
+    role: "headCoach" | "assistantCoach" | "goalkeepingCoach" | "fitnessCoach" | "player" | "captain";
+    jerseyNumber: number | null;
+    position: string | null;
+    isCaptain: boolean;
+    isActive: boolean;
 }
 
 export interface AdminTournament {

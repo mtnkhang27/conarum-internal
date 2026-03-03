@@ -398,8 +398,10 @@ export class PredictionHandler {
                 matchId: m.ID,
                 homeTeam: home?.name ?? '',
                 homeFlag: home?.flagCode ?? '',
+                homeCrest: home?.crest ?? '',
                 awayTeam: away?.name ?? '',
                 awayFlag: away?.flagCode ?? '',
+                awayCrest: away?.crest ?? '',
                 homeScore: m.homeScore,
                 awayScore: m.awayScore,
                 outcome: m.outcome,
@@ -431,8 +433,10 @@ export class PredictionHandler {
                 matchId: m.ID,
                 homeTeam: home?.name ?? '',
                 homeFlag: home?.flagCode ?? '',
+                homeCrest: home?.crest ?? '',
                 awayTeam: away?.name ?? '',
                 awayFlag: away?.flagCode ?? '',
+                awayCrest: away?.crest ?? '',
                 kickoff: m.kickoff,
                 stage: m.stage,
                 matchday: m.matchday,
@@ -564,6 +568,7 @@ export class PredictionHandler {
                 teamId: s.teamId,
                 teamName: team?.name ?? '',
                 teamFlag: team?.flagCode ?? '',
+                teamCrest: team?.crest ?? '',
                 played: s.played,
                 won: s.won,
                 drawn: s.drawn,
@@ -637,8 +642,10 @@ export class PredictionHandler {
                 matchId: match.ID,
                 homeTeam: home?.name ?? '',
                 homeFlag: home?.flagCode ?? '',
+                homeCrest: home?.crest ?? '',
                 awayTeam: away?.name ?? '',
                 awayFlag: away?.flagCode ?? '',
+                awayCrest: away?.crest ?? '',
                 tournamentName: tournament?.name ?? '',
                 pick: p.pick,
                 status: p.status,
@@ -649,6 +656,68 @@ export class PredictionHandler {
                 homeScore: match.homeScore,
                 awayScore: match.awayScore,
                 scoreBets,
+            });
+        }
+        return results;
+    }
+
+    /**
+     * Get the full knockout bracket tree for a tournament.
+     * Returns all bracket slots with team info, match scores, and progression.
+     */
+    async getTournamentBracket(req: Request) {
+        const { tournamentId } = req.data;
+        const { BracketSlot, Match, Team } = cds.entities('cnma.prediction');
+
+        const slots = await SELECT.from(BracketSlot)
+            .where({ tournament_ID: tournamentId })
+            .orderBy('stage asc', 'position asc');
+
+        const results = [];
+        for (const slot of slots) {
+            const homeTeam = slot.homeTeam_ID
+                ? await SELECT.one.from(Team).where({ ID: slot.homeTeam_ID })
+                : null;
+            const awayTeam = slot.awayTeam_ID
+                ? await SELECT.one.from(Team).where({ ID: slot.awayTeam_ID })
+                : null;
+            const winnerTeam = slot.winner_ID
+                ? await SELECT.one.from(Team).where({ ID: slot.winner_ID })
+                : null;
+            const leg1 = slot.leg1_ID
+                ? await SELECT.one.from(Match).where({ ID: slot.leg1_ID })
+                : null;
+            const leg2 = slot.leg2_ID
+                ? await SELECT.one.from(Match).where({ ID: slot.leg2_ID })
+                : null;
+
+            results.push({
+                slotId: slot.ID,
+                stage: slot.stage,
+                position: slot.position,
+                label: slot.label,
+                homeTeamId: slot.homeTeam_ID,
+                homeTeamName: homeTeam?.name ?? '',
+                homeTeamFlag: homeTeam?.flagCode ?? '',
+                homeTeamCrest: homeTeam?.crest ?? '',
+                awayTeamId: slot.awayTeam_ID,
+                awayTeamName: awayTeam?.name ?? '',
+                awayTeamFlag: awayTeam?.flagCode ?? '',
+                awayTeamCrest: awayTeam?.crest ?? '',
+                leg1Id: slot.leg1_ID,
+                leg1HomeScore: leg1?.homeScore ?? null,
+                leg1AwayScore: leg1?.awayScore ?? null,
+                leg1Status: leg1?.status ?? null,
+                leg2Id: slot.leg2_ID,
+                leg2HomeScore: leg2?.homeScore ?? null,
+                leg2AwayScore: leg2?.awayScore ?? null,
+                leg2Status: leg2?.status ?? null,
+                homeAgg: slot.homeAgg ?? 0,
+                awayAgg: slot.awayAgg ?? 0,
+                winnerId: slot.winner_ID,
+                winnerName: winnerTeam?.name ?? '',
+                nextSlotId: slot.nextSlot_ID,
+                nextSlotSide: slot.nextSlotSide,
             });
         }
         return results;

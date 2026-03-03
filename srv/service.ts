@@ -25,6 +25,7 @@ export class PlayerService extends cds.ApplicationService {
         this.on('getPredictionLeaderboard', this.predictionHandler.getPredictionLeaderboard.bind(this.predictionHandler));
         this.on('getStandings', this.predictionHandler.getStandings.bind(this.predictionHandler));
         this.on('getMyRecentPredictions', this.predictionHandler.getMyRecentPredictions.bind(this.predictionHandler));
+        this.on('getTournamentBracket', this.predictionHandler.getTournamentBracket.bind(this.predictionHandler));
 
         // ── Auto-filter MyPredictions / MyScoreBets / MyChampionPick to current user ──
         this.before('READ', 'MyPredictions', this.predictionHandler.filterByCurrentUser.bind(this.predictionHandler));

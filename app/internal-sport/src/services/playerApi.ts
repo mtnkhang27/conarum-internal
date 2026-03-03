@@ -45,6 +45,7 @@ export interface ODataTournament {
     startDate: string;
     endDate: string;
     season: string | null;
+    championBettingStatus: 'open' | 'locked' | 'closed' | null;
 }
 
 export interface ODataMatch {
@@ -229,6 +230,7 @@ export const playerTournamentsApi = {
             startDate: t.startDate,
             endDate: t.endDate,
             season: t.season ?? undefined,
+            championBettingStatus: t.championBettingStatus ?? undefined,
         }));
     },
 
@@ -245,6 +247,7 @@ export const playerTournamentsApi = {
             startDate: t.startDate,
             endDate: t.endDate,
             season: t.season ?? undefined,
+            championBettingStatus: t.championBettingStatus ?? undefined,
         }));
     },
 };
@@ -366,7 +369,24 @@ export const playerTeamsApi = {
             flag: t.flagCode,
             confederation: t.confederation || "",
             selected: false,
+            ID: t.ID,
         }));
+    },
+
+    /** Teams participating in a specific tournament (non-eliminated), for champion picker. */
+    async getByTournament(tournamentId: string): Promise<ChampionTeam[]> {
+        const entries = await json<{ team?: ODataTeam; isEliminated?: boolean }[]>(
+            `${BASE}/TournamentTeams?$filter=tournament_ID eq '${tournamentId}' and isEliminated eq false&$expand=team&$orderby=team/fifaRanking asc`
+        );
+        return entries
+            .filter((e) => e.team)
+            .map((e) => ({
+                name: e.team!.name,
+                flag: e.team!.flagCode,
+                confederation: e.team!.confederation || "",
+                selected: false,
+                ID: e.team!.ID,
+            }));
     },
 
     /** Get team flag code lookup map. */
@@ -428,8 +448,10 @@ export const playerPredictionsApi = {
     },
 
     /** Get current user's champion pick. */
-    async getChampionPick(): Promise<string | null> {
-        const picks = await json<ODataChampionPick[]>(`${BASE}/MyChampionPick?$expand=team`);
+    async getChampionPick(tournamentId?: string): Promise<string | null> {
+        let url = `${BASE}/MyChampionPick?$expand=team`;
+        if (tournamentId) url += `&$filter=tournament_ID eq '${tournamentId}'`;
+        const picks = await json<ODataChampionPick[]>(url);
         return picks.length > 0 ? picks[0].team?.name || null : null;
     },
 };
@@ -468,10 +490,10 @@ export const playerActionsApi = {
     },
 
     /** Pick tournament champion (UC3). */
-    async pickChampion(teamId: string) {
+    async pickChampion(teamId: string, tournamentId: string) {
         return post<{ success: boolean; message: string }>(
             `${BASE}/pickChampion`,
-            { teamId }
+            { teamId, tournamentId }
         );
     },
 };

@@ -4,8 +4,8 @@ import {
     ArrowLeft,
     Save,
     Trophy,
-    TrendingUp,
     Lock,
+    AlertTriangle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -166,71 +166,34 @@ export function TournamentDetail() {
             </div>
 
             <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
-                {/* ── Outcome Prediction Prize ────────────────── */}
                 <Card className="border-border bg-card p-5">
-                    <div className="mb-4 flex items-center gap-3">
-                        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-green-500/20 text-green-400">
-                            <TrendingUp className="h-5 w-5" />
-                        </div>
-                        <div>
-                            <h3 className="font-semibold text-white">
-                                Match Outcome Prize
-                            </h3>
-                            <p className="text-xs text-muted-foreground">
-                                UC2 — Prize for leaderboard winner of this tournament
-                            </p>
-                        </div>
-                    </div>
-
                     <div className="space-y-0">
-                        <ConfigRow label="Prize" description="Description of the prize for the outcome prediction leaderboard winner">
+                        {(championBettingStatus === "locked" || championBettingStatus === "closed") && (
+                            <div className="mb-3 flex items-center gap-2 rounded-lg border border-yellow-500/30 bg-yellow-500/10 px-3 py-2 text-xs text-yellow-400">
+                                <AlertTriangle className="h-3.5 w-3.5 flex-shrink-0" />
+                                Prize fields are read-only while champion betting is{" "}
+                                <strong>{championBettingStatus}</strong>. Set status to{" "}
+                                <strong>Open</strong> to edit.
+                            </div>
+                        )}
+                        <ConfigRow label="Prize for Outcome Prediction" description="Description of the prize for the outcome prediction leaderboard winner">
                             <Input
                                 className="w-56"
                                 value={outcomePrize}
                                 onChange={(e) => setOutcomePrize(e.target.value)}
+                                disabled={championBettingStatus === "locked" || championBettingStatus === "closed"}
                             />
                         </ConfigRow>
-                    </div>
-                </Card>
 
-                {/* ── Champion Prediction Config ───────────────── */}
-                <Card className="border-border bg-card p-5">
-                    <div className="mb-4 flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-yellow-500/20 text-yellow-400">
-                                <Trophy className="h-5 w-5" />
-                            </div>
-                            <div>
-                                <h3 className="font-semibold text-white">
-                                    Champion Prediction
-                                </h3>
-                                <p className="text-xs text-muted-foreground">
-                                    UC3 — Tournament winner prediction
-                                </p>
-                            </div>
-                        </div>
-                        <Badge
-                            variant={
-                                championBettingStatus === "open"
-                                    ? "default"
-                                    : championBettingStatus === "locked"
-                                        ? "secondary"
-                                        : "destructive"
-                            }
-                        >
-                            {championBettingStatus}
-                        </Badge>
-                    </div>
-
-                    <div className="space-y-0">
-                        <ConfigRow label="Prize Pool" description="Description of the champion prediction prize">
+                        <ConfigRow label="Prize Pool for Champion Prediction" description="Description of the champion prediction prize">
                             <Input
                                 className="w-56"
                                 value={championPrizePool}
                                 onChange={(e) => setChampionPrizePool(e.target.value)}
+                                disabled={championBettingStatus === "locked" || championBettingStatus === "closed"}
                             />
                         </ConfigRow>
-                        <ConfigRow label="Lock Date" description="Date when champion predictions are locked">
+                        {/* <ConfigRow label="Lock Date" description="Date when champion predictions are locked">
                             <Input
                                 type="date"
                                 className="w-36"
@@ -239,7 +202,7 @@ export function TournamentDetail() {
                                     setChampionLockDate(e.target.value || null)
                                 }
                             />
-                        </ConfigRow>
+                        </ConfigRow> */}
                         <ConfigRow label="Betting Status" description="Current status of champion betting">
                             <select
                                 className="rounded border border-border bg-surface-dark px-3 py-1.5 text-sm text-white"
@@ -254,7 +217,6 @@ export function TournamentDetail() {
                             </select>
                         </ConfigRow>
                     </div>
-
                     {championBettingStatus === "open" && (
                         <div className="mt-4 border-t border-border pt-4">
                             <Button
@@ -268,6 +230,7 @@ export function TournamentDetail() {
                         </div>
                     )}
                 </Card>
+
             </div>
         </div>
     );

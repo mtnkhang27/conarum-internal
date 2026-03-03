@@ -307,17 +307,18 @@ entity ScoreBet : cuid, managed {
 
 /**
  * Tournament champion prediction.
- * Belongs to a Player and a Team. Uses managed.modifiedAt for change tracking.
+ * Belongs to a Player, a Team, and a Tournament. One pick per player per tournament.
  */
 entity ChampionPick : cuid, managed {
-    player      : Association to Player @mandatory;
-    team        : Association to Team   @mandatory;
+    player      : Association to Player      @mandatory;
+    team        : Association to Team        @mandatory;
+    tournament  : Association to Tournament  @mandatory;
     submittedAt : DateTime;
     isCorrect   : Boolean;
 }
 
-// One champion pick per player (configurable max handled in handler)
-annotate ChampionPick with @assert.unique: {playerPick: [player]};
+// One champion pick per player per tournament
+annotate ChampionPick with @assert.unique: {playerTournamentPick: [player, tournament]};
 
 // ────────────────────────────────────────────────────────────
 //  Per-Match Configuration Entities

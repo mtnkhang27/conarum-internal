@@ -146,8 +146,9 @@ service PlayerService {
     entity MyChampionPick           as
         projection on db.ChampionPick {
             *,
-            team   : redirected to Teams,
-            player : redirected to Leaderboard
+            team       : redirected to Teams,
+            player     : redirected to Leaderboard,
+            tournament : redirected to Tournaments
         }
         excluding {
             createdBy,
@@ -188,7 +189,7 @@ service PlayerService {
     action cancelMatchPrediction(matchId: UUID)                                        returns ActionResult;
 
     /** Pick tournament champion (UC3). */
-    action pickChampion(teamId: UUID)                                              returns ActionResult;
+    action pickChampion(teamId: UUID, tournamentId: UUID)                          returns ActionResult;
 
     // ── Functions (Read-Only Queries) ────────────────────────
 
@@ -322,8 +323,9 @@ service AdminService {
     entity AllChampionPicks         as
         projection on db.ChampionPick {
             *,
-            player : redirected to Players,
-            team   : redirected to Teams
+            player     : redirected to Players,
+            team       : redirected to Teams,
+            tournament : redirected to Tournaments
         };
 
     // ── Admin Actions ────────────────────────────────────────

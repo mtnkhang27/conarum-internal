@@ -50,6 +50,17 @@ export class AdminService extends cds.ApplicationService {
         this.on('recalculateLeaderboard', this.adminHandler.recalculateLeaderboard.bind(this.adminHandler));
         this.on('lockChampionPredictions', this.adminHandler.lockChampionPredictions.bind(this.adminHandler));
 
+        // ── Guard: block match creation/update for completed/cancelled tournaments ──
+        this.before(['CREATE', 'UPDATE'], 'Matches', async (req: any) => {
+            const tournamentId = req.data?.tournament_ID;
+            if (!tournamentId) return;
+            const { Tournament } = cds.entities('cnma.prediction');
+            const tournament = await SELECT.one.from(Tournament).where({ ID: tournamentId });
+            if (tournament && (tournament.status === 'completed' || tournament.status === 'cancelled')) {
+                return req.error(400, `Cannot create or modify matches for a ${tournament.status} tournament`);
+            }
+        });
+
         return super.init();
     }
 }

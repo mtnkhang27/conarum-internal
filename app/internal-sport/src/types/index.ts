@@ -7,6 +7,7 @@ export interface TournamentInfo {
     startDate: string;
     endDate: string;
     season?: string;
+    championBettingStatus?: 'open' | 'locked' | 'closed';
 }
 
 // === Match Types ===
@@ -68,6 +69,7 @@ export interface SlipItem {
 }
 
 export interface ChampionTeam {
+    ID: string;
     name: string;
     flag: string;
     confederation: string;

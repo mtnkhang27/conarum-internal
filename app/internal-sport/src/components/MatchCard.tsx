@@ -276,7 +276,7 @@ export function MatchCard({ match, isCompleted = false }: MatchCardProps) {
                         ))}
                     </div>
                     {!isCompleted && (
-                        <div className="flex gap-2">
+                        <div className="grid grid-cols-2 gap-4 mt-4">
                             {/* Cancel button */}
                             <button
                                 type="button"
@@ -284,7 +284,7 @@ export function MatchCard({ match, isCompleted = false }: MatchCardProps) {
                                 disabled={cancelDisabled}
                                 className="rounded-lg border border-border bg-surface-dark px-4 py-2.5 text-sm font-bold text-muted-foreground transition-colors hover:border-red-500 hover:text-red-400 disabled:opacity-50 disabled:pointer-events-none"
                             >
-                                Cancel
+                                Cancel Submission
                             </button>
                             {/* Submit button */}
                             <button

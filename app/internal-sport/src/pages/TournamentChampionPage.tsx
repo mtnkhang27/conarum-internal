@@ -1,5 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
+import { useLocation } from "react-router-dom";
 import { toast } from "sonner";
+import { Lock } from "lucide-react";
 import {
     AlertDialog,
     AlertDialogAction,
@@ -10,77 +12,85 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { playerTeamsApi, playerPredictionsApi, playerActionsApi } from "@/services/playerApi";
+import { TournamentSelector } from "@/components/TournamentSelector";
+import { playerTeamsApi, playerPredictionsApi, playerActionsApi, playerTournamentsApi } from "@/services/playerApi";
 import type { ChampionTeam } from "@/types";
-import type { ODataTeam } from "@/services/playerApi";
+import type { TournamentInfo } from "@/types";
 
 export function TournamentChampionPage() {
+    const location = useLocation();
+    const [tournamentId, setTournamentId] = useState("");
+    const [tournament, setTournament] = useState<TournamentInfo | null>(null);
     const [teams, setTeams] = useState<ChampionTeam[]>([]);
-    const [rawTeams, setRawTeams] = useState<ODataTeam[]>([]);
-    const [loading, setLoading] = useState(true);
+    const [loading, setLoading] = useState(false);
     const [confirmOpen, setConfirmOpen] = useState(false);
-    const [pendingTeam, setPendingTeam] = useState<string | null>(null);
+    const [pendingTeam, setPendingTeam] = useState<ChampionTeam | null>(null);
     const [submitting, setSubmitting] = useState(false);
 
-    useEffect(() => {
-        async function load() {
-            try {
-                // Fetch teams and current champion pick in parallel
-                const [teamData, rawData, currentPick] = await Promise.all([
-                    playerTeamsApi.getAll(),
-                    fetch("/api/player/Teams?$filter=isEliminated eq false&$orderby=fifaRanking asc")
-                        .then((r) => r.json())
-                        .then((d) => (d.value ?? d) as ODataTeam[]),
-                    playerPredictionsApi.getChampionPick(),
-                ]);
-                setRawTeams(rawData);
-                // Mark the user's current champion pick
-                setTeams(
-                    teamData.map((t) => ({
-                        ...t,
-                        selected: t.name === currentPick,
-                    }))
-                );
-            } catch {
-                // fall back to empty
-            } finally {
-                setLoading(false);
-            }
+    const loadData = useCallback(async (tid: string) => {
+        if (!tid) {
+            setTeams([]);
+            setTournament(null);
+            return;
         }
-        load();
+        setLoading(true);
+        try {
+            const [allTournaments, teamData, currentPick] = await Promise.all([
+                playerTournamentsApi.getAll(),
+                playerTeamsApi.getByTournament(tid),
+                playerPredictionsApi.getChampionPick(tid),
+            ]);
+            const t = allTournaments.find((x) => x.ID === tid) ?? null;
+            setTournament(t);
+            setTeams(
+                teamData.map((team) => ({
+                    ...team,
+                    selected: team.name === currentPick,
+                }))
+            );
+        } catch {
+            setTeams([]);
+        } finally {
+            setLoading(false);
+        }
     }, []);
 
-    const onSelectChampion = (teamName: string) => {
-        const currentSelection = teams.find((team) => team.selected);
-        if (currentSelection?.name === teamName) {
+    useEffect(() => {
+        loadData(tournamentId);
+    }, [tournamentId, loadData, location.key]);
+
+    const isBettingClosed =
+        tournament?.championBettingStatus === "locked" ||
+        tournament?.championBettingStatus === "closed" ||
+        tournament?.status === "completed" ||
+        tournament?.status === "cancelled";
+
+    const onSelectChampion = (team: ChampionTeam) => {
+        if (isBettingClosed) {
+            toast.error("Champion predictions are closed for this tournament.");
+            return;
+        }
+        const currentSelection = teams.find((t) => t.selected);
+        if (currentSelection?.name === team.name) {
             toast.info("Champion unchanged", {
-                description: `${teamName} is already your champion pick.`,
+                description: `${team.name} is already your champion pick.`,
             });
             return;
         }
-        setPendingTeam(teamName);
+        setPendingTeam(team);
         setConfirmOpen(true);
     };
 
     const onConfirmSelection = async () => {
-        if (!pendingTeam) return;
+        if (!pendingTeam || !tournamentId) return;
         setSubmitting(true);
-
-        // Find the team ID from raw teams
-        const team = rawTeams.find((t) => t.name === pendingTeam);
-        if (!team) {
-            toast.error("Team not found");
-            setSubmitting(false);
-            return;
-        }
-
         try {
-            const res = await playerActionsApi.pickChampion(team.ID);
+            const res = await playerActionsApi.pickChampion(pendingTeam.ID, tournamentId);
             setTeams((prev) =>
-                prev.map((t) => ({ ...t, selected: t.name === pendingTeam }))
+                prev.map((t) => ({ ...t, selected: t.name === pendingTeam.name }))
             );
             toast.success("Champion updated", {
-                description: res.message || `${pendingTeam} has been set as your champion pick.`,
+                description: res.message || `${pendingTeam.name} has been set as your champion pick.`,
             });
         } catch (e: any) {
             toast.error(e.message);
@@ -90,18 +100,10 @@ export function TournamentChampionPage() {
         }
     };
 
-    if (loading) {
-        return (
-            <div className="flex h-64 items-center justify-center text-muted-foreground">
-                Loading teams…
-            </div>
-        );
-    }
-
     return (
         <div className="p-4 pb-20 xl:pb-4">
             <div className="mb-10">
-                <div className="mb-6 flex items-center justify-between">
+                <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                     <div>
                         <h2 className="flex items-center gap-2 text-lg font-bold text-white">
                             <span className="h-6 w-1 rounded-full bg-secondary" />
@@ -111,9 +113,30 @@ export function TournamentChampionPage() {
                             Predictions for the final winner. No points are calculated; rewards are issued by admin.
                         </p>
                     </div>
+                    <TournamentSelector
+                        selectedId={tournamentId}
+                        onSelect={setTournamentId}
+                    />
                 </div>
 
-                {teams.length === 0 ? (
+                {/* Locked / closed banner */}
+                {tournament && isBettingClosed && (
+                    <div className="mb-4 flex items-center gap-2 rounded-lg border border-yellow-500/30 bg-yellow-500/10 px-4 py-3 text-sm text-yellow-400">
+                        <Lock className="h-4 w-4 flex-shrink-0" />
+                        Champion predictions are{" "}
+                        <strong>{tournament.championBettingStatus ?? tournament.status}</strong> for this tournament. You can no longer change your pick.
+                    </div>
+                )}
+
+                {!tournamentId ? (
+                    <p className="py-12 text-center text-sm text-muted-foreground">
+                        Select a tournament above to view and pick your champion.
+                    </p>
+                ) : loading ? (
+                    <div className="flex h-64 items-center justify-center text-muted-foreground">
+                        Loading teams…
+                    </div>
+                ) : teams.length === 0 ? (
                     <p className="py-12 text-center text-sm text-muted-foreground">
                         No teams available for selection.
                     </p>
@@ -124,6 +147,8 @@ export function TournamentChampionPage() {
                                 key={team.name}
                                 className={`group relative flex cursor-pointer flex-col items-center rounded-xl border p-6 text-center transition-all ${team.selected
                                     ? "border-primary bg-card ring-1 ring-primary glow-purple"
+                                    : isBettingClosed
+                                    ? "border-border bg-card opacity-60"
                                     : "border-border bg-card hover:border-primary"
                                     }`}
                             >
@@ -140,9 +165,12 @@ export function TournamentChampionPage() {
                                 <div className="mt-auto w-full">
                                     <button
                                         type="button"
-                                        onClick={() => onSelectChampion(team.name)}
+                                        onClick={() => onSelectChampion(team)}
+                                        disabled={isBettingClosed}
                                         className={`w-full rounded border py-2 text-[11px] font-bold uppercase transition-colors ${team.selected
                                             ? "border-primary bg-primary text-white"
+                                            : isBettingClosed
+                                            ? "cursor-not-allowed border-border bg-surface-dark text-muted-foreground opacity-50"
                                             : "border-border bg-surface-dark text-muted-foreground group-hover:border-primary group-hover:bg-primary group-hover:text-white"
                                             }`}
                                     >
@@ -160,7 +188,7 @@ export function TournamentChampionPage() {
                     <AlertDialogHeader>
                         <AlertDialogTitle>Confirm Champion Selection</AlertDialogTitle>
                         <AlertDialogDescription>
-                            Set {pendingTeam} as your tournament champion pick?
+                            Set {pendingTeam?.name} as your tournament champion pick?
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>

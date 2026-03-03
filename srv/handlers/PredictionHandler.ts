@@ -23,8 +23,14 @@ export class PredictionHandler {
             // Must wrap userId in {val: ...} so CDS properly quotes the UUID string
             // in SQLite, otherwise dashes in UUID are interpreted as minus operators.
             if (req.query.SELECT) {
-                const existingWhere = req.query.SELECT.where || [];
-                req.query.SELECT.where = [...(Array.isArray(existingWhere) ? existingWhere : [existingWhere]), 'player_ID', '=', { val: userId }];
+                const existingWhere = req.query.SELECT.where;
+                const playerFilter = [{ ref: ['player_ID'] }, '=', { val: userId }];
+                if (existingWhere && existingWhere.length > 0) {
+                    // Wrap existing conditions in parens and AND with player filter
+                    req.query.SELECT.where = ['(', ...existingWhere, ')', 'and', ...playerFilter];
+                } else {
+                    req.query.SELECT.where = playerFilter;
+                }
             }
         }
     }
@@ -57,6 +63,16 @@ export class PredictionHandler {
             if (match.status !== 'upcoming') {
                 req.error(400, `Match ${pred.matchId} is no longer open for predictions`);
                 continue;
+            }
+
+            // Block if tournament is completed/cancelled
+            if (match.tournament_ID) {
+                const { Tournament } = cds.entities('cnma.prediction');
+                const tournament = await SELECT.one.from(Tournament).where({ ID: match.tournament_ID });
+                if (tournament && (tournament.status === 'completed' || tournament.status === 'cancelled')) {
+                    req.error(400, `Tournament has ended — predictions are no longer accepted`);
+                    continue;
+                }
             }
 
             if (new Date(match.kickoff) <= now) {
@@ -112,6 +128,15 @@ export class PredictionHandler {
         const match = await SELECT.one.from(Match).where({ ID: matchId });
         if (!match) return req.error(404, 'Match not found');
         if (match.status !== 'upcoming') return req.error(400, 'Match is no longer open for bets');
+
+        // Block if tournament is completed/cancelled
+        if (match.tournament_ID) {
+            const { Tournament } = cds.entities('cnma.prediction');
+            const tournament = await SELECT.one.from(Tournament).where({ ID: match.tournament_ID });
+            if (tournament && (tournament.status === 'completed' || tournament.status === 'cancelled')) {
+                return req.error(400, 'Tournament has ended — score bets are no longer accepted');
+            }
+        }
 
         // Get per-match config (score betting is only available if config exists and enabled)
         const config = await SELECT.one.from(MatchScoreBetConfig).where({ match_ID: matchId });
@@ -171,6 +196,15 @@ export class PredictionHandler {
         const now = new Date();
         if (new Date(match.kickoff) <= now) {
             return req.error(400, 'Match has already kicked off');
+        }
+
+        // Block if tournament is completed/cancelled
+        if (match.tournament_ID) {
+            const { Tournament } = cds.entities('cnma.prediction');
+            const tournament = await SELECT.one.from(Tournament).where({ ID: match.tournament_ID });
+            if (tournament && (tournament.status === 'completed' || tournament.status === 'cancelled')) {
+                return req.error(400, 'Tournament has ended — predictions are no longer accepted');
+            }
         }
 
         const playerId = await this.getOrCreatePlayerId(req);
@@ -276,18 +310,29 @@ export class PredictionHandler {
 
     /**
      * Pick tournament champion (UC3).
-     * Validates: betting window open, within change deadline.
+     * Validates: specific tournament exists, betting window open.
+     * One pick per player per tournament.
      */
     async pickChampion(req: Request) {
-        const { teamId } = req.data;
+        const { teamId, tournamentId } = req.data;
         const { ChampionPick, Team, Tournament } = cds.entities('cnma.prediction');
 
-        // Find active tournament with champion betting open
-        const tournaments = await SELECT.from(Tournament)
-            .where({ championBettingStatus: 'open' });
+        if (!tournamentId) {
+            return req.error(400, 'tournamentId is required');
+        }
 
-        if (!tournaments || tournaments.length === 0) {
-            return req.error(400, 'No tournament with open champion predictions found');
+        // Validate tournament and check champion betting status
+        const tournament = await SELECT.one.from(Tournament).where({ ID: tournamentId });
+        if (!tournament) {
+            return req.error(404, 'Tournament not found');
+        }
+
+        if (tournament.championBettingStatus !== 'open') {
+            return req.error(400, `Champion predictions are ${tournament.championBettingStatus} for this tournament`);
+        }
+
+        if (tournament.status === 'completed' || tournament.status === 'cancelled') {
+            return req.error(400, 'Tournament has ended — champion predictions are closed');
         }
 
         // Validate team exists
@@ -297,22 +342,24 @@ export class PredictionHandler {
         const playerId = await this.getOrCreatePlayerId(req);
         const now = new Date();
 
-        // Check change deadline
+        // Check for existing pick for this specific tournament
         const existing = await SELECT.one.from(ChampionPick)
-            .where({ player_ID: playerId });
+            .where({ player_ID: playerId, tournament_ID: tournamentId });
 
         if (existing) {
-            // Update existing pick
+            // Update existing pick for this tournament
             await UPDATE(ChampionPick).where({ ID: existing.ID }).set({
-                team_ID: teamId
+                team_ID: teamId,
+                submittedAt: now.toISOString()
             });
             return { success: true, message: `Champion pick updated to ${team.name}` };
         }
 
-        // New pick
+        // New pick for this tournament
         await INSERT.into(ChampionPick).entries({
             player_ID: playerId,
             team_ID: teamId,
+            tournament_ID: tournamentId,
             submittedAt: now.toISOString()
         });
 

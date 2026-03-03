@@ -66,9 +66,9 @@ export function TournamentDetail() {
     // Editable fields (from Tournament entity directly)
     const [outcomePrize, setOutcomePrize] = useState("iPhone 15 Pro Max");
     const [championPrizePool, setChampionPrizePool] = useState("iPhone 15 Pro Max 256GB");
-    const [championBettingStatus, setChampionBettingStatus] = useState<"open" | "locked" | "closed">("open");
+    const [championBettingStatus, setChampionBettingStatus] = useState<"open" | "locked">("open");
     const [championLockDate, setChampionLockDate] = useState<string | null>(null);
-
+    const isTournamentLocked = tournament?.status === "completed" || tournament?.status === "cancelled";
     const load = useCallback(async () => {
         if (!tournamentId) return;
         setLoading(true);
@@ -80,8 +80,7 @@ export function TournamentDetail() {
             if (t) {
                 setOutcomePrize(t.outcomePrize ?? "iPhone 15 Pro Max");
                 setChampionPrizePool(t.championPrizePool ?? "iPhone 15 Pro Max 256GB");
-                setChampionBettingStatus(t.championBettingStatus ?? "open");
-                setChampionLockDate(t.championLockDate ?? null);
+                setChampionBettingStatus(t.championBettingStatus ?? "open");                setChampionLockDate(t.championLockDate ?? null);
             }
         } catch (e: any) {
             toast.error(e.message);
@@ -159,7 +158,7 @@ export function TournamentDetail() {
                         </div>
                     </div>
                 </div>
-                <Button onClick={handleSave} disabled={saving}>
+                <Button onClick={handleSave} disabled={saving || isTournamentLocked}>
                     <Save className="mr-2 h-4 w-4" />
                     {saving ? "Saving…" : "Save Changes"}
                 </Button>
@@ -168,11 +167,11 @@ export function TournamentDetail() {
             <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
                 <Card className="border-border bg-card p-5">
                     <div className="space-y-0">
-                        {(championBettingStatus === "locked" || championBettingStatus === "closed") && (
+                        {championBettingStatus === "locked" && (
                             <div className="mb-3 flex items-center gap-2 rounded-lg border border-yellow-500/30 bg-yellow-500/10 px-3 py-2 text-xs text-yellow-400">
                                 <AlertTriangle className="h-3.5 w-3.5 flex-shrink-0" />
                                 Prize fields are read-only while champion betting is{" "}
-                                <strong>{championBettingStatus}</strong>. Set status to{" "}
+                                <strong>locked</strong>. Set status to{" "}
                                 <strong>Open</strong> to edit.
                             </div>
                         )}
@@ -181,7 +180,7 @@ export function TournamentDetail() {
                                 className="w-56"
                                 value={outcomePrize}
                                 onChange={(e) => setOutcomePrize(e.target.value)}
-                                disabled={championBettingStatus === "locked" || championBettingStatus === "closed"}
+                                disabled={championBettingStatus === "locked" || isTournamentLocked}
                             />
                         </ConfigRow>
 
@@ -190,30 +189,20 @@ export function TournamentDetail() {
                                 className="w-56"
                                 value={championPrizePool}
                                 onChange={(e) => setChampionPrizePool(e.target.value)}
-                                disabled={championBettingStatus === "locked" || championBettingStatus === "closed"}
+                                disabled={championBettingStatus === "locked" || isTournamentLocked}
                             />
                         </ConfigRow>
-                        {/* <ConfigRow label="Lock Date" description="Date when champion predictions are locked">
-                            <Input
-                                type="date"
-                                className="w-36"
-                                value={championLockDate ?? ""}
-                                onChange={(e) =>
-                                    setChampionLockDate(e.target.value || null)
-                                }
-                            />
-                        </ConfigRow> */}
                         <ConfigRow label="Betting Status" description="Current status of champion betting">
                             <select
                                 className="rounded border border-border bg-surface-dark px-3 py-1.5 text-sm text-white"
                                 value={championBettingStatus}
                                 onChange={(e) =>
-                                    setChampionBettingStatus(e.target.value as "open" | "locked" | "closed")
+                                    setChampionBettingStatus(e.target.value as "open" | "locked")
                                 }
+                                disabled={isTournamentLocked}
                             >
                                 <option value="open">Open</option>
                                 <option value="locked">Locked</option>
-                                <option value="closed">Closed</option>
                             </select>
                         </ConfigRow>
                     </div>
@@ -223,6 +212,7 @@ export function TournamentDetail() {
                                 variant="destructive"
                                 className="w-full"
                                 onClick={handleLockChampion}
+                                disabled={isTournamentLocked}
                             >
                                 <Lock className="mr-2 h-4 w-4" />
                                 Lock Champion Predictions

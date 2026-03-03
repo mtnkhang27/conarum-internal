@@ -52,9 +52,17 @@ export class AdminService extends cds.ApplicationService {
 
         // ── Guard: block match creation/update for completed/cancelled tournaments ──
         this.before(['CREATE', 'UPDATE'], 'Matches', async (req: any) => {
-            const tournamentId = req.data?.tournament_ID;
+            const { Tournament, Match } = cds.entities('cnma.prediction');
+            let tournamentId = req.data?.tournament_ID;
+
+            // For UPDATE (PATCH): tournament_ID may not be in the payload — resolve from DB
+            if (!tournamentId && req.params?.[0]) {
+                const matchId = (req.params[0] as any).ID ?? req.params[0];
+                const existing = await SELECT.one.from(Match).columns('tournament_ID').where({ ID: matchId });
+                tournamentId = existing?.tournament_ID;
+            }
+
             if (!tournamentId) return;
-            const { Tournament } = cds.entities('cnma.prediction');
             const tournament = await SELECT.one.from(Tournament).where({ ID: tournamentId });
             if (tournament && (tournament.status === 'completed' || tournament.status === 'cancelled')) {
                 return req.error(400, `Cannot create or modify matches for a ${tournament.status} tournament`);

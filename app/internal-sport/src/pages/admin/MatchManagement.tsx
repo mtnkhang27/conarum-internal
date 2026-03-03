@@ -245,27 +245,27 @@ export function MatchManagement() {
                     <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/20 text-primary">
                         <Calendar className="h-6 w-6" />
                     </div>
-                    <div>
+                    <div className="flex items-center gap-1">
                         <p className="text-2xl font-bold text-white">{upcoming}</p>
-                        <p className="text-xs text-muted-foreground">Upcoming</p>
+                        <p className="text-xl text-muted-foreground">Upcoming</p>
                     </div>
                 </Card>
                 <Card className="flex items-center gap-4 border-border bg-card p-4">
                     <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-green-500/20 text-green-400">
                         <Clock className="h-6 w-6" />
                     </div>
-                    <div>
+                    <div className="flex items-center gap-1">
                         <p className="text-2xl font-bold text-white">{live}</p>
-                        <p className="text-xs text-muted-foreground">Live</p>
+                        <p className="text-xl text-muted-foreground">Live</p>
                     </div>
                 </Card>
                 <Card className="flex items-center gap-4 border-border bg-card p-4">
                     <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-muted text-muted-foreground">
                         <MapPin className="h-6 w-6" />
                     </div>
-                    <div>
+                    <div className="flex items-center gap-1">
                         <p className="text-2xl font-bold text-white">{finished}</p>
-                        <p className="text-xs text-muted-foreground">Finished</p>
+                        <p className="text-xl text-muted-foreground">Finished</p>
                     </div>
                 </Card>
             </div>

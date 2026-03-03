@@ -45,7 +45,7 @@ export interface ODataTournament {
     startDate: string;
     endDate: string;
     season: string | null;
-    championBettingStatus: 'open' | 'locked' | 'closed' | null;
+    championBettingStatus: 'open' | 'locked' | null;
 }
 
 export interface ODataMatch {
@@ -303,14 +303,30 @@ export const playerMatchesApi = {
         let filter = "status eq 'finished'";
         if (tournamentId) filter += ` and tournament_ID eq '${tournamentId}'`;
 
-        const matches = await json<ODataMatch[]>(
-            `${BASE}/Matches?$filter=${encodeURIComponent(filter)}&$expand=homeTeam,awayTeam&$orderby=kickoff desc`
-        );
-        return matches.map((m) => ({
-            ...toMatch(m),
-            timeLabel: "Locked",
-            selectedOption: "",
-        }));
+        const [matches, predictions] = await Promise.all([
+            json<ODataMatch[]>(
+                `${BASE}/Matches?$filter=${encodeURIComponent(filter)}&$expand=homeTeam,awayTeam&$orderby=kickoff desc`
+            ),
+            json<ODataPrediction[]>(`${BASE}/MyPredictions`).catch(() => [] as ODataPrediction[]),
+        ]);
+
+        const pickMap = new Map<string, string>();
+        for (const p of predictions) pickMap.set(p.match_ID, p.pick);
+
+        return matches.map((m) => {
+            const match = toMatch(m);
+            match.timeLabel = "Locked";
+            match.kickoffIso = m.kickoff;
+            match.stage = m.stage;
+            if (m.homeScore !== null && m.awayScore !== null) {
+                match.finalScore = { home: m.homeScore, away: m.awayScore };
+            }
+            const rawPick = pickMap.get(m.ID);
+            if (rawPick === "home") match.selectedOption = "home";
+            else if (rawPick === "away") match.selectedOption = "away";
+            else if (rawPick === "draw") match.selectedOption = "draw";
+            return match;
+        });
     },
 
     /** Live matches. */

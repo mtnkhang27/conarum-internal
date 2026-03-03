@@ -24,8 +24,8 @@ export function TournamentSelector({ selectedId, onSelect, allowAll = false }: T
     useEffect(() => {
         playerTournamentsApi.getAll().then((list) => {
             setTournaments(list);
-            // Auto-select first active tournament if nothing selected
-            if (!selectedId && list.length > 0 && !allowAll) {
+            // Always auto-select first active tournament if nothing selected
+            if (!selectedId && list.length > 0) {
                 const active = list.find((t) => t.status === "active") ?? list[0];
                 onSelect(active.ID);
             }
@@ -58,17 +58,7 @@ export function TournamentSelector({ selectedId, onSelect, allowAll = false }: T
                     <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
                     {/* Dropdown */}
                     <div className="absolute left-0 top-full z-50 mt-1 min-w-[260px] rounded-lg border border-border bg-card shadow-xl animate-in fade-in slide-in-from-top-1">
-                        {allowAll && (
-                            <button
-                                type="button"
-                                onClick={() => { onSelect(""); setOpen(false); }}
-                                className={`flex w-full items-center gap-3 px-4 py-3 text-left text-sm transition-colors hover:bg-surface ${!selectedId ? "bg-primary/10 text-primary" : "text-foreground"}`}
-                            >
-                                <Trophy className="h-4 w-4 text-muted-foreground" />
-                                <span>All Tournaments</span>
-                            </button>
-                        )}
-                        {tournaments.map((t) => (
+                            {tournaments.map((t) => (
                             <button
                                 key={t.ID}
                                 type="button"
@@ -96,6 +86,19 @@ export function TournamentSelector({ selectedId, onSelect, allowAll = false }: T
                             <div className="px-4 py-6 text-center text-xs text-muted-foreground">
                                 No tournaments available
                             </div>
+                        )}
+                        {allowAll && (
+                            <>
+                                {tournaments.length > 0 && <div className="mx-4 border-t border-border" />}
+                                <button
+                                    type="button"
+                                    onClick={() => { onSelect(""); setOpen(false); }}
+                                    className={`flex w-full items-center gap-3 px-4 py-3 text-left text-sm transition-colors hover:bg-surface ${!selectedId ? "bg-primary/10 text-primary" : "text-foreground"}`}
+                                >
+                                    <Trophy className="h-4 w-4 text-muted-foreground" />
+                                    <span>All Tournaments</span>
+                                </button>
+                            </>
                         )}
                     </div>
                 </>

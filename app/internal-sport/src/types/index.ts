@@ -7,7 +7,7 @@ export interface TournamentInfo {
     startDate: string;
     endDate: string;
     season?: string;
-    championBettingStatus?: 'open' | 'locked' | 'closed';
+    championBettingStatus?: 'open' | 'locked';
 }
 
 // === Match Types ===
@@ -26,6 +26,12 @@ export interface Match {
     existingScores?: { home: number; away: number }[];
     /** Whether this match has score betting enabled (MatchScoreBetConfig exists and is enabled) */
     scoreBettingEnabled: boolean;
+    /** Final result score (only present for completed matches) */
+    finalScore?: { home: number; away: number };
+    /** Match kickoff ISO string (for completed table display) */
+    kickoffIso?: string;
+    /** Match stage label */
+    stage?: string;
 }
 
 export interface UpcomingMatch {
@@ -140,6 +146,7 @@ export interface TournamentLeaderboardItem {
     totalPoints: number;
     totalCorrect: number;
     totalPredictions: number;
+    isMe?: boolean;
 }
 
 export interface StandingItem {
@@ -172,6 +179,15 @@ export interface UserProfile {
 }
 
 // === Recent Prediction Types ===
+export interface ScoreBetDetail {
+    betId: string;
+    predictedHomeScore: number;
+    predictedAwayScore: number;
+    status: string;
+    isCorrect: boolean | null;
+    payout: number;
+}
+
 export interface RecentPredictionItem {
     predictionId: string;
     matchId: string;
@@ -188,4 +204,5 @@ export interface RecentPredictionItem {
     kickoff: string;
     homeScore: number | null;
     awayScore: number | null;
+    scoreBets: ScoreBetDetail[];
 }

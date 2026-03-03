@@ -1,0 +1,234 @@
+import { useEffect, useState, useCallback } from "react";
+import { useLocation } from "react-router-dom";
+import { MatchCard } from "@/components/MatchCard";
+import { UpcomingKickoffTable } from "@/components/UpcomingKickoffTable";
+import { LiveMatchesTable } from "@/components/LiveMatchesTable";
+import { CompletedMatchesTable } from "@/components/CompletedMatchesTable";
+import { TournamentSelector } from "@/components/TournamentSelector";
+import { LeaderboardSection } from "@/components/LeaderboardSection";
+import { RecentPredictionsSection } from "@/components/RecentPredictionsSection";
+import {
+    playerMatchesApi,
+    playerTournamentQueryApi,
+} from "@/services/playerApi";
+import type {
+    Match,
+    UpcomingMatch,
+    LiveMatch,
+    RecentPredictionItem,
+} from "@/types";
+
+// ─── Section IDs ──────────────────────────────────────────────
+export const SECTION = {
+    leaderboard: "leaderboard",
+    matches: "matches",
+    completed: "completed",
+    recent: "recent",
+} as const;
+
+export function scrollToSection(id: string) {
+    const el = document.getElementById(id);
+    if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+// ─── Section heading helper ────────────────────────────────────
+function SectionHeading({
+    id,
+    color,
+    title,
+    subtitle,
+}: {
+    id: string;
+    color: string;
+    title: string;
+    subtitle: string;
+}) {
+    return (
+        <div id={id} className="mb-6 scroll-mt-4">
+            <h2 className="flex items-center gap-2 text-lg font-bold text-white">
+                <span className={`h-6 w-1 rounded-full ${color}`} />
+                {title}
+            </h2>
+            <p className="mt-1 text-xs text-muted-foreground">{subtitle}</p>
+        </div>
+    );
+}
+
+// ─── Main page ─────────────────────────────────────────────────
+export function SportPage() {
+    const location = useLocation();
+    const [tournamentId, setTournamentId] = useState("");
+
+    // Matches data
+    const [matches, setMatches] = useState<Match[]>([]);
+    const [upcoming, setUpcoming] = useState<UpcomingMatch[]>([]);
+    const [live, setLive] = useState<LiveMatch[]>([]);
+    const [completed, setCompleted] = useState<Match[]>([]);
+    const [loadingMatches, setLoadingMatches] = useState(true);
+
+    // Recent predictions
+    const [predictions, setPredictions] = useState<RecentPredictionItem[]>([]);
+    const [loadingPredictions, setLoadingPredictions] = useState(true);
+
+    const loadMatchData = useCallback(async (tid: string) => {
+        setLoadingMatches(true);
+        const filterTid = tid || undefined;
+        try {
+            const [m, u, l, c] = await Promise.all([
+                playerMatchesApi.getAvailable(filterTid),
+                playerMatchesApi.getUpcoming(filterTid),
+                playerMatchesApi.getLive(),
+                playerMatchesApi.getCompleted(filterTid),
+            ]);
+            setMatches(m);
+            setUpcoming(u);
+            setLive(l);
+            setCompleted(c);
+        } catch {
+            // fall back silently
+        } finally {
+            setLoadingMatches(false);
+        }
+    }, []);
+
+    const loadPredictions = useCallback(async () => {
+        setLoadingPredictions(true);
+        try {
+            const data = await playerTournamentQueryApi.getMyRecentPredictions(30);
+            setPredictions(Array.isArray(data) ? data : []);
+        } catch {
+            setPredictions([]);
+        } finally {
+            setLoadingPredictions(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        loadMatchData(tournamentId);
+    }, [tournamentId, loadMatchData, location.key]);
+
+    useEffect(() => {
+        loadPredictions();
+    }, [loadPredictions, location.key]);
+
+    // Scroll to hash section on mount / navigation
+    useEffect(() => {
+        const hash = location.hash.replace("#", "");
+        if (hash) {
+            setTimeout(() => scrollToSection(hash), 100);
+        }
+    }, [location.hash]);
+
+    return (
+        <div className="flex flex-col">
+            {/* ── Sticky top controls ── */}
+            <div className="sticky top-0 z-20 flex flex-col gap-3 border-b border-border/60 bg-background/95 px-4 py-3 backdrop-blur-sm sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                    <h1 className="text-lg font-extrabold text-white">Sport Predictions</h1>
+                    <p className="text-[11px] text-muted-foreground">
+                        Predictions, leaderboard, results — all in one place.
+                    </p>
+                </div>
+                <TournamentSelector
+                    selectedId={tournamentId}
+                    onSelect={setTournamentId}
+                    allowAll
+                />
+            </div>
+
+            {/* ── Scrollable content ── */}
+            <div className="p-4 pb-24 xl:pb-6">
+
+                {/* ══════════════════════════════════════════
+                    SECTION 1 — Leaderboard
+                ══════════════════════════════════════════ */}
+                <section className="mb-14">
+                    <SectionHeading
+                        id={SECTION.leaderboard}
+                        color="bg-yellow-400"
+                        title="Prediction Leaderboard"
+                        subtitle="Points are per tournament — 1 point per correct prediction. Ties broken by name (A→Z)."
+                    />
+                    <LeaderboardSection tournamentId={tournamentId} />
+                </section>
+
+                {/* ══════════════════════════════════════════
+                    SECTION 2 — Matches (Available + Live + Upcoming)
+                ══════════════════════════════════════════ */}
+                <section className="mb-14">
+                    <SectionHeading
+                        id={SECTION.matches}
+                        color="bg-primary"
+                        title="Match Predictions"
+                        subtitle="Pick the winner for each upcoming match. Use the cards below to submit your prediction."
+                    />
+
+                    {/* Available match cards */}
+                    {loadingMatches ? (
+                        <div className="flex h-48 items-center justify-center text-muted-foreground">
+                            Loading matches…
+                        </div>
+                    ) : matches.length === 0 ? (
+                        <p className="py-10 text-center text-sm text-muted-foreground">
+                            No upcoming matches available for prediction.
+                        </p>
+                    ) : (
+                        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
+                            {matches.map((match) => (
+                                <MatchCard key={match.id} match={match} />
+                            ))}
+                        </div>
+                    )}
+
+                    {/* Live matches */}
+                    {live.length > 0 && (
+                        <div className="mt-6">
+                            <LiveMatchesTable items={live} />
+                        </div>
+                    )}
+
+                    {/* Upcoming kickoff table (read-only) */}
+                    {/* {upcoming.length > 0 && (
+                        <UpcomingKickoffTable items={upcoming} />
+                    )} */}
+                </section>
+
+                {/* ══════════════════════════════════════════
+                    SECTION 3 — Completed matches
+                ══════════════════════════════════════════ */}
+                <section className="mb-14">
+                    <SectionHeading
+                        id={SECTION.completed}
+                        color="bg-foreground/40"
+                        title="Completed Matches"
+                        subtitle="Results and your predictions for finished matches."
+                    />
+
+                    {loadingMatches ? (
+                        <div className="flex h-32 items-center justify-center text-muted-foreground">
+                            Loading completed matches…
+                        </div>
+                    ) : (
+                        <CompletedMatchesTable matches={completed} />
+                    )}
+                </section>
+
+                {/* ══════════════════════════════════════════
+                    SECTION 4 — Recent Predictions
+                ══════════════════════════════════════════ */}
+                <section>
+                    <SectionHeading
+                        id={SECTION.recent}
+                        color="bg-secondary"
+                        title="My Recent Predictions"
+                        subtitle="Your latest match predictions across all tournaments."
+                    />
+                    <RecentPredictionsSection
+                        predictions={predictions}
+                        loading={loadingPredictions}
+                    />
+                </section>
+            </div>
+        </div>
+    );
+}

@@ -9,9 +9,9 @@ import {
 } from "lucide-react";
 
 const adminNavItems = [
-    { label: "Matches", to: "/admin/matches", icon: Calendar },
-    { label: "Teams", to: "/admin/teams", icon: Shield },
     { label: "Tournaments", to: "/admin/tournaments", icon: Trophy },
+    { label: "Teams", to: "/admin/teams", icon: Shield },
+    { label: "Matches", to: "/admin/matches", icon: Calendar },
     { label: "Players", to: "/admin/players", icon: Users },
 ];
 

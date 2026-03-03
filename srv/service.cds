@@ -234,9 +234,20 @@ service PlayerService {
         totalPoints  : Decimal;
         totalCorrect : Integer;
         totalPredictions : Integer;
+        isMe         : Boolean;
     }
 
     function getPredictionLeaderboard(tournamentId: UUID) returns many LeaderboardItem;
+
+    /** Score bet detail within a recent prediction. */
+    type ScoreBetDetail {
+        betId              : UUID;
+        predictedHomeScore : Integer;
+        predictedAwayScore : Integer;
+        status             : String;
+        isCorrect          : Boolean;
+        payout             : Decimal;
+    }
 
     /** Recent predictions for the current user. */
     type RecentPredictionItem {
@@ -255,6 +266,7 @@ service PlayerService {
         kickoff        : DateTime;
         homeScore      : Integer;
         awayScore      : Integer;
+        scoreBets      : array of ScoreBetDetail;
     }
 
     function getMyRecentPredictions(limit: Integer) returns many RecentPredictionItem;

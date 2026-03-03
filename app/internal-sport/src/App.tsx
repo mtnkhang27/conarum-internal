@@ -1,11 +1,8 @@
 import { Routes, Route, Navigate } from "react-router-dom";
 import { AppShell } from "@/layouts/AppShell";
 import { AdminLayout } from "@/layouts/AdminLayout";
-import { AvailableMatchesPage } from "@/pages/AvailableMatchesPage";
-import { CompletedMatchesPage } from "@/pages/CompletedMatchesPage";
-import { TournamentChampionPage } from "@/pages/TournamentChampionPage";
-import { RecentPredictionsPage } from "@/pages/RecentPredictionsPage";
-import { LeaderboardPage } from "@/pages/LeaderboardPage";
+import { SportPage } from "@/pages/SportPage";
+// import { TournamentChampionPage } from "@/pages/TournamentChampionPage";
 import { AccountPage } from "@/pages/AccountPage";
 import { MatchManagement } from "@/pages/admin/MatchManagement";
 import { MatchDetail } from "@/pages/admin/MatchDetail";
@@ -19,11 +16,13 @@ export default function App() {
     <Routes>
       {/* Player-facing routes */}
       <Route element={<AppShell />}>
-        <Route path="/available" element={<AvailableMatchesPage />} />
-        <Route path="/completed" element={<CompletedMatchesPage />} />
-        <Route path="/tournament-champion" element={<TournamentChampionPage />} />
-        <Route path="/recent-predictions" element={<RecentPredictionsPage />} />
-        <Route path="/leaderboard" element={<LeaderboardPage />} />
+        <Route path="/" element={<SportPage />} />
+        {/* Legacy redirects */}
+        {/* <Route path="/available" element={<Navigate to="/#matches" replace />} />
+        <Route path="/completed" element={<Navigate to="/#completed" replace />} />
+        <Route path="/recent-predictions" element={<Navigate to="/#recent" replace />} />
+        <Route path="/leaderboard" element={<Navigate to="/#leaderboard" replace />} />
+        <Route path="/tournament-champion" element={<TournamentChampionPage />} /> */}
         <Route path="/account" element={<AccountPage />} />
       </Route>
 
@@ -38,7 +37,7 @@ export default function App() {
         <Route path="/admin" element={<Navigate to="/admin/matches" replace />} />
       </Route>
 
-      <Route path="*" element={<Navigate to="/available" replace />} />
+      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
 }

@@ -68,8 +68,7 @@ type BetStatus        : String enum {
 
 type BettingStatus    : String enum {
     open;
-    locked;
-    closed;
+    locked;  // Admin-locked; no new champion picks accepted
 }
 
 type TieBreakRule     : String enum {

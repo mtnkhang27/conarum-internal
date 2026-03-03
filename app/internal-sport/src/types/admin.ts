@@ -20,7 +20,7 @@ export interface AdminTournament {
     // UC2: single outcome prize description
     outcomePrize: string;
     // UC3: champion prediction config
-    championBettingStatus: "open" | "locked" | "closed";
+    championBettingStatus: "open" | "locked";
     championLockDate: string | null;
     championPrizePool: string;
 }

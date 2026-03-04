@@ -122,6 +122,25 @@ export interface SyncMatchResult extends ActionResult {
     scored: number;
 }
 
+export interface CompetitionItem {
+    externalId: number;
+    code: string;
+    name: string;
+    type: string;
+    emblem: string | null;
+    plan: string | null;
+    seasonStart: string | null;
+    seasonEnd: string | null;
+    alreadyImported: boolean;
+    importedTournamentId: string | null;
+}
+
+export interface ImportTournamentResult extends ActionResult {
+    tournamentId: string;
+    teamsImported: number;
+    matchesImported: number;
+}
+
 // === Prediction & Bet Types (Admin read-only views) ===
 
 export interface AdminPrediction {
@@ -155,7 +174,7 @@ export interface AdminChampionPick {
     player_ID: string;
     team_ID: string;
     tournament_ID: string;
-    pickedAt: string | null;
+    submittedAt: string | null;
     player?: AdminPlayer;
     team?: AdminTeam;
 }

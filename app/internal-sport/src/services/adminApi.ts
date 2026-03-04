@@ -9,6 +9,8 @@ import type {
     ActionResult,
     MatchResultResponse,
     SyncMatchResult,
+    CompetitionItem,
+    ImportTournamentResult,
     AdminPrediction,
     AdminScoreBet,
     AdminChampionPick,
@@ -196,6 +198,20 @@ export const tournamentActionsApi = {
         }),
 };
 
+// ── Competition Import ────────────────────────────────────
+
+export const competitionImportApi = {
+    getAvailableCompetitions: (apiKey?: string) =>
+        odata<{ value: CompetitionItem[] }>(
+            `/getAvailableCompetitions(apiKey='${encodeURIComponent(apiKey || '')}')`
+        ).then((r) => r.value ?? (r as any)),
+    importTournament: (externalCode: string, apiKey?: string) =>
+        odata<ImportTournamentResult>("/importTournament", {
+            method: "POST",
+            body: JSON.stringify({ externalCode, apiKey: apiKey || "" }),
+        }),
+};
+
 // ── Predictions (Admin read-only) ──────────────────────────
 
 export const predictionsApi = {
@@ -219,6 +235,6 @@ export const scoreBetsApi = {
 export const championPicksApi = {
     listByTournament: (tournamentId: string) =>
         odataList<AdminChampionPick>(
-            `/AllChampionPicks?$filter=tournament_ID eq '${tournamentId}'&$expand=player,team&$orderby=pickedAt desc`
+            `/AllChampionPicks?$filter=tournament_ID eq '${tournamentId}'&$expand=player,team&$orderby=submittedAt desc`
         ),
 };

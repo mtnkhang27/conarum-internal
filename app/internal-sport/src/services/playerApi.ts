@@ -111,7 +111,7 @@ export interface ODataChampionPick {
     ID: string;
     player_ID: string;
     team_ID: string;
-    pickedAt: string | null;
+    submittedAt: string | null;
     team?: ODataTeam;
 }
 

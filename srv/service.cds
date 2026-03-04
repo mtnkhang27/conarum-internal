@@ -461,4 +461,38 @@ service AdminService {
      * When locked=true, all betting (outcome, score, champion) for this tournament is blocked.
      */
     action lockTournamentBetting(tournamentId: UUID, locked: Boolean)               returns ActionResult;
+
+    // ── Competition Import ────────────────────────────────────
+
+    /**
+     * List available competitions from football-data.org.
+     * Returns each competition flagged with `alreadyImported` if a tournament with that externalCode exists.
+     */
+    type CompetitionItem {
+        externalId           : Integer;
+        code                 : String(20);
+        name                 : String(100);
+        type                 : String(20);
+        emblem               : String(500);
+        plan                 : String(20);
+        seasonStart          : String(20);
+        seasonEnd            : String(20);
+        alreadyImported      : Boolean;
+        importedTournamentId : UUID;
+    }
+
+    function getAvailableCompetitions(apiKey: String default '')    returns many CompetitionItem;
+
+    /**
+     * Import a competition from football-data.org as a Tournament.
+     * Creates the Tournament, upserts Teams, creates TournamentTeams (with group assignments),
+     * and creates all Matches with externalId for future sync.
+     */
+    type ImportTournamentResult : ActionResult {
+        tournamentId    : UUID;
+        teamsImported   : Integer;
+        matchesImported : Integer;
+    }
+
+    action importTournament(externalCode: String, apiKey: String default '')        returns ImportTournamentResult;
 }

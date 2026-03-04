@@ -697,4 +697,263 @@ export class AdminHandler {
             message: locked ? 'All betting locked for this tournament' : 'Betting unlocked for this tournament',
         };
     }
+
+    // ── Competition Import ────────────────────────────────────
+
+    /**
+     * List available competitions from football-data.org, flagging which ones
+     * already have a corresponding Tournament (by externalCode).
+     */
+    async getAvailableCompetitions(req: Request) {
+        const { apiKey } = req.data;
+        const token = (apiKey as string | undefined)?.trim() || FOOTBALL_DATA_API_TOKEN;
+        const { Tournament } = cds.entities('cnma.prediction');
+
+        let apiData: any;
+        try {
+            const res = await fetch('https://api.football-data.org/v4/competitions', {
+                headers: { 'X-Auth-Token': token },
+            });
+            if (!res.ok) {
+                const errText = await res.text();
+                return req.error(502, `football-data.org API error ${res.status}: ${errText}`);
+            }
+            apiData = await res.json();
+        } catch (err: any) {
+            return req.error(502, `Failed to reach football-data.org: ${err.message}`);
+        }
+
+        // Load all already-imported tournament codes
+        const existing = await SELECT.from(Tournament).columns('ID', 'externalCode');
+        const importedMap = new Map<string, string>(); // code → ID
+        for (const t of existing) {
+            if (t.externalCode) importedMap.set(t.externalCode, t.ID);
+        }
+
+        const items = (apiData.competitions ?? []).map((c: any) => ({
+            externalId: c.id,
+            code: c.code,
+            name: c.name,
+            type: c.type,
+            emblem: c.emblem ?? null,
+            plan: c.plan ?? null,
+            seasonStart: c.currentSeason?.startDate ?? null,
+            seasonEnd: c.currentSeason?.endDate ?? null,
+            alreadyImported: importedMap.has(c.code),
+            importedTournamentId: importedMap.get(c.code) ?? null,
+        }));
+
+        return items;
+    }
+
+    /**
+     * Import a competition from football-data.org as a full Tournament.
+     * Creates Tournament, upserts Teams, creates TournamentTeams (with group assignments),
+     * and creates all Matches (with externalId for future sync).
+     */
+    async importTournament(req: Request) {
+        const { externalCode, apiKey } = req.data;
+        const token = (apiKey as string | undefined)?.trim() || FOOTBALL_DATA_API_TOKEN;
+
+        if (!externalCode) return req.error(400, 'externalCode is required');
+
+        const { Tournament, Team, TournamentTeam, Match } = cds.entities('cnma.prediction');
+
+        // 1. Guard: prevent duplicate import
+        const existing = await SELECT.one.from(Tournament).where({ externalCode });
+        if (existing) {
+            return req.error(409, `A tournament with code '${externalCode}' already exists (ID: ${existing.ID})`);
+        }
+
+        // Helper: fetch from API
+        const apiFetch = async (path: string): Promise<any> => {
+            const res = await fetch(`https://api.football-data.org/v4${path}`, {
+                headers: { 'X-Auth-Token': token },
+            });
+            if (!res.ok) {
+                const errText = await res.text();
+                throw Object.assign(new Error(`API error ${res.status}: ${errText}`), { status: res.status });
+            }
+            return res.json();
+        };
+
+        // 2. Fetch competition details
+        let comp: any;
+        try {
+            comp = await apiFetch(`/competitions/${externalCode}`);
+        } catch (err: any) {
+            return req.error(502, `Failed to fetch competition: ${err.message}`);
+        }
+
+        const season = comp.currentSeason;
+        const startDate = season?.startDate ?? new Date().toISOString().split('T')[0];
+        const endDate = season?.endDate ?? new Date().toISOString().split('T')[0];
+        const seasonLabel = startDate.substring(0, 4);
+
+        // 3. Determine format
+        const format = this._determineFormat(comp.type, externalCode);
+        const hasGroupStage = format === 'groupKnockout';
+
+        // 4. Create Tournament — pre-generate UUID for reliable ID access
+        const tournamentId: string = cds.utils.uuid();
+        await INSERT.into(Tournament).entries({
+            ID: tournamentId,
+            name: comp.name,
+            startDate,
+            endDate,
+            status: 'upcoming',
+            format,
+            hasGroupStage,
+            externalCode,
+            season: seasonLabel,
+        });
+
+        // 5. Fetch teams
+        let apiTeams: any[] = [];
+        try {
+            const teamsData = await apiFetch(`/competitions/${externalCode}/teams`);
+            apiTeams = teamsData.teams ?? [];
+        } catch (_) { /* no teams available yet — continue */ }
+
+        // 6. Fetch standings for group assignments (best-effort)
+        const groupByTeamId = new Map<number, string>();
+        try {
+            const standingsData = await apiFetch(`/competitions/${externalCode}/standings`);
+            for (const standing of standingsData.standings ?? []) {
+                const raw: string = standing.group ?? '';
+                // e.g. 'GROUP_A' or 'Group A' → 'A'
+                const group = raw.replace(/^(GROUP_|Group\s+)/i, '').trim();
+                if (group.length === 1) {
+                    for (const row of standing.table ?? []) {
+                        if (row.team?.id) groupByTeamId.set(row.team.id, group);
+                    }
+                }
+            }
+        } catch (_) { /* standings not available yet */ }
+
+        // 7. Upsert teams & create TournamentTeam links
+        let teamsImported = 0;
+        const teamIdMap = new Map<number, string>(); // external ID → internal UUID
+
+        const allTeams = await SELECT.from(Team).columns('ID', 'crest', 'tla');
+        const teamByCrest = new Map<string, string>(allTeams.filter((t: any) => t.crest).map((t: any) => [t.crest, t.ID]));
+        const teamByTla   = new Map<string, string>(allTeams.filter((t: any) => t.tla).map((t: any) => [t.tla,   t.ID]));
+
+        for (const apiTeam of apiTeams) {
+            let internalId: string | undefined;
+
+            // Lookup by crest first, then by TLA
+            if (apiTeam.crest && teamByCrest.has(apiTeam.crest)) {
+                internalId = teamByCrest.get(apiTeam.crest)!;
+            } else if (apiTeam.tla && teamByTla.has(apiTeam.tla)) {
+                internalId = teamByTla.get(apiTeam.tla)!;
+            }
+
+            if (!internalId) {
+                // Create new team — pre-generate UUID
+                const areaCode: string = (apiTeam.area?.code ?? 'XX').toLowerCase().substring(0, 5);
+                const newTeamId = cds.utils.uuid();
+                await INSERT.into(Team).entries({
+                    ID: newTeamId,
+                    name: apiTeam.name,
+                    shortName: apiTeam.shortName ?? apiTeam.name,
+                    tla: apiTeam.tla ?? null,
+                    crest: apiTeam.crest ?? null,
+                    flagCode: areaCode,
+                });
+                internalId = newTeamId;
+                if (apiTeam.crest)  teamByCrest.set(apiTeam.crest, internalId!);
+                if (apiTeam.tla)    teamByTla.set(apiTeam.tla, internalId!);
+                teamsImported++;
+            }
+
+            teamIdMap.set(apiTeam.id, internalId!);
+
+            const groupName = groupByTeamId.get(apiTeam.id) ?? null;
+            await INSERT.into(TournamentTeam).entries({
+                tournament_ID: tournamentId,
+                team_ID: internalId!,
+                groupName,
+            });
+        }
+
+        // 8. Fetch & create matches
+        const stageMap: Record<string, string> = {
+            LEAGUE_STAGE: 'regular',
+            GROUP_STAGE:  'group',
+            LAST_16:       'roundOf16',
+            LAST_32:       'roundOf32',
+            QUARTER_FINAL: 'quarterFinal',
+            SEMI_FINAL:    'semiFinal',
+            THIRD_PLACE:   'thirdPlace',
+            FINAL:         'final',
+            PLAY_OFF_ROUND:'playoff',
+            REGULAR:       'regular',
+            PLAYOFF:       'playoff',
+            RELEGATION:    'relegation',
+        };
+        const statusMap: Record<string, string> = {
+            SCHEDULED:         'upcoming',
+            TIMED:             'upcoming',
+            IN_PLAY:           'live',
+            PAUSED:            'live',
+            HALFTIME:          'live',
+            EXTRA_TIME:        'live',
+            PENALTY_SHOOTOUT:  'live',
+            FINISHED:          'finished',
+            AWARDED:           'finished',
+            INTERRUPTED:       'live',
+            SUSPENDED:         'cancelled',
+            POSTPONED:         'cancelled',
+            CANCELLED:         'cancelled',
+        };
+
+        let apiMatches: any[] = [];
+        try {
+            const matchesData = await apiFetch(`/competitions/${externalCode}/matches`);
+            apiMatches = matchesData.matches ?? [];
+        } catch (_) { /* no matches available */ }
+
+        let matchesImported = 0;
+        for (const apiMatch of apiMatches) {
+            const homeTeamId = apiMatch.homeTeam?.id ? teamIdMap.get(apiMatch.homeTeam.id) ?? null : null;
+            const awayTeamId = apiMatch.awayTeam?.id ? teamIdMap.get(apiMatch.awayTeam.id) ?? null : null;
+
+            // Skip matches whose teams are completely unknown (TBD placeholder from API)
+            // We allow null teams — they'll be resolved later via syncMatchResults
+
+            await INSERT.into(Match).entries({
+                tournament_ID: tournamentId,
+                homeTeam_ID:   homeTeamId,
+                awayTeam_ID:   awayTeamId,
+                kickoff:       apiMatch.utcDate ?? startDate,
+                venue:         apiMatch.venue ?? null,
+                stage:         stageMap[apiMatch.stage] ?? 'group',
+                status:        statusMap[apiMatch.status] ?? 'upcoming',
+                matchday:      apiMatch.matchday ?? null,
+                externalId:    apiMatch.id,
+            });
+            matchesImported++;
+        }
+
+        return {
+            success: true,
+            message: `Tournament '${comp.name}' imported: ${teamsImported} new team(s), ${matchesImported} match(es) created.`,
+            tournamentId,
+            teamsImported,
+            matchesImported,
+        };
+    }
+
+    /** Determine tournament format from football-data.org competition type and code. */
+    private _determineFormat(type: string, code: string): string {
+        const leagueCodes = ['PL', 'FL1', 'BL1', 'SA', 'DED', 'PPL', 'PD', 'BSA', 'ELC', 'PPL'];
+        if (leagueCodes.includes(code) || type === 'LEAGUE') return 'league';
+        const groupKnockoutCodes = ['WC', 'EC', 'CLI', 'WCQ', 'ECQ', 'AFCON', 'COPA'];
+        if (groupKnockoutCodes.includes(code)) return 'groupKnockout';
+        // CL / EL / ECL use league phase + knockout → 'knockout'
+        if (['CL', 'EL', 'ECL', 'UCOL'].includes(code)) return 'knockout';
+        // Default for remaining CUP types
+        return 'cup';
+    }
 }

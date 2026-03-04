@@ -416,7 +416,9 @@ export function MatchManagement() {
                     <table className="w-full text-sm">
                         <thead>
                             <tr className="border-b border-border text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                                <th className="px-4 py-3">Match</th>
+                                <th className="px-4 py-3 text-right">Home</th>
+                                <th className="px-2 py-3 text-center"></th>
+                                <th className="px-4 py-3">Away</th>
                                 <th className="px-4 py-3">Stage</th>
                                 <th className="px-4 py-3">Date &amp; Time</th>
                                 <th className="px-4 py-3">Venue</th>
@@ -433,29 +435,38 @@ export function MatchManagement() {
                                     className="border-b border-border/50 cursor-pointer transition-colors hover:bg-surface"
                                     onClick={() => navigate(`/admin/matches/${m.ID}`)}
                                 >
+                                    {/* Home team */}
                                     <td className="px-4 py-3">
-                                        <div className="flex items-center gap-1 font-medium text-white">
+                                        <div className="flex items-center justify-end gap-1.5 font-medium text-white">
                                             {m.homeTeam
                                                 ? (
                                                     <>
+                                                        <span>{m.homeTeam.name}</span>
                                                         {m.homeTeam.crest
-                                                            ? <img src={m.homeTeam.crest} alt="" className="mr-1 inline h-5 w-5 object-contain align-middle" />
-                                                            : <span className={`fi fi-${m.homeTeam.flagCode} mr-1`} />}
-                                                        {m.homeTeam.name}
+                                                            ? <img src={m.homeTeam.crest} alt="" className="h-5 w-5 flex-shrink-0 object-contain" />
+                                                            : <span className={`fi fi-${m.homeTeam.flagCode} flex-shrink-0`} />}
                                                     </>
                                                 )
-                                                : teamName(m.homeTeam_ID)}
-                                            <span className="mx-2 text-muted-foreground">vs</span>
+                                                : <span>{teamName(m.homeTeam_ID)}</span>}
+                                        </div>
+                                    </td>
+                                    {/* vs */}
+                                    <td className="px-2 py-3 text-center text-xs text-muted-foreground">
+                                        vs
+                                    </td>
+                                    {/* Away team */}
+                                    <td className="px-4 py-3">
+                                        <div className="flex items-center gap-1.5 font-medium text-white">
                                             {m.awayTeam
                                                 ? (
                                                     <>
                                                         {m.awayTeam.crest
-                                                            ? <img src={m.awayTeam.crest} alt="" className="mr-1 inline h-5 w-5 object-contain align-middle" />
-                                                            : <span className={`fi fi-${m.awayTeam.flagCode} mr-1`} />}
-                                                        {m.awayTeam.name}
+                                                            ? <img src={m.awayTeam.crest} alt="" className="h-5 w-5 flex-shrink-0 object-contain" />
+                                                            : <span className={`fi fi-${m.awayTeam.flagCode} flex-shrink-0`} />}
+                                                        <span>{m.awayTeam.name}</span>
                                                     </>
                                                 )
-                                                : teamName(m.awayTeam_ID)}
+                                                : <span>{teamName(m.awayTeam_ID)}</span>}
                                         </div>
                                     </td>
                                     <td className="px-4 py-3 capitalize text-muted-foreground">

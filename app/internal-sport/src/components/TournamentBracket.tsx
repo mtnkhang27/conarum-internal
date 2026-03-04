@@ -158,7 +158,7 @@ function SlotCard({ slot, showLegs }: { slot: BracketSlot; showLegs: boolean }) 
     return (
         <div
             className={`
-                w-52 overflow-hidden rounded-lg border transition-all
+                w-full overflow-hidden rounded-lg border transition-all
                 ${hasWinner
                     ? "border-emerald-500/30 shadow-md shadow-emerald-500/5"
                     : "border-border/40 shadow-sm"}
@@ -302,8 +302,8 @@ export function TournamentBracket({
     const hasLegs = slots.some((s) => s.leg2Id !== null);
 
     return (
-        <div className="w-full overflow-x-auto">
-            <div className="flex items-start gap-3 p-4" style={{ minWidth: orderedStages.length * 240 }}>
+        <div className="w-full">
+            <div className="flex items-start gap-3 p-4">
                 {orderedStages.map((stage) => {
                     const stageSlots = stageGroups.get(stage)!;
                     stageSlots.sort((a, b) => a.position - b.position);
@@ -312,7 +312,7 @@ export function TournamentBracket({
                     const showLegs = hasLegs && stage !== "final";
 
                     return (
-                        <div key={stage} className="flex flex-col items-center gap-2">
+                        <div key={stage} className="flex flex-1 flex-col items-center gap-2">
                             {/* Stage header */}
                             <div className="mb-2 text-center">
                                 <h3 className="text-xs font-bold uppercase tracking-widest text-primary/80">
@@ -325,9 +325,8 @@ export function TournamentBracket({
 
                             {/* Bracket cards for this stage */}
                             <div
-                                className="flex flex-col justify-center gap-3"
+                                className="flex w-full flex-col justify-center gap-3"
                                 style={{
-                                    // Vertically center fewer cards as rounds progress
                                     minHeight: compact ? undefined : `${stageSlots.length * 100}px`,
                                 }}
                             >

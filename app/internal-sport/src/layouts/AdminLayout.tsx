@@ -6,15 +6,13 @@ import {
     Shield,
     Trophy,
     Users,
-    Settings,
 } from "lucide-react";
 
 const adminNavItems = [
-    { label: "Matches", to: "/admin/matches", icon: Calendar },
-    { label: "Teams", to: "/admin/teams", icon: Shield },
     { label: "Tournaments", to: "/admin/tournaments", icon: Trophy },
+    { label: "Teams", to: "/admin/teams", icon: Shield },
+    { label: "Matches", to: "/admin/matches", icon: Calendar },
     { label: "Players", to: "/admin/players", icon: Users },
-    { label: "Config", to: "/admin/config", icon: Settings },
 ];
 
 export function AdminLayout() {
@@ -36,7 +34,7 @@ export function AdminLayout() {
                     <nav className="flex-1 overflow-y-auto py-2">
                         {adminNavItems.map((item) => {
                             const Icon = item.icon;
-                            const isActive = pathname === item.to;
+                            const isActive = pathname === item.to || pathname.startsWith(item.to + "/");
                             return (
                                 <NavLink
                                     key={item.to}

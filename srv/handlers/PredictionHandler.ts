@@ -20,13 +20,25 @@ export class PredictionHandler {
         const userId = await this.getCurrentPlayerId(req);
         if (userId) {
             // Inject filter: player_ID = current user's player ID
-            req.query.where({ player_ID: userId });
+            // Must wrap userId in {val: ...} so CDS properly quotes the UUID string
+            // in SQLite, otherwise dashes in UUID are interpreted as minus operators.
+            if (req.query.SELECT) {
+                const existingWhere = req.query.SELECT.where;
+                const playerFilter = [{ ref: ['player_ID'] }, '=', { val: userId }];
+                if (existingWhere && existingWhere.length > 0) {
+                    // Wrap existing conditions in parens and AND with player filter
+                    req.query.SELECT.where = ['(', ...existingWhere, ')', 'and', ...playerFilter];
+                } else {
+                    req.query.SELECT.where = playerFilter;
+                }
+            }
         }
     }
 
     /**
      * Submit match outcome predictions (UC2: Win/Draw/Lose).
      * Validates: match exists, not kicked off, pick is valid.
+     * Scoring: 1 point if correct, 0 if wrong, no weight.
      */
     async submitPredictions(req: Request) {
         const { predictions } = req.data;
@@ -51,6 +63,27 @@ export class PredictionHandler {
             if (match.status !== 'upcoming') {
                 req.error(400, `Match ${pred.matchId} is no longer open for predictions`);
                 continue;
+            }
+
+            if (match.bettingLocked) {
+                req.error(400, `Betting for match ${pred.matchId} is locked by admin`);
+                continue;
+            }
+
+            // Only allow betting when tournament is active
+            if (match.tournament_ID) {
+                const { Tournament } = cds.entities('cnma.prediction');
+                const tournament = await SELECT.one.from(Tournament).where({ ID: match.tournament_ID });
+                if (tournament && tournament.bettingLocked) {
+                    req.error(400, 'Betting for this tournament is locked by admin');
+                    continue;
+                }
+                if (tournament && tournament.status !== 'active') {
+                    req.error(400, tournament.status === 'upcoming'
+                        ? 'Tournament has not started yet — predictions open once the tournament is active'
+                        : 'Tournament has ended — predictions are no longer accepted');
+                    continue;
+                }
             }
 
             if (new Date(match.kickoff) <= now) {
@@ -81,6 +114,7 @@ export class PredictionHandler {
                 await INSERT.into(Prediction).entries({
                     player_ID: playerId,
                     match_ID: pred.matchId,
+                    tournament_ID: match.tournament_ID,
                     pick: pred.pick,
                     status: 'submitted',
                     submittedAt: now.toISOString()
@@ -95,28 +129,42 @@ export class PredictionHandler {
     /**
      * Place an exact score bet (UC1).
      * Validates: match exists, not kicked off, max bets not exceeded.
+     * Uses per-match MatchScoreBetConfig.
      */
     async submitScoreBet(req: Request) {
         const { matchId, homeScore, awayScore } = req.data;
-        const { ScoreBet, Match, ScorePredictionConfig } = cds.entities('cnma.prediction');
-
-        // Get config
-        const config = await SELECT.one.from(ScorePredictionConfig);
-        if (config && !config.enabled) {
-            return req.error(400, 'Score predictions are currently disabled');
-        }
+        const { ScoreBet, Match, MatchScoreBetConfig } = cds.entities('cnma.prediction');
 
         // Validate match
         const match = await SELECT.one.from(Match).where({ ID: matchId });
         if (!match) return req.error(404, 'Match not found');
         if (match.status !== 'upcoming') return req.error(400, 'Match is no longer open for bets');
+        if (match.bettingLocked) return req.error(400, 'Betting for this match is locked by admin');
 
+        // Only allow betting when tournament is active
+        if (match.tournament_ID) {
+            const { Tournament } = cds.entities('cnma.prediction');
+            const tournament = await SELECT.one.from(Tournament).where({ ID: match.tournament_ID });
+            if (tournament && tournament.bettingLocked) {
+                return req.error(400, 'Betting for this tournament is locked by admin');
+            }
+            if (tournament && tournament.status !== 'active') {
+                return req.error(400, tournament.status === 'upcoming'
+                    ? 'Tournament has not started yet — score bets open once the tournament is active'
+                    : 'Tournament has ended — score bets are no longer accepted');
+            }
+        }
+
+        // Get per-match config (score betting is only available if config exists and enabled)
+        const config = await SELECT.one.from(MatchScoreBetConfig).where({ match_ID: matchId });
+        if (config && !config.enabled) {
+            return req.error(400, 'Score predictions are currently disabled for this match');
+        }
+
+        // Lock when match has kicked off
         const now = new Date();
         const kickoff = new Date(match.kickoff);
-        const lockMinutes = config?.lockBeforeMatch ?? 30;
-        const lockTime = new Date(kickoff.getTime() - lockMinutes * 60 * 1000);
-
-        if (now >= lockTime) {
+        if (now >= kickoff) {
             return req.error(400, 'Betting window has closed for this match');
         }
 
@@ -131,26 +179,9 @@ export class PredictionHandler {
         const existingBets = await SELECT.from(ScoreBet)
             .where({ player_ID: playerId, match_ID: matchId });
 
-        const maxBets = config?.maxBetsPerMatch ?? 3;
+        const maxBets = config?.maxBets ?? 3;
         if (existingBets.length >= maxBets) {
             return req.error(400, `Maximum ${maxBets} bets per match reached`);
-        }
-
-        // Check duplicate bet limits
-        if (config && !config.allowDuplicateBets) {
-            const duplicate = existingBets.find(
-                (b: any) => b.predictedHomeScore === homeScore && b.predictedAwayScore === awayScore
-            );
-            if (duplicate) {
-                return req.error(400, 'Duplicate score bets are not allowed');
-            }
-        } else if (config?.maxDuplicates) {
-            const duplicateCount = existingBets.filter(
-                (b: any) => b.predictedHomeScore === homeScore && b.predictedAwayScore === awayScore
-            ).length;
-            if (duplicateCount >= config.maxDuplicates) {
-                return req.error(400, `Maximum ${config.maxDuplicates} duplicate bets on same score`);
-            }
         }
 
         // Insert bet
@@ -159,7 +190,6 @@ export class PredictionHandler {
             match_ID: matchId,
             predictedHomeScore: homeScore,
             predictedAwayScore: awayScore,
-            betAmount: config?.basePrice ?? 50000,
             status: 'pending',
             submittedAt: now.toISOString()
         });
@@ -168,56 +198,581 @@ export class PredictionHandler {
     }
 
     /**
+     * Combined: submit winner pick + score bets in one action.
+     * Validates match, saves/updates prediction, replaces score bets.
+     */
+    async submitMatchPrediction(req: Request) {
+        const { matchId, pick, scores } = req.data;
+        const { Prediction, ScoreBet, Match, MatchScoreBetConfig } = cds.entities('cnma.prediction');
+
+        // Validate match
+        const match = await SELECT.one.from(Match).where({ ID: matchId });
+        if (!match) return req.error(404, 'Match not found');
+        if (match.status !== 'upcoming') return req.error(400, 'Match is no longer open for predictions');
+        if (match.bettingLocked) return req.error(400, 'Betting for this match is locked by admin');
+
+        const now = new Date();
+        if (new Date(match.kickoff) <= now) {
+            return req.error(400, 'Match has already kicked off');
+        }
+
+        // Only allow betting when tournament is active
+        if (match.tournament_ID) {
+            const { Tournament } = cds.entities('cnma.prediction');
+            const tournament = await SELECT.one.from(Tournament).where({ ID: match.tournament_ID });
+            if (tournament && tournament.bettingLocked) {
+                return req.error(400, 'Betting for this tournament is locked by admin');
+            }
+            if (tournament && tournament.status !== 'active') {
+                return req.error(400, tournament.status === 'upcoming'
+                    ? 'Tournament has not started yet — predictions open once the tournament is active'
+                    : 'Tournament has ended — predictions are no longer accepted');
+            }
+        }
+
+        const playerId = await this.getOrCreatePlayerId(req);
+
+        // ── Save winner prediction ──
+        if (pick && ['home', 'draw', 'away'].includes(pick)) {
+            const existing = await SELECT.one.from(Prediction)
+                .where({ player_ID: playerId, match_ID: matchId });
+
+            if (existing) {
+                if (existing.status === 'locked' || existing.status === 'scored') {
+                    return req.error(400, 'Prediction is already locked');
+                }
+                await UPDATE(Prediction).where({ ID: existing.ID }).set({
+                    pick,
+                    submittedAt: now.toISOString()
+                });
+            } else {
+                await INSERT.into(Prediction).entries({
+                    player_ID: playerId,
+                    match_ID: matchId,
+                    tournament_ID: match.tournament_ID,
+                    pick,
+                    status: 'submitted',
+                    submittedAt: now.toISOString()
+                });
+            }
+        }
+
+        // ── Save score bets ──
+        if (scores && scores.length > 0) {
+            // Check if match has score bet config enabled
+            const config = await SELECT.one.from(MatchScoreBetConfig).where({ match_ID: matchId });
+            if (!config || !config.enabled) {
+                return req.error(400, 'Score predictions are not available for this match');
+            }
+
+            // Lock when match has kicked off
+            if (now >= new Date(match.kickoff)) {
+                return req.error(400, 'Betting window has closed for this match');
+            }
+
+            // Replace existing score bets for this player+match
+            await DELETE.from(ScoreBet).where({ player_ID: playerId, match_ID: matchId });
+
+            const validScores = scores.filter(
+                (s: any) => s.homeScore >= 0 && s.awayScore >= 0 && s.homeScore <= 99 && s.awayScore <= 99
+            );
+
+            for (const s of validScores) {
+                await INSERT.into(ScoreBet).entries({
+                    player_ID: playerId,
+                    match_ID: matchId,
+                    predictedHomeScore: s.homeScore,
+                    predictedAwayScore: s.awayScore,
+                    status: 'pending',
+                    submittedAt: now.toISOString()
+                });
+            }
+        }
+
+        return { success: true, message: 'Prediction saved successfully' };
+    }
+
+    /**
+     * Cancel/clear a match prediction and associated score bets.
+     * Removes the prediction and all score bets for the given match.
+     */
+    async cancelMatchPrediction(req: Request) {
+        const { matchId } = req.data;
+        const { Prediction, ScoreBet, Match } = cds.entities('cnma.prediction');
+
+        // Validate match
+        const match = await SELECT.one.from(Match).where({ ID: matchId });
+        if (!match) return req.error(404, 'Match not found');
+        if (match.status !== 'upcoming') return req.error(400, 'Match is no longer open for changes');
+        if (match.bettingLocked) return req.error(400, 'Betting for this match is locked by admin');
+
+        const now = new Date();
+        if (new Date(match.kickoff) <= now) {
+            return req.error(400, 'Match has already kicked off');
+        }
+
+        const playerId = await this.getOrCreatePlayerId(req);
+
+        // Check existing prediction
+        const existing = await SELECT.one.from(Prediction)
+            .where({ player_ID: playerId, match_ID: matchId });
+
+        if (!existing) {
+            return { success: true, message: 'No prediction to cancel' };
+        }
+
+        if (existing.status === 'locked' || existing.status === 'scored') {
+            return req.error(400, 'Prediction is already locked and cannot be cancelled');
+        }
+
+        // Delete prediction and associated score bets
+        await DELETE.from(Prediction).where({ player_ID: playerId, match_ID: matchId });
+        await DELETE.from(ScoreBet).where({ player_ID: playerId, match_ID: matchId });
+
+        return { success: true, message: 'Prediction cancelled successfully' };
+    }
+
+    /**
      * Pick tournament champion (UC3).
-     * Validates: betting window open, within change deadline.
+     * Validates: specific tournament exists, betting window open.
+     * One pick per player per tournament.
      */
     async pickChampion(req: Request) {
-        const { teamId } = req.data;
-        const { ChampionPick, Team, ChampionPredictionConfig } = cds.entities('cnma.prediction');
+        const { teamId, tournamentId } = req.data;
+        const { ChampionPick, Team, Tournament } = cds.entities('cnma.prediction');
 
-        // Get config
-        const config = await SELECT.one.from(ChampionPredictionConfig);
-        if (config && !config.enabled) {
-            return req.error(400, 'Champion predictions are currently disabled');
+        if (!tournamentId) {
+            return req.error(400, 'tournamentId is required');
         }
-        if (config && config.bettingStatus !== 'open') {
-            return req.error(400, `Champion predictions are ${config.bettingStatus}`);
+
+        // Validate tournament and check champion betting status
+        const tournament = await SELECT.one.from(Tournament).where({ ID: tournamentId });
+        if (!tournament) {
+            return req.error(404, 'Tournament not found');
+        }
+
+        if (tournament.championBettingStatus !== 'open') {
+            return req.error(400, `Champion predictions are ${tournament.championBettingStatus} for this tournament`);
+        }
+
+        if (tournament.bettingLocked) {
+            return req.error(400, 'Betting for this tournament is locked by admin');
+        }
+
+        if (tournament.status !== 'active') {
+            return req.error(400, tournament.status === 'upcoming'
+                ? 'Tournament has not started yet — champion picks open once the tournament is active'
+                : 'Tournament has ended — champion predictions are closed');
         }
 
         // Validate team exists
         const team = await SELECT.one.from(Team).where({ ID: teamId });
         if (!team) return req.error(404, 'Team not found');
-        if (team.isEliminated) return req.error(400, 'Cannot pick an eliminated team');
 
         const playerId = await this.getOrCreatePlayerId(req);
         const now = new Date();
 
-        // Check change deadline
+        // Check for existing pick for this specific tournament
         const existing = await SELECT.one.from(ChampionPick)
-            .where({ player_ID: playerId });
+            .where({ player_ID: playerId, tournament_ID: tournamentId });
 
         if (existing) {
-            if (config?.allowChangePrediction === false) {
-                return req.error(400, 'Changing champion prediction is not allowed');
-            }
-            if (config?.changeDeadline && now > new Date(config.changeDeadline)) {
-                return req.error(400, 'Change deadline has passed');
-            }
-            // Update existing pick
+            // Update existing pick for this tournament
             await UPDATE(ChampionPick).where({ ID: existing.ID }).set({
-                team_ID: teamId
+                team_ID: teamId,
+                submittedAt: now.toISOString()
             });
             return { success: true, message: `Champion pick updated to ${team.name}` };
         }
 
-        // New pick
+        // New pick for this tournament
         await INSERT.into(ChampionPick).entries({
             player_ID: playerId,
             team_ID: teamId,
+            tournament_ID: tournamentId,
             submittedAt: now.toISOString()
         });
 
         return { success: true, message: `${team.name} selected as your champion prediction` };
+    }
+
+    // ── Read-Only Functions ──────────────────────────────────
+
+    /**
+     * Get latest match results for a tournament.
+     */
+    async getLatestResults(req: Request) {
+        const { tournamentId } = req.data;
+        const { Match } = cds.entities('cnma.prediction');
+
+        const matches = await SELECT.from(Match)
+            .where({ tournament_ID: tournamentId, status: 'finished' })
+            .orderBy('kickoff desc')
+            .limit(50);
+
+        // Expand team names
+        const { Team } = cds.entities('cnma.prediction');
+        const results = [];
+        for (const m of matches) {
+            const home = await SELECT.one.from(Team).where({ ID: m.homeTeam_ID });
+            const away = await SELECT.one.from(Team).where({ ID: m.awayTeam_ID });
+            results.push({
+                matchId: m.ID,
+                homeTeam: home?.name ?? '',
+                homeFlag: home?.flagCode ?? '',
+                homeCrest: home?.crest ?? '',
+                awayTeam: away?.name ?? '',
+                awayFlag: away?.flagCode ?? '',
+                awayCrest: away?.crest ?? '',
+                homeScore: m.homeScore,
+                awayScore: m.awayScore,
+                outcome: m.outcome,
+                kickoff: m.kickoff,
+                stage: m.stage,
+                matchday: m.matchday,
+            });
+        }
+        return results;
+    }
+
+    /**
+     * Get upcoming matches for a tournament.
+     */
+    async getUpcomingMatches(req: Request) {
+        const { tournamentId } = req.data;
+        const { Match, Team } = cds.entities('cnma.prediction');
+
+        const matches = await SELECT.from(Match)
+            .where({ tournament_ID: tournamentId, status: 'upcoming' })
+            .orderBy('kickoff asc')
+            .limit(50);
+
+        const results = [];
+        for (const m of matches) {
+            const home = await SELECT.one.from(Team).where({ ID: m.homeTeam_ID });
+            const away = await SELECT.one.from(Team).where({ ID: m.awayTeam_ID });
+            results.push({
+                matchId: m.ID,
+                homeTeam: home?.name ?? '',
+                homeFlag: home?.flagCode ?? '',
+                homeCrest: home?.crest ?? '',
+                awayTeam: away?.name ?? '',
+                awayFlag: away?.flagCode ?? '',
+                awayCrest: away?.crest ?? '',
+                kickoff: m.kickoff,
+                stage: m.stage,
+                matchday: m.matchday,
+                venue: m.venue ?? '',
+            });
+        }
+        return results;
+    }
+
+    /**
+     * Get prediction leaderboard for a specific tournament (UC2).
+     * Sort by totalPoints DESC, then displayName ASC (alphabetical tiebreak).
+     */
+    async getPredictionLeaderboard(req: Request) {
+        const { tournamentId } = req.data;
+        const { PlayerTournamentStats, Player } = cds.entities('cnma.prediction');
+        const currentPlayerId = await this.getCurrentPlayerId(req);
+
+        const stats = await SELECT.from(PlayerTournamentStats)
+            .where({ tournament_ID: tournamentId })
+            .orderBy('totalPoints desc');
+
+        // Enrich with player details and sort with name tiebreak
+        const enriched = [];
+        for (const s of stats) {
+            const player = await SELECT.one.from(Player).where({ ID: s.player_ID });
+            enriched.push({
+                playerId: s.player_ID,
+                displayName: player?.displayName ?? '',
+                avatarUrl: player?.avatarUrl ?? '',
+                totalPoints: Number(s.totalPoints),
+                totalCorrect: s.totalCorrect,
+                totalPredictions: s.totalPredictions,
+                _name: (player?.displayName ?? '').toLowerCase(),
+            });
+        }
+
+        // Sort: points desc, then name asc
+        enriched.sort((a, b) => {
+            if (b.totalPoints !== a.totalPoints) return b.totalPoints - a.totalPoints;
+            return a._name.localeCompare(b._name);
+        });
+
+        return enriched.map((e, i) => ({
+            rank: i + 1,
+            playerId: e.playerId,
+            displayName: e.displayName,
+            avatarUrl: e.avatarUrl,
+            totalPoints: e.totalPoints,
+            totalCorrect: e.totalCorrect,
+            totalPredictions: e.totalPredictions,
+            isMe: currentPlayerId !== null && e.playerId === currentPlayerId,
+        }));
+    }
+
+    /**
+     * Get league standings for a league-format tournament.
+     * Calculates W/D/L/GF/GA/GD/Points from finished matches.
+     */
+    async getStandings(req: Request) {
+        const { tournamentId } = req.data;
+        const { Tournament, Match, TournamentTeam, Team } = cds.entities('cnma.prediction');
+
+        // Verify tournament is league format
+        const tournament = await SELECT.one.from(Tournament).where({ ID: tournamentId });
+        if (!tournament) return req.error(404, 'Tournament not found');
+        if (tournament.format !== 'league') {
+            return req.error(400, 'Standings are only available for league-format tournaments');
+        }
+
+        // Get all teams in this tournament
+        const tTeams = await SELECT.from(TournamentTeam).where({ tournament_ID: tournamentId });
+        const teamIds = tTeams.map((t: any) => t.team_ID);
+
+        // Get all finished matches
+        const matches = await SELECT.from(Match)
+            .where({ tournament_ID: tournamentId, status: 'finished' });
+
+        // Build standings map
+        const standingsMap: Record<string, any> = {};
+        for (const tid of teamIds) {
+            standingsMap[tid] = {
+                teamId: tid,
+                played: 0, won: 0, drawn: 0, lost: 0,
+                goalsFor: 0, goalsAgainst: 0, goalDiff: 0, points: 0,
+            };
+        }
+
+        for (const m of matches) {
+            const homeId = m.homeTeam_ID;
+            const awayId = m.awayTeam_ID;
+            const hs = m.homeScore ?? 0;
+            const as_ = m.awayScore ?? 0;
+
+            if (standingsMap[homeId]) {
+                standingsMap[homeId].played++;
+                standingsMap[homeId].goalsFor += hs;
+                standingsMap[homeId].goalsAgainst += as_;
+                if (hs > as_) { standingsMap[homeId].won++; standingsMap[homeId].points += 3; }
+                else if (hs === as_) { standingsMap[homeId].drawn++; standingsMap[homeId].points += 1; }
+                else { standingsMap[homeId].lost++; }
+            }
+            if (standingsMap[awayId]) {
+                standingsMap[awayId].played++;
+                standingsMap[awayId].goalsFor += as_;
+                standingsMap[awayId].goalsAgainst += hs;
+                if (as_ > hs) { standingsMap[awayId].won++; standingsMap[awayId].points += 3; }
+                else if (as_ === hs) { standingsMap[awayId].drawn++; standingsMap[awayId].points += 1; }
+                else { standingsMap[awayId].lost++; }
+            }
+        }
+
+        // Compute goal diff and sort
+        const standings = Object.values(standingsMap);
+        for (const s of standings) {
+            s.goalDiff = s.goalsFor - s.goalsAgainst;
+        }
+        standings.sort((a: any, b: any) => {
+            if (b.points !== a.points) return b.points - a.points;
+            if (b.goalDiff !== a.goalDiff) return b.goalDiff - a.goalDiff;
+            return b.goalsFor - a.goalsFor;
+        });
+
+        // Enrich with team names
+        const result = [];
+        for (const s of standings) {
+            const team = await SELECT.one.from(Team).where({ ID: s.teamId });
+            result.push({
+                teamId: s.teamId,
+                teamName: team?.name ?? '',
+                teamFlag: team?.flagCode ?? '',
+                teamCrest: team?.crest ?? '',
+                played: s.played,
+                won: s.won,
+                drawn: s.drawn,
+                lost: s.lost,
+                goalsFor: s.goalsFor,
+                goalsAgainst: s.goalsAgainst,
+                goalDiff: s.goalDiff,
+                points: s.points,
+            });
+        }
+
+        return result;
+    }
+
+    /**
+     * Get the current user's recent predictions with match details.
+     * Ordered by submittedAt DESC.
+     */
+    async getMyRecentPredictions(req: Request) {
+        const { limit: rawLimit } = req.data;
+        const limit = rawLimit && rawLimit > 0 ? Math.min(rawLimit, 50) : 20;
+        const { Prediction, ScoreBet, Match, Team, Tournament } = cds.entities('cnma.prediction');
+
+        const playerId = await this.getCurrentPlayerId(req);
+        if (!playerId) return [];
+
+        const predictions = await SELECT.from(Prediction)
+            .where({ player_ID: playerId })
+            .orderBy('submittedAt desc')
+            .limit(limit);
+
+        // Collect all unique match IDs to batch-fetch score bets
+        const matchIds = [...new Set(predictions.map((p: any) => p.match_ID))];
+
+        // Batch-fetch score bets for all relevant matches for this player
+        const allScoreBets = matchIds.length > 0
+            ? await SELECT.from(ScoreBet).where({
+                player_ID: playerId,
+                match_ID: { in: matchIds },
+              })
+            : [];
+
+        // Build a map: matchId → ScoreBet[]
+        const scoreBetMap = new Map<string, any[]>();
+        for (const sb of allScoreBets as any[]) {
+            if (!scoreBetMap.has(sb.match_ID)) scoreBetMap.set(sb.match_ID, []);
+            scoreBetMap.get(sb.match_ID)!.push(sb);
+        }
+
+        const results = [];
+        for (const p of predictions) {
+            const match = await SELECT.one.from(Match).where({ ID: p.match_ID });
+            if (!match) continue;
+            const home = await SELECT.one.from(Team).where({ ID: match.homeTeam_ID });
+            const away = await SELECT.one.from(Team).where({ ID: match.awayTeam_ID });
+            const tournament = p.tournament_ID
+                ? await SELECT.one.from(Tournament).where({ ID: p.tournament_ID })
+                : null;
+
+            const scoreBets = (scoreBetMap.get(match.ID) ?? []).map((sb: any) => ({
+                betId: sb.ID,
+                predictedHomeScore: sb.predictedHomeScore,
+                predictedAwayScore: sb.predictedAwayScore,
+                status: sb.status,
+                isCorrect: sb.isCorrect,
+                payout: Number(sb.payout) || 0,
+            }));
+
+            results.push({
+                predictionId: p.ID,
+                matchId: match.ID,
+                homeTeam: home?.name ?? '',
+                homeFlag: home?.flagCode ?? '',
+                homeCrest: home?.crest ?? '',
+                awayTeam: away?.name ?? '',
+                awayFlag: away?.flagCode ?? '',
+                awayCrest: away?.crest ?? '',
+                tournamentName: tournament?.name ?? '',
+                pick: p.pick,
+                status: p.status,
+                isCorrect: p.isCorrect,
+                pointsEarned: Number(p.pointsEarned) || 0,
+                submittedAt: p.submittedAt,
+                kickoff: match.kickoff,
+                homeScore: match.homeScore,
+                awayScore: match.awayScore,
+                scoreBets,
+            });
+        }
+        return results;
+    }
+
+    /**
+     * Get the full knockout bracket tree for a tournament.
+     * Returns all bracket slots with team info, match scores, and progression.
+     */
+    async getTournamentBracket(req: Request) {
+        const { tournamentId } = req.data;
+        const { BracketSlot, Match, Team } = cds.entities('cnma.prediction');
+
+        const slots = await SELECT.from(BracketSlot)
+            .where({ tournament_ID: tournamentId })
+            .orderBy('stage asc', 'position asc');
+
+        const results = [];
+        for (const slot of slots) {
+            const homeTeam = slot.homeTeam_ID
+                ? await SELECT.one.from(Team).where({ ID: slot.homeTeam_ID })
+                : null;
+            const awayTeam = slot.awayTeam_ID
+                ? await SELECT.one.from(Team).where({ ID: slot.awayTeam_ID })
+                : null;
+            const winnerTeam = slot.winner_ID
+                ? await SELECT.one.from(Team).where({ ID: slot.winner_ID })
+                : null;
+            const leg1 = slot.leg1_ID
+                ? await SELECT.one.from(Match).where({ ID: slot.leg1_ID })
+                : null;
+            const leg2 = slot.leg2_ID
+                ? await SELECT.one.from(Match).where({ ID: slot.leg2_ID })
+                : null;
+
+            results.push({
+                slotId: slot.ID,
+                stage: slot.stage,
+                position: slot.position,
+                label: slot.label,
+                homeTeamId: slot.homeTeam_ID,
+                homeTeamName: homeTeam?.name ?? '',
+                homeTeamFlag: homeTeam?.flagCode ?? '',
+                homeTeamCrest: homeTeam?.crest ?? '',
+                awayTeamId: slot.awayTeam_ID,
+                awayTeamName: awayTeam?.name ?? '',
+                awayTeamFlag: awayTeam?.flagCode ?? '',
+                awayTeamCrest: awayTeam?.crest ?? '',
+                leg1Id: slot.leg1_ID,
+                leg1HomeScore: leg1?.homeScore ?? null,
+                leg1AwayScore: leg1?.awayScore ?? null,
+                leg1Status: leg1?.status ?? null,
+                leg2Id: slot.leg2_ID,
+                leg2HomeScore: leg2?.homeScore ?? null,
+                leg2AwayScore: leg2?.awayScore ?? null,
+                leg2Status: leg2?.status ?? null,
+                homeAgg: slot.homeAgg ?? 0,
+                awayAgg: slot.awayAgg ?? 0,
+                winnerId: slot.winner_ID,
+                winnerName: winnerTeam?.name ?? '',
+                nextSlotId: slot.nextSlot_ID,
+                nextSlotSide: slot.nextSlotSide,
+            });
+        }
+        return results;
+    }
+
+    /**
+     * Get champion pick counts by team for a tournament.
+     * Returns how many players picked each team, with team info.
+     */
+    async getChampionPickCounts(req: Request) {
+        const { tournamentId } = req.data;
+        const { ChampionPick, Team } = cds.entities('cnma.prediction');
+
+        const picks = await SELECT.from(ChampionPick).where({ tournament_ID: tournamentId });
+
+        const countMap = new Map<string, number>();
+        for (const pick of picks) {
+            const teamId = pick.team_ID;
+            countMap.set(teamId, (countMap.get(teamId) ?? 0) + 1);
+        }
+
+        const results = [];
+        for (const [teamId, count] of countMap) {
+            const team = await SELECT.one.from(Team).where({ ID: teamId });
+            results.push({
+                teamId,
+                teamName: team?.name ?? '',
+                teamCrest: team?.crest ?? '',
+                count,
+            });
+        }
+
+        return results.sort((a, b) => b.count - a.count);
     }
 
     // ── Helpers ──────────────────────────────────────────────

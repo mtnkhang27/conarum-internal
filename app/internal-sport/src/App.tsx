@@ -1,44 +1,46 @@
 import { Routes, Route, Navigate } from "react-router-dom";
 import { AppShell } from "@/layouts/AppShell";
 import { AdminLayout } from "@/layouts/AdminLayout";
-import { AvailableMatchesPage } from "@/pages/AvailableMatchesPage";
-import { CompletedMatchesPage } from "@/pages/CompletedMatchesPage";
-import { ExactScorePage } from "@/pages/ExactScorePage";
-import { TournamentChampionPage } from "@/pages/TournamentChampionPage";
-import { MyPredictionsPage } from "@/pages/MyPredictionsPage";
-import { LeaderboardPage } from "@/pages/LeaderboardPage";
+import { SportPage } from "@/pages/SportPage";
+// import { TournamentChampionPage } from "@/pages/TournamentChampionPage";
 import { AccountPage } from "@/pages/AccountPage";
 import { MatchManagement } from "@/pages/admin/MatchManagement";
+import { MatchDetail } from "@/pages/admin/MatchDetail";
 import { TeamManagement } from "@/pages/admin/TeamManagement";
+import { TeamDetail } from "@/pages/admin/TeamDetail";
 import { TournamentManagement } from "@/pages/admin/TournamentManagement";
+import { TournamentDetail } from "@/pages/admin/TournamentDetail";
 import { PlayerManagement } from "@/pages/admin/PlayerManagement";
-import { UseCaseConfig } from "@/pages/admin/UseCaseConfig";
+import { TournamentChampionPage } from "./pages/TournamentChampionPage";
 
 export default function App() {
   return (
     <Routes>
       {/* Player-facing routes */}
       <Route element={<AppShell />}>
-        <Route path="/available" element={<AvailableMatchesPage />} />
-        <Route path="/completed" element={<CompletedMatchesPage />} />
-        <Route path="/exact-score" element={<ExactScorePage />} />
+        <Route path="/" element={<SportPage />} />
+        {/* Legacy redirects */}
+        {/* <Route path="/available" element={<Navigate to="/#matches" replace />} />
+        <Route path="/completed" element={<Navigate to="/#completed" replace />} />
+        <Route path="/recent-predictions" element={<Navigate to="/#recent" replace />} />
+        <Route path="/leaderboard" element={<Navigate to="/#leaderboard" replace />} /> */}
         <Route path="/tournament-champion" element={<TournamentChampionPage />} />
-        <Route path="/my-predictions" element={<MyPredictionsPage />} />
-        <Route path="/leaderboard" element={<LeaderboardPage />} />
         <Route path="/account" element={<AccountPage />} />
       </Route>
 
       {/* Admin routes */}
       <Route element={<AdminLayout />}>
         <Route path="/admin/matches" element={<MatchManagement />} />
+        <Route path="/admin/matches/:matchId" element={<MatchDetail />} />
         <Route path="/admin/teams" element={<TeamManagement />} />
+        <Route path="/admin/teams/:teamId" element={<TeamDetail />} />
         <Route path="/admin/tournaments" element={<TournamentManagement />} />
+        <Route path="/admin/tournaments/:tournamentId" element={<TournamentDetail />} />
         <Route path="/admin/players" element={<PlayerManagement />} />
-        <Route path="/admin/config" element={<UseCaseConfig />} />
         <Route path="/admin" element={<Navigate to="/admin/matches" replace />} />
       </Route>
 
-      <Route path="*" element={<Navigate to="/available" replace />} />
+      <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
 }

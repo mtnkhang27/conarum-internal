@@ -22,7 +22,7 @@ export function PredictionSlip() {
     const isHiddenPage = ["/exact-score", "/my-predictions", "/leaderboard"].includes(pathname);
 
     const [items, setItems] = useState<SlipItem[]>(initialSlipItems);
-    const [championPick, setChampionPick] = useState<{ team: string; flag: string } | null>({
+    const [championPick, setChampionPick] = useState<{ team: string; flag: string; crest?: string } | null>({
         team: "Brazil",
         flag: "br",
     });
@@ -33,7 +33,7 @@ export function PredictionSlip() {
         setItems(initialSlipItems);
     }, []);
 
-    const total = items.reduce((sum, item) => sum + item.weight, 0).toFixed(2);
+    const total = items.length;
 
     const showConfirm = (title: string, message: string, onConfirm: () => void) => {
         setConfirmConfig({ title, message, onConfirm });
@@ -108,7 +108,9 @@ export function PredictionSlip() {
                                 <div className="mb-2 text-xs font-bold text-white">Champion Pick: {championPick.team}</div>
                                 <div className="flex items-center justify-between rounded border border-border/50 bg-surface-dark p-2">
                                     <div className="flex items-center gap-2">
-                                        <span className={`fi fi-${championPick.flag} h-3 w-4 rounded-sm`} />
+                                        {championPick.crest
+                                            ? <img src={championPick.crest} alt={championPick.team} className="h-4 w-4 object-contain" />
+                                            : <span className={`fi fi-${championPick.flag} h-3 w-4 rounded-sm`} />}
                                         <span className="text-[10px] font-bold text-primary">{championPick.team}</span>
                                     </div>
                                     <div className="text-[10px] italic text-muted-foreground">Admin Reward</div>
@@ -136,9 +138,9 @@ export function PredictionSlip() {
                                 <div className="flex items-center justify-between rounded border border-border/50 bg-surface-dark p-2">
                                     <div className="flex flex-col">
                                         <span className="text-[10px] font-bold text-primary">Winner: {item.pick}</span>
-                                        <span className="text-[9px] text-muted-foreground">Weight: {item.weight.toFixed(2)}</span>
+                                        <span className="text-[9px] text-muted-foreground">+1 point if correct</span>
                                     </div>
-                                    <div className="text-xs font-bold text-success">+{item.weight.toFixed(2)} Pts</div>
+                                    <div className="text-xs font-bold text-success">+1 PT</div>
                                 </div>
                             </div>
                         ))
@@ -153,7 +155,7 @@ export function PredictionSlip() {
                                 {isChampionPage ? "Total Selections" : "Total Potential Gain"}
                             </span>
                             <span className={`font-bold ${isChampionPage ? "text-white" : "text-success"}`}>
-                                {isChampionPage ? (championPick ? 1 : 0) : `${total} Points`}
+                                {isChampionPage ? (championPick ? 1 : 0) : `${total} Picks`}
                             </span>
                         </div>
 

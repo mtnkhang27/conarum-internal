@@ -1,13 +1,19 @@
 import type {
     AdminMatch,
     AdminTeam,
+    AdminTeamMember,
     AdminTournament,
+    AdminTournamentTeam,
     AdminPlayer,
-    ScorePredictionConfig,
-    MatchOutcomeConfig,
-    ChampionPredictionConfig,
+    MatchScoreBetConfig,
     ActionResult,
     MatchResultResponse,
+    SyncMatchResult,
+    CompetitionItem,
+    ImportTournamentResult,
+    AdminPrediction,
+    AdminScoreBet,
+    AdminChampionPick,
 } from "@/types/admin";
 
 // ── Helpers ────────────────────────────────────────────────
@@ -40,6 +46,10 @@ export const matchesApi = {
         odataList<AdminMatch>(
             "/Matches?$expand=homeTeam,awayTeam,tournament&$orderby=kickoff asc"
         ),
+    get: (id: string) =>
+        odata<AdminMatch>(
+            `/Matches('${id}')?$expand=homeTeam,awayTeam,tournament,scoreBetConfig`
+        ),
     create: (data: Partial<AdminMatch>) =>
         odata<AdminMatch>("/Matches", {
             method: "POST",
@@ -57,12 +67,42 @@ export const matchesApi = {
             method: "POST",
             body: JSON.stringify({ matchId, homeScore, awayScore }),
         }),
+    lockBetting: (matchId: string, locked: boolean) =>
+        odata<ActionResult>("/lockMatchBetting", {
+            method: "POST",
+            body: JSON.stringify({ matchId, locked }),
+        }),
+};
+
+// ── Match Score Bet Config ─────────────────────────────────
+
+export const matchScoreBetConfigApi = {
+    getByMatch: (matchId: string) =>
+        odataList<MatchScoreBetConfig>(
+            `/MatchScoreBetConfig?$filter=match_ID eq '${matchId}'`
+        ).then((v) => v[0] ?? null),
+    create: (data: Partial<MatchScoreBetConfig>) =>
+        odata<MatchScoreBetConfig>("/MatchScoreBetConfig", {
+            method: "POST",
+            body: JSON.stringify(data),
+        }),
+    update: (id: string, data: Partial<MatchScoreBetConfig>) =>
+        odata<void>(`/MatchScoreBetConfig('${id}')`, {
+            method: "PATCH",
+            body: JSON.stringify(data),
+        }),
+    delete: (id: string) =>
+        odata<void>(`/MatchScoreBetConfig('${id}')`, { method: "DELETE" }),
 };
 
 // ── Teams ──────────────────────────────────────────────────
 
 export const teamsApi = {
     list: () => odataList<AdminTeam>("/Teams?$orderby=name asc"),
+    get: (id: string) =>
+        odata<AdminTeam>(
+            `/Teams('${id}')?$expand=members,tournaments($expand=tournament)`
+        ),
     create: (data: Partial<AdminTeam>) =>
         odata<AdminTeam>("/Teams", {
             method: "POST",
@@ -75,6 +115,36 @@ export const teamsApi = {
         }),
     delete: (id: string) =>
         odata<void>(`/Teams('${id}')`, { method: "DELETE" }),
+};
+
+// ── Team Members ───────────────────────────────────────────
+
+export const teamMembersApi = {
+    list: (teamId: string) =>
+        odataList<AdminTeamMember>(
+            `/TeamMembers?$filter=team_ID eq '${teamId}'&$orderby=role asc,jerseyNumber asc`
+        ),
+    create: (data: Partial<AdminTeamMember>) =>
+        odata<AdminTeamMember>("/TeamMembers", {
+            method: "POST",
+            body: JSON.stringify(data),
+        }),
+    update: (id: string, data: Partial<AdminTeamMember>) =>
+        odata<void>(`/TeamMembers('${id}')`, {
+            method: "PATCH",
+            body: JSON.stringify(data),
+        }),
+    delete: (id: string) =>
+        odata<void>(`/TeamMembers('${id}')`, { method: "DELETE" }),
+};
+
+// ── Tournament Teams ───────────────────────────────────────
+
+export const tournamentTeamsApi = {
+    listByTournament: (tournamentId: string) =>
+        odataList<AdminTournamentTeam>(
+            `/TournamentTeams?$filter=tournament_ID eq '${tournamentId}'&$expand=team`
+        ),
 };
 
 // ── Tournaments ────────────────────────────────────────────
@@ -102,37 +172,69 @@ export const playersApi = {
         odataList<AdminPlayer>("/Players?$orderby=totalPoints desc"),
     delete: (id: string) =>
         odata<void>(`/Players('${id}')`, { method: "DELETE" }),
-    recalculateLeaderboard: () =>
-        odata<ActionResult>("/recalculateLeaderboard", { method: "POST" }),
+    recalculateLeaderboard: (tournamentId?: string) =>
+        odata<ActionResult>("/recalculateLeaderboard", {
+            method: "POST",
+            body: JSON.stringify({ tournamentId: tournamentId ?? null }),
+        }),
 };
 
-// ── Config ─────────────────────────────────────────────────
+// ── Tournament Actions ─────────────────────────────────────
 
-export const configApi = {
-    scorePrediction: {
-        get: () => odataList<ScorePredictionConfig>("/ScorePredictionConfig").then((v) => v[0]),
-        update: (id: string, data: Partial<ScorePredictionConfig>) =>
-            odata<void>(`/ScorePredictionConfig('${id}')`, {
-                method: "PATCH",
-                body: JSON.stringify(data),
-            }),
-    },
-    matchOutcome: {
-        get: () => odataList<MatchOutcomeConfig>("/MatchOutcomeConfig").then((v) => v[0]),
-        update: (id: string, data: Partial<MatchOutcomeConfig>) =>
-            odata<void>(`/MatchOutcomeConfig('${id}')`, {
-                method: "PATCH",
-                body: JSON.stringify(data),
-            }),
-    },
-    championPrediction: {
-        get: () => odataList<ChampionPredictionConfig>("/ChampionPredictionConfig").then((v) => v[0]),
-        update: (id: string, data: Partial<ChampionPredictionConfig>) =>
-            odata<void>(`/ChampionPredictionConfig('${id}')`, {
-                method: "PATCH",
-                body: JSON.stringify(data),
-            }),
-        lockPredictions: () =>
-            odata<ActionResult>("/lockChampionPredictions", { method: "POST" }),
-    },
+export const tournamentActionsApi = {
+    lockChampionPredictions: (tournamentId: string) =>
+        odata<ActionResult>("/lockChampionPredictions", {
+            method: "POST",
+            body: JSON.stringify({ tournamentId }),
+        }),    lockBetting: (tournamentId: string, locked: boolean) =>
+        odata<ActionResult>("/lockTournamentBetting", {
+            method: "POST",
+            body: JSON.stringify({ tournamentId, locked }),
+        }),
+    syncMatchResults: (tournamentId: string, apiKey?: string) =>
+        odata<SyncMatchResult>("/syncMatchResults", {
+            method: "POST",
+            body: JSON.stringify({ tournamentId, apiKey: apiKey || "" }),
+        }),
+};
+
+// ── Competition Import ────────────────────────────────────
+
+export const competitionImportApi = {
+    getAvailableCompetitions: (apiKey?: string) =>
+        odata<{ value: CompetitionItem[] }>(
+            `/getAvailableCompetitions(apiKey='${encodeURIComponent(apiKey || '')}')`
+        ).then((r) => r.value ?? (r as any)),
+    importTournament: (externalCode: string, apiKey?: string) =>
+        odata<ImportTournamentResult>("/importTournament", {
+            method: "POST",
+            body: JSON.stringify({ externalCode, apiKey: apiKey || "" }),
+        }),
+};
+
+// ── Predictions (Admin read-only) ──────────────────────────
+
+export const predictionsApi = {
+    listByMatch: (matchId: string) =>
+        odataList<AdminPrediction>(
+            `/AllPredictions?$filter=match_ID eq '${matchId}'&$expand=player&$orderby=submittedAt desc`
+        ),
+};
+
+// ── Score Bets (Admin read-only) ───────────────────────────
+
+export const scoreBetsApi = {
+    listByMatch: (matchId: string) =>
+        odataList<AdminScoreBet>(
+            `/AllScoreBets?$filter=match_ID eq '${matchId}'&$expand=player&$orderby=submittedAt desc`
+        ),
+};
+
+// ── Champion Picks (Admin read-only) ───────────────────────
+
+export const championPicksApi = {
+    listByTournament: (tournamentId: string) =>
+        odataList<AdminChampionPick>(
+            `/AllChampionPicks?$filter=tournament_ID eq '${tournamentId}'&$expand=player,team&$orderby=submittedAt desc`
+        ),
 };

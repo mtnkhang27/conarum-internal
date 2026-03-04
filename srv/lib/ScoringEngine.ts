@@ -1,6 +1,8 @@
 /**
  * ScoringEngine — Pure stateless scoring logic.
  * No DB access, no side effects. Fully testable.
+ *
+ * UC2 scoring: correct prediction = 1 point, wrong = 0 (no weight).
  */
 export class ScoringEngine {
 
@@ -15,64 +17,28 @@ export class ScoringEngine {
 
     /**
      * Score a single UC2 prediction.
-     * Returns points earned based on config.
-     *
-     * Formula: Points = BasePoints × MatchWeight
+     * Returns 1 if correct, 0 if wrong. Simple, no weight.
      */
     scorePrediction(
         pick: string,
         actualOutcome: string,
-        matchWeight: number,
         config: any
     ): number {
-        const pointsForWin = Number(config?.pointsForWin ?? 3);
-        const pointsForDraw = Number(config?.pointsForDraw ?? 1);
-        const pointsForLose = Number(config?.pointsForLose ?? 0);
-        const weight = Number(matchWeight) || 1;
+        const pointsForCorrect = Number(config?.pointsForCorrect ?? 1);
 
         if (pick === actualOutcome) {
-            return pointsForWin * weight;
+            return pointsForCorrect;
         }
 
-        // Partial credit: if actual is draw and user predicted something else,
-        // or user predicted draw and actual is something else
-        // (configurable — default: only exact match gets full points)
-        if (pick === 'draw' || actualOutcome === 'draw') {
-            return pointsForDraw * weight;
-        }
-
-        return pointsForLose * weight;
+        return 0;
     }
 
     /**
      * Calculate UC1 score bet payout.
-     *
-     * Formula: Payout = BaseReward × DuplicateMultiplier × BonusMultiplier × (1 - PlatformFee/100)
+     * Simple: if correct, payout = prize from config.
      */
-    calculateScoreBetPayout(
-        bet: any,
-        allBetsForMatch: any[],
-        config: any
-    ): number {
-        const baseReward = Number(config?.baseReward ?? 200000);
-        const bonusMultiplier = Number(config?.bonusMultiplier ?? 1.5);
-        const platformFee = Number(config?.platformFee ?? 5);
-        const duplicateMultiplier = Number(config?.duplicateMultiplier ?? 2.0);
-
-        // Count how many times this player bet on the same score for this match
-        const duplicateCount = allBetsForMatch.filter(
-            (b: any) =>
-                b.player_ID === bet.player_ID
-                && b.predictedHomeScore === bet.predictedHomeScore
-                && b.predictedAwayScore === bet.predictedAwayScore
-        ).length;
-
-        const effectiveMultiplier = duplicateCount > 1 ? duplicateMultiplier : 1;
-
-        const grossPayout = baseReward * effectiveMultiplier * bonusMultiplier;
-        const netPayout = grossPayout * (1 - platformFee / 100);
-
-        return Math.round(netPayout);
+    calculateScoreBetPayout(config: any): number {
+        return Number(config?.prize ?? 200000);
     }
 
     /**

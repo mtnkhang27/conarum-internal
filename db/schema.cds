@@ -35,11 +35,16 @@ type TournamentStatus : String enum {
 
 type MatchStage       : String enum {
     group;
+    roundOf32;
     roundOf16;
     quarterFinal;
     semiFinal;
     thirdPlace;
     final;
+    // League stages
+    regular;       // regular season matchday
+    playoff;
+    relegation;
 }
 
 type PredictionPick   : String enum {
@@ -63,8 +68,7 @@ type BetStatus        : String enum {
 
 type BettingStatus    : String enum {
     open;
-    locked;
-    closed;
+    locked;  // Admin-locked; no new champion picks accepted
 }
 
 type TieBreakRule     : String enum {
@@ -83,33 +87,116 @@ type Confederation    : String enum {
     OFC;
 }
 
+type TeamMemberRole   : String enum {
+    headCoach;
+    assistantCoach;
+    goalkeepingCoach;
+    fitnessCoach;
+    player;
+    captain;
+}
+
+type TournamentFormat : String enum {
+    knockout;      // Champions League (league phase + knockout)
+    league;        // Premier League, La Liga
+    groupKnockout; // World Cup (group stage + knockout)
+    cup;           // FA Cup (straight knockout)
+}
+
+type BracketSide : String enum {
+    home;
+    away;
+}
+
 // ────────────────────────────────────────────────────────────
 //  Core Entities
 // ────────────────────────────────────────────────────────────
 
 /**
- * Tournament master data (e.g., FIFA World Cup 2026).
+ * Tournament master data (e.g., FIFA World Cup 2026, Premier League 2025/26).
+ * Supports both knockout (World Cup, C1) and league (Premier League) formats.
  */
 entity Tournament : cuid, managed {
-    name        : String(100) @mandatory;
-    startDate   : Date        @mandatory;
-    endDate     : Date        @mandatory;
-    status      : TournamentStatus default 'upcoming';
-    description : String(500);
-    matches     : Composition of many Match
-                      on matches.tournament = $self;
+    name           : String(100)     @mandatory;
+    startDate      : Date            @mandatory;
+    endDate        : Date            @mandatory;
+    status         : TournamentStatus default 'upcoming';
+    format         : TournamentFormat default 'knockout';
+    description    : String(500);
+    season         : String(20);       // e.g., '2025/26' for league formats
+    country        : Country;          // e.g., for domestic leagues
+    numberOfGroups : Integer;          // for groupKnockout format
+    hasGroupStage  : Boolean default false;
+    hasLegs        : Boolean default false; // two-leg ties (e.g., C1 knockout)
+    matches        : Composition of many Match
+                         on matches.tournament = $self;
+    teams          : Composition of many TournamentTeam
+                         on teams.tournament = $self;
+    bracket        : Composition of many BracketSlot
+                         on bracket.tournament = $self;
+    // ── UC2: Outcome Prediction Prize (single prize description) ──
+    outcomePrize : String(200) default '';
+    // ── UC3: Champion Prediction Config & Prize Pool ──
+    championBettingStatus : BettingStatus default 'open';
+    championLockDate      : Date;
+    championPrizePool     : String(200) default '';
+    // ── External Sync ──
+    externalCode   : String(20); // football-data.org competition code, e.g., 'CL', 'WC'
+    // ── Betting Lock (admin-controlled) ──
+    bettingLocked  : Boolean default false; // if true, no new bets (outcome/score/champion) accepted
 }
 
 /**
- * Team roster with flag codes and confederation.
+ * Team master data — reusable across tournaments.
+ * A real-world team (e.g., "Argentina", "Man City").
+ * One player can belong to both a club (Man City) and a national team (Argentina).
+ * Tournament-specific data (group, elimination) lives in TournamentTeam.
  */
 entity Team : cuid, managed {
     name          : String(100) @mandatory;
-    flagCode      : String(5)   @mandatory; // ISO 3166-1 alpha-2 (e.g., 'br', 'de')
+    shortName     : String(50);              // e.g., 'Arsenal', 'Bayern'
+    tla           : String(10);              // Three-letter abbreviation (e.g., 'ARS', 'FCB')
+    crest         : String(500);             // URL to team crest/badge image
+    flagCode      : String(5)   @mandatory;  // ISO 3166-1 alpha-2 (e.g., 'br', 'de')
     confederation : Confederation;
     fifaRanking   : Integer;
-    groupName     : String(5); // e.g., 'A', 'B'
-    isEliminated  : Boolean default false;
+    members       : Composition of many TeamMember
+                        on members.team = $self;
+    tournaments   : Association to many TournamentTeam
+                        on tournaments.team = $self;
+}
+
+/**
+ * Join entity: a Team participating in a specific Tournament.
+ * Holds tournament-specific info like group assignment and elimination status.
+ */
+entity TournamentTeam : cuid, managed {
+    tournament     : Association to Tournament @mandatory;
+    team           : Association to Team       @mandatory;
+    groupName      : String(5);    // e.g., 'A', 'B' — for groupKnockout format
+    isEliminated   : Boolean default false;
+    eliminatedAt   : MatchStage;   // stage where the team was eliminated
+    leaguePosition : Integer;      // final league-phase standing (1–36 for CL)
+    finalPosition  : Integer;      // final tournament position: 1 = champion, 2 = runner-up
+}
+
+annotate TournamentTeam with @assert.unique: {tournamentTeam: [tournament, team]};
+
+/**
+ * Team member: players, coaches, and staff.
+ * Reusable across tournament types (league, knockout, groupKnockout).
+ */
+entity TeamMember : cuid, managed {
+    team         : Association to Team @mandatory;
+    name         : String(150)        @mandatory;
+    role         : TeamMemberRole default 'player';
+    jerseyNumber : Integer;
+    position     : String(50);   // e.g., 'GK', 'CB', 'CM', 'ST'
+    nationality  : Country;
+    dateOfBirth  : Date;
+    photoUrl     : String(500);
+    isCaptain    : Boolean default false;
+    isActive     : Boolean default true;
 }
 
 /**
@@ -124,8 +211,12 @@ entity Match : cuid, managed {
     venue       : String(200);
     stage       : MatchStage default 'group';
     status      : MatchStatus default 'upcoming';
-    weight      : Weight default 1.0;
     matchNumber : Integer;
+    matchday    : Integer;  // for league format (e.g., matchday 1–38)
+    leg         : Integer;  // for two-leg ties (1 or 2), null for single match
+    bracketSlot : Association to BracketSlot; // link to bracket position (for knockout matches)
+    // Points earned for correct outcome prediction (always enabled)
+    outcomePoints  : Points default 1;
     // Result (null until finished)
     homeScore   : Integer;
     awayScore   : Integer;
@@ -136,6 +227,13 @@ entity Match : cuid, managed {
                       on predictions.match = $self;
     scoreBets   : Association to many ScoreBet
                       on scoreBets.match = $self;
+    // Per-match score bet configuration (UC1)
+    scoreBetConfig : Composition of many MatchScoreBetConfig
+                         on scoreBetConfig.match = $self;
+    // ── External Sync ──
+    externalId     : Integer; // football-data.org match ID for syncing
+    // ── Betting Lock (admin-controlled per-match) ──
+    bettingLocked  : Boolean default false; // if true, users cannot place/change bets for this match
 }
 
 /**
@@ -147,7 +245,7 @@ entity Player : cuid, managed {
     avatarUrl        : String(500);
     country          : Country;
     favoriteTeam     : Association to Team;
-    // Aggregated stats (denormalized for leaderboard performance)
+    // Aggregated stats across ALL tournaments (denormalized)
     totalPoints      : Points default 0;
     totalCorrect     : Integer default 0;
     totalPredictions : Integer default 0;
@@ -161,10 +259,29 @@ entity Player : cuid, managed {
                            on scoreBets.player = $self;
     championPicks    : Association to many ChampionPick
                            on championPicks.player = $self;
+    tournamentStats  : Association to many PlayerTournamentStats
+                           on tournamentStats.player = $self;
 }
 
 // Unique constraints
 annotate Player with @assert.unique: {email: [email]};
+
+/**
+ * Per-tournament stats for a player.
+ * Enables separate leaderboards per tournament.
+ */
+entity PlayerTournamentStats : cuid, managed {
+    player           : Association to Player     @mandatory;
+    tournament       : Association to Tournament @mandatory;
+    totalPoints      : Points default 0;
+    totalCorrect     : Integer default 0;
+    totalPredictions : Integer default 0;
+    currentStreak    : Integer default 0;
+    bestStreak       : Integer default 0;
+    rank             : Integer;
+}
+
+annotate PlayerTournamentStats with @assert.unique: {playerTournament: [player, tournament]};
 
 // ────────────────────────────────────────────────────────────
 //  Prediction Entities
@@ -173,17 +290,19 @@ annotate Player with @assert.unique: {email: [email]};
 /**
  * Match outcome prediction (Win / Draw / Lose).
  * Belongs to a Player and a Match.
+ * Points: 1 if correct, 0 if wrong (no weight).
  */
 entity Prediction : cuid, managed {
-    player       : Association to Player @mandatory;
-    match        : Association to Match  @mandatory;
-    pick         : PredictionPick        @mandatory;
+    player       : Association to Player     @mandatory;
+    match        : Association to Match      @mandatory;
+    tournament   : Association to Tournament; // denormalized from match for fast queries
+    pick         : PredictionPick            @mandatory;
     status       : PredictionStatus default 'submitted';
     submittedAt  : DateTime;
     lockedAt     : DateTime;
     scoredAt     : DateTime;
     isCorrect    : Boolean;
-    pointsEarned : Points default 0;
+    pointsEarned : Points default 0;         // 1 if correct, 0 if wrong
 }
 
 // One prediction per player per match
@@ -201,123 +320,80 @@ entity ScoreBet : cuid, managed {
     match              : Association to Match  @mandatory;
     predictedHomeScore : Integer               @mandatory;
     predictedAwayScore : Integer               @mandatory;
-    betAmount          : MoneyAmount default 50000;
     status             : BetStatus default 'pending';
     submittedAt        : DateTime;
     isCorrect          : Boolean;
-    payout             : MoneyAmount default 0;
+    payout             : MoneyAmount default 0; // prize × number of matching bets
 }
 
 /**
  * Tournament champion prediction.
- * Belongs to a Player and a Team. Uses managed.modifiedAt for change tracking.
+ * Belongs to a Player, a Team, and a Tournament. One pick per player per tournament.
  */
 entity ChampionPick : cuid, managed {
-    player      : Association to Player @mandatory;
-    team        : Association to Team   @mandatory;
+    player      : Association to Player      @mandatory;
+    team        : Association to Team        @mandatory;
+    tournament  : Association to Tournament  @mandatory;
     submittedAt : DateTime;
     isCorrect   : Boolean;
 }
 
-// One champion pick per player (configurable max handled in handler)
-annotate ChampionPick with @assert.unique: {playerPick: [player]};
+// One champion pick per player per tournament
+annotate ChampionPick with @assert.unique: {playerTournamentPick: [player, tournament]};
 
 // ────────────────────────────────────────────────────────────
-//  Configuration Entities (single-row admin config)
+//  Per-Match Configuration Entities
 // ────────────────────────────────────────────────────────────
 
 /**
- * Score Prediction Config: Exact score betting rules.
- * Single-row configuration entity managed by admin.
+ * Per-match score betting config (UC1).
+ * Each match can have its own score betting rules.
+ * If no config exists for a match, score betting is disabled.
  */
-entity ScorePredictionConfig : cuid, managed {
-    enabled             : Boolean default true;
-    maxBetsPerMatch     : Integer default 3;
-    basePrice           : MoneyAmount default 50000;
-    baseReward          : MoneyAmount default 200000;
-    allowDuplicateBets  : Boolean default true;
-    duplicateMultiplier : Weight default 2.0;
-    maxDuplicates       : Integer default 3;
-    bonusMultiplier     : Weight default 1.5;
-    platformFee         : Percentage default 5;
-    lockBeforeMatch     : Integer default 30; // minutes
-    minBetAmount        : MoneyAmount default 10000;
-    maxBetAmount        : MoneyAmount default 500000;
-    payoutDelay         : Integer default 24; // hours
-    autoLockOnKickoff   : Boolean default true;
+entity MatchScoreBetConfig : cuid, managed {
+    match   : Association to Match @mandatory;
+    enabled : Boolean default true;
+    maxBets : Integer default 3;
+    prize   : MoneyAmount default 200000; // each correct bet wins 1×prize; N identical correct bets win N×prize
 }
 
-/**
- * Match Outcome Config: Win/Draw/Lose prediction rules + prizes.
- * Single-row configuration entity managed by admin.
- */
-entity MatchOutcomeConfig : cuid, managed {
-    enabled                   : Boolean default true;
-    // Point System
-    pointsForWin              : Points default 3;
-    pointsForDraw             : Points default 1;
-    pointsForLose             : Points default 0;
-    // Match Weight Defaults
-    regularMatchWeight        : Weight default 1.0;
-    importantMatchWeight      : Weight default 2.0;
-    semifinalWeight           : Weight default 3.0;
-    finalMatchWeight          : Weight default 5.0;
-    // Prizes
-    firstPlacePrize           : String(200) default 'iPhone 15 Pro Max';
-    firstPlaceValue           : MoneyAmount default 35000000;
-    secondPlacePrize          : String(200) default 'Honda Vision 2024';
-    secondPlaceValue          : MoneyAmount default 30000000;
-    thirdPlacePrize           : String(200) default 'MacBook Air M3';
-    thirdPlaceValue           : MoneyAmount default 25000000;
-    consolationPrizes         : Integer default 10;
-    consolationValue          : MoneyAmount default 500000;
-    // Calculation
-    autoCalculateAfterMatch   : Boolean default true;
-    calculateDelay            : Integer default 2; // hours
-    tieBreakRule              : TieBreakRule default 'headToHead';
-    showLiveRanking           : Boolean default true;
-    // Bonuses
-    perfectWeekBonus          : Points default 5;
-    consecutiveWinsBonus      : Points default 2;
-    leaderboardUpdateInterval : Integer default 5; // minutes
-}
+annotate MatchScoreBetConfig with @assert.unique: {perMatch: [match]};
+
+// ────────────────────────────────────────────────────────────
+//  Knockout Bracket
+// ────────────────────────────────────────────────────────────
 
 /**
- * Champion Prediction Config: Tournament champion prediction rules + prizes.
- * Single-row configuration entity managed by admin.
+ * Knockout bracket slot — one position in the bracket tree.
+ * Links two matches (two-leg tie) or a single match to the bracket.
+ * When both legs are done, `winner` is resolved and propagated
+ * to the next slot via `nextSlot` + `nextSlotSide`.
+ *
+ * Example CL R16 slot:
+ *   stage=roundOf16, position=1, label='R16-1'
+ *   leg1 → Match (home first leg), leg2 → Match (away second leg)
+ *   homeTeam=Arsenal, awayTeam=Real Madrid
+ *   After both legs: winner=Arsenal → goes to nextSlot (QF1) as home/away
  */
-entity ChampionPredictionConfig : cuid, managed {
-    enabled                   : Boolean default true;
-    bettingStatus             : BettingStatus default 'open';
-    // Timing
-    openDate                  : Date;
-    lockDate                  : Date;
-    closeDate                 : Date;
-    autoLockOnTournamentStart : Boolean default true;
-    // Prizes
-    grandPrize                : String(200) default 'iPhone 15 Pro Max 256GB';
-    grandPrizeValue           : MoneyAmount default 35000000;
-    secondPrize               : String(200) default 'iPad Pro 12.9"';
-    secondPrizeValue          : MoneyAmount default 25000000;
-    thirdPrize                : String(200) default 'AirPods Pro 2';
-    thirdPrizeValue           : MoneyAmount default 7000000;
-    // Multiple Winners
-    splitPrizeIfTie           : Boolean default true;
-    maxWinnersForSplit        : Integer default 5;
-    cashAlternativeEnabled    : Boolean default true;
-    cashAlternativeValue      : MoneyAmount default 30000000;
-    // Prediction Rules
-    maxPredictionsPerUser     : Integer default 1;
-    allowChangePrediction     : Boolean default true;
-    changeDeadline            : Date;
-    requireReason             : Boolean default false;
-    // Display Options
-    showOthersPredictions     : Boolean default false;
-    showPredictionStats       : Boolean default true;
-    showOdds                  : Boolean default true;
-    // Notifications
-    notifyOnOpen              : Boolean default true;
-    notifyBeforeLock          : Boolean default true;
-    notifyHoursBeforeLock     : Integer default 24;
-    notifyOnResult            : Boolean default true;
+entity BracketSlot : cuid, managed {
+    tournament    : Association to Tournament @mandatory;
+    stage         : MatchStage               @mandatory;  // roundOf16, quarterFinal, semiFinal, final, playoff
+    position      : Integer                  @mandatory;  // 1..N within stage
+    label         : String(50);                           // display: 'R16-1', 'QF-2', 'SF-1', 'Final'
+    // ── Teams ──
+    homeTeam      : Association to Team;                  // seeded/higher-ranked team
+    awayTeam      : Association to Team;                  // lower-ranked team
+    // ── Matches (two-leg or single) ──
+    leg1          : Association to Match;                 // first leg
+    leg2          : Association to Match;                 // second leg (null for single-match finals)
+    // ── Aggregate scores ──
+    homeAgg       : Integer default 0;                    // aggregate score home team
+    awayAgg       : Integer default 0;                    // aggregate score away team
+    // ── Result ──
+    winner        : Association to Team;                  // resolved after tie is decided
+    // ── Bracket tree ──
+    nextSlot      : Association to BracketSlot;           // where the winner advances to
+    nextSlotSide  : BracketSide;                          // home or away in the next slot
 }
+
+annotate BracketSlot with @assert.unique: {stagePosition: [tournament, stage, position]};

@@ -3,11 +3,25 @@
 export interface AdminTeam {
     ID: string;
     name: string;
+    shortName: string | null;
+    tla: string | null;
+    crest: string | null;
     flagCode: string;
     confederation: string | null;
     fifaRanking: number | null;
-    groupName: string | null;
-    isEliminated: boolean;
+    members?: AdminTeamMember[];
+    tournaments?: AdminTournamentTeam[];
+}
+
+export interface AdminTeamMember {
+    ID: string;
+    team_ID: string;
+    name: string;
+    role: "headCoach" | "assistantCoach" | "goalkeepingCoach" | "fitnessCoach" | "player" | "captain";
+    jerseyNumber: number | null;
+    position: string | null;
+    isCaptain: boolean;
+    isActive: boolean;
 }
 
 export interface AdminTournament {
@@ -16,7 +30,29 @@ export interface AdminTournament {
     startDate: string;
     endDate: string;
     status: "upcoming" | "active" | "completed" | "cancelled";
+    format: "knockout" | "league" | "groupKnockout" | "cup";
     description: string | null;
+    season: string | null;
+    // UC2: single outcome prize description
+    outcomePrize: string;
+    // UC3: champion prediction config
+    championBettingStatus: "open" | "locked";
+    championLockDate: string | null;
+    championPrizePool: string;
+    // External sync
+    externalCode: string | null;  // football-data.org code e.g. 'CL'
+    // Betting lock
+    bettingLocked: boolean;
+}
+
+export interface AdminTournamentTeam {
+    ID: string;
+    tournament_ID: string;
+    team_ID: string;
+    groupName: string | null;
+    isEliminated: boolean;
+    team?: AdminTeam;
+    tournament?: AdminTournament;
 }
 
 export interface AdminMatch {
@@ -29,13 +65,19 @@ export interface AdminMatch {
     tournament?: AdminTournament;
     kickoff: string;
     venue: string | null;
-    stage: "group" | "roundOf16" | "quarterFinal" | "semiFinal" | "thirdPlace" | "final";
+    stage: "group" | "roundOf16" | "quarterFinal" | "semiFinal" | "thirdPlace" | "final" | "regular" | "playoff" | "relegation";
     status: "upcoming" | "live" | "finished" | "cancelled";
-    weight: number;
     matchNumber: number | null;
+    matchday: number | null;
+    outcomePoints: number;
     homeScore: number | null;
     awayScore: number | null;
     outcome: "home" | "draw" | "away" | null;
+    scoreBetConfig?: MatchScoreBetConfig[];
+    // External sync
+    externalId: number | null; // football-data.org match ID
+    // Betting lock
+    bettingLocked: boolean;
 }
 
 export interface AdminPlayer {
@@ -53,82 +95,14 @@ export interface AdminPlayer {
     rank: number | null;
 }
 
-// === Config Types ===
+// === Per-Match Score Bet Config (UC1) ===
 
-export interface ScorePredictionConfig {
+export interface MatchScoreBetConfig {
     ID: string;
+    match_ID: string;
     enabled: boolean;
-    maxBetsPerMatch: number;
-    basePrice: number;
-    baseReward: number;
-    allowDuplicateBets: boolean;
-    duplicateMultiplier: number;
-    maxDuplicates: number;
-    bonusMultiplier: number;
-    platformFee: number;
-    lockBeforeMatch: number;
-    minBetAmount: number;
-    maxBetAmount: number;
-    payoutDelay: number;
-    autoLockOnKickoff: boolean;
-}
-
-export interface MatchOutcomeConfig {
-    ID: string;
-    enabled: boolean;
-    pointsForWin: number;
-    pointsForDraw: number;
-    pointsForLose: number;
-    regularMatchWeight: number;
-    importantMatchWeight: number;
-    semifinalWeight: number;
-    finalMatchWeight: number;
-    firstPlacePrize: string;
-    firstPlaceValue: number;
-    secondPlacePrize: string;
-    secondPlaceValue: number;
-    thirdPlacePrize: string;
-    thirdPlaceValue: number;
-    consolationPrizes: number;
-    consolationValue: number;
-    autoCalculateAfterMatch: boolean;
-    calculateDelay: number;
-    tieBreakRule: string;
-    showLiveRanking: boolean;
-    perfectWeekBonus: number;
-    consecutiveWinsBonus: number;
-    leaderboardUpdateInterval: number;
-}
-
-export interface ChampionPredictionConfig {
-    ID: string;
-    enabled: boolean;
-    bettingStatus: "open" | "locked" | "closed";
-    openDate: string | null;
-    lockDate: string | null;
-    closeDate: string | null;
-    autoLockOnTournamentStart: boolean;
-    grandPrize: string;
-    grandPrizeValue: number;
-    secondPrize: string;
-    secondPrizeValue: number;
-    thirdPrize: string;
-    thirdPrizeValue: number;
-    splitPrizeIfTie: boolean;
-    maxWinnersForSplit: number;
-    cashAlternativeEnabled: boolean;
-    cashAlternativeValue: number;
-    maxPredictionsPerUser: number;
-    allowChangePrediction: boolean;
-    changeDeadline: string | null;
-    requireReason: boolean;
-    showOthersPredictions: boolean;
-    showPredictionStats: boolean;
-    showOdds: boolean;
-    notifyOnOpen: boolean;
-    notifyBeforeLock: boolean;
-    notifyHoursBeforeLock: number;
-    notifyOnResult: boolean;
+    maxBets: number;
+    prize: number;
 }
 
 // === Action Response Types ===
@@ -141,4 +115,66 @@ export interface ActionResult {
 export interface MatchResultResponse extends ActionResult {
     predictionsScored: number;
     scoreBetsScored: number;
+}
+
+export interface SyncMatchResult extends ActionResult {
+    synced: number;
+    scored: number;
+}
+
+export interface CompetitionItem {
+    externalId: number;
+    code: string;
+    name: string;
+    type: string;
+    emblem: string | null;
+    plan: string | null;
+    seasonStart: string | null;
+    seasonEnd: string | null;
+    alreadyImported: boolean;
+    importedTournamentId: string | null;
+}
+
+export interface ImportTournamentResult extends ActionResult {
+    tournamentId: string;
+    teamsImported: number;
+    matchesImported: number;
+}
+
+// === Prediction & Bet Types (Admin read-only views) ===
+
+export interface AdminPrediction {
+    ID: string;
+    player_ID: string;
+    match_ID: string;
+    tournament_ID: string | null;
+    pick: "home" | "draw" | "away";
+    isCorrect: boolean | null;
+    pointsEarned: number;
+    status: string;
+    submittedAt: string | null;
+    player?: AdminPlayer;
+}
+
+export interface AdminScoreBet {
+    ID: string;
+    player_ID: string;
+    match_ID: string;
+    predictedHomeScore: number;
+    predictedAwayScore: number;
+    status: string;
+    isCorrect: boolean | null;
+    payout: number;
+    submittedAt: string | null;
+    player?: AdminPlayer;
+}
+
+export interface AdminChampionPick {
+    ID: string;
+    player_ID: string;
+    team_ID: string;
+    tournament_ID: string;
+    submittedAt: string | null;
+    player?: AdminPlayer;
+    team?: AdminTeam;
 }

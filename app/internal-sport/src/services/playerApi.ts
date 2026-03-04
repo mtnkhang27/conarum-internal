@@ -32,11 +32,23 @@ async function post<T>(url: string, body: unknown): Promise<T> {
 export interface ODataTeam {
     ID: string;
     name: string;
+    shortName: string | null;
+    tla: string | null;
+    crest: string | null;
     flagCode: string;
     confederation: string | null;
     fifaRanking: number | null;
-    groupName: string | null;
-    isEliminated: boolean;
+}
+
+export interface ODataTournament {
+    ID: string;
+    name: string;
+    format: string;
+    status: string;
+    startDate: string;
+    endDate: string;
+    season: string | null;
+    championBettingStatus: 'open' | 'locked' | null;
 }
 
 export interface ODataMatch {
@@ -50,9 +62,11 @@ export interface ODataMatch {
     status: "upcoming" | "live" | "finished";
     homeScore: number | null;
     awayScore: number | null;
-    weight: number;
+    matchday: number | null;
     homeTeam?: ODataTeam;
     awayTeam?: ODataTeam;
+    tournament?: ODataTournament;
+    outcomePoints?: number; // Points earned for correct outcome prediction (home/draw/away)
 }
 
 export interface ODataLeaderboardEntry {
@@ -72,6 +86,7 @@ export interface ODataPrediction {
     ID: string;
     player_ID: string;
     match_ID: string;
+    tournament_ID: string | null;
     pick: string;
     isCorrect: boolean | null;
     pointsEarned: number;
@@ -83,10 +98,11 @@ export interface ODataScoreBet {
     ID: string;
     player_ID: string;
     match_ID: string;
-    homeScore: number;
-    awayScore: number;
-    pointsEarned: number;
-    isExact: boolean | null;
+    predictedHomeScore: number;
+    predictedAwayScore: number;
+    status: string;
+    isCorrect: boolean | null;
+    payout: number;
     submittedAt: string | null;
     match?: ODataMatch;
 }
@@ -95,7 +111,7 @@ export interface ODataChampionPick {
     ID: string;
     player_ID: string;
     team_ID: string;
-    pickedAt: string | null;
+    submittedAt: string | null;
     team?: ODataTeam;
 }
 
@@ -110,6 +126,12 @@ import type {
     LeaderboardEntry,
     PredictionHistoryItem,
     PredictionSummary,
+    TournamentInfo,
+    MatchResultItem,
+    UpcomingMatchItem,
+    TournamentLeaderboardItem,
+    StandingItem,
+    RecentPredictionItem,
 } from "@/types";
 
 // ─── Transform helpers ──────────────────────────────────────
@@ -135,12 +157,13 @@ function toMatch(m: ODataMatch): Match {
     const away = m.awayTeam || { name: m.awayTeam_ID, flagCode: "" } as any;
     return {
         id: m.ID,
-        weight: m.weight,
         timeLabel: formatKickoff(m.kickoff),
-        home: { name: home.name, flag: home.flagCode },
-        away: { name: away.name, flag: away.flagCode },
+        home: { name: home.name, flag: home.flagCode, crest: home.crest },
+        away: { name: away.name, flag: away.flagCode, crest: away.crest },
         options: [home.name, "Draw", away.name],
         selectedOption: "",
+        scoreBettingEnabled: false, // will be set based on MatchScoreBetConfig existence
+        outcomePoints: m.outcomePoints ?? 0,
     };
 }
 
@@ -150,11 +173,10 @@ function toUpcomingMatch(m: ODataMatch): UpcomingMatch {
     const diff = new Date(m.kickoff).getTime() - Date.now();
     return {
         id: m.ID,
-        home: { name: home.name, flag: home.flagCode },
-        away: { name: away.name, flag: away.flagCode },
+        home: { name: home.name, flag: home.flagCode, crest: home.crest },
+        away: { name: away.name, flag: away.flagCode, crest: away.crest },
         kickoff: formatKickoff(m.kickoff),
         stage: m.stage,
-        weight: m.weight,
         pick: "",
         isSoon: diff < 2 * 60 * 60 * 1000, // < 2 hours
     };
@@ -166,7 +188,6 @@ function toLiveMatch(m: ODataMatch): LiveMatch {
     return {
         match: `${home} vs ${away}`,
         minute: "LIVE",
-        weight: m.weight,
         score: `${m.homeScore ?? 0} - ${m.awayScore ?? 0}`,
     };
 }
@@ -176,10 +197,9 @@ function toExactScoreMatch(m: ODataMatch): ExactScoreMatch {
     const away = m.awayTeam || { name: m.awayTeam_ID, flagCode: "" } as any;
     return {
         id: m.ID,
-        weight: m.weight,
         timeLabel: formatKickoff(m.kickoff),
-        home: { name: home.name, flag: home.flagCode },
-        away: { name: away.name, flag: away.flagCode },
+        home: { name: home.name, flag: home.flagCode, crest: home.crest },
+        away: { name: away.name, flag: away.flagCode, crest: away.crest },
         defaultScore: { home: 0, away: 0 },
     };
 }
@@ -201,22 +221,80 @@ function toLeaderboardEntry(p: ODataLeaderboardEntry, idx: number): LeaderboardE
 
 // ─── Public API ──────────────────────────────────────────────
 
+export const playerTournamentsApi = {
+    /** Get all tournaments. */
+    async getAll(): Promise<TournamentInfo[]> {
+        const tournaments = await json<ODataTournament[]>(
+            `${BASE}/Tournaments?$orderby=startDate desc`
+        );
+        return tournaments.map((t) => ({
+            ID: t.ID,
+            name: t.name,
+            format: t.format as TournamentInfo["format"],
+            status: t.status as TournamentInfo["status"],
+            startDate: t.startDate,
+            endDate: t.endDate,
+            season: t.season ?? undefined,
+            championBettingStatus: t.championBettingStatus ?? undefined,
+        }));
+    },
+
+    /** Get active/upcoming tournaments. */
+    async getActive(): Promise<TournamentInfo[]> {
+        const tournaments = await json<ODataTournament[]>(
+            `${BASE}/Tournaments?$filter=status eq 'active' or status eq 'upcoming'&$orderby=startDate desc`
+        );
+        return tournaments.map((t) => ({
+            ID: t.ID,
+            name: t.name,
+            format: t.format as TournamentInfo["format"],
+            status: t.status as TournamentInfo["status"],
+            startDate: t.startDate,
+            endDate: t.endDate,
+            season: t.season ?? undefined,
+            championBettingStatus: t.championBettingStatus ?? undefined,
+        }));
+    },
+};
+
 export const playerMatchesApi = {
-    /** Available (upcoming) matches for prediction cards, with user's existing picks. */
-    async getAvailable(): Promise<Match[]> {
-        const [matches, predictions] = await Promise.all([
+    /** Available (upcoming) matches for prediction cards, optionally filtered by tournament. */
+    async getAvailable(tournamentId?: string): Promise<Match[]> {
+        let filter = "status eq 'upcoming'";
+        if (tournamentId) filter += ` and tournament_ID eq '${tournamentId}'`;
+
+        const [matches, predictions, scoreBets] = await Promise.all([
             json<ODataMatch[]>(
-                `${BASE}/Matches?$filter=status eq 'upcoming'&$expand=homeTeam,awayTeam&$orderby=kickoff asc`
+                `${BASE}/Matches?$filter=${encodeURIComponent(filter)}&$expand=homeTeam,awayTeam,scoreBetConfig&$orderby=kickoff asc`
             ),
             json<ODataPrediction[]>(`${BASE}/MyPredictions`).catch(() => [] as ODataPrediction[]),
+            json<ODataScoreBet[]>(`${BASE}/MyScoreBets`).catch(() => [] as ODataScoreBet[]),
         ]);
 
         // Build map: matchId → pick value (home/draw/away)
         const pickMap = new Map<string, string>();
         for (const p of predictions) pickMap.set(p.match_ID, p.pick);
 
+        // Build map: matchId → existing score bets
+        const scoreMap = new Map<string, { home: number; away: number }[]>();
+        for (const sb of scoreBets) {
+            if (!scoreMap.has(sb.match_ID)) scoreMap.set(sb.match_ID, []);
+            scoreMap.get(sb.match_ID)!.push({ home: sb.predictedHomeScore, away: sb.predictedAwayScore });
+        }
+
         return matches.map((m) => {
             const match = toMatch(m);
+
+            // Determine if score betting is enabled from expanded scoreBetConfig
+            const scoreBetConfigs = (m as any).scoreBetConfig;
+            if (scoreBetConfigs && Array.isArray(scoreBetConfigs) && scoreBetConfigs.length > 0) {
+                const enabledCfg = scoreBetConfigs.find((cfg: any) => cfg.enabled);
+                match.scoreBettingEnabled = !!enabledCfg;
+                if (enabledCfg) {
+                    match.maxBets = enabledCfg.maxBets ?? 3;
+                }
+            }
+
             const rawPick = pickMap.get(m.ID);
             if (rawPick) {
                 // Map API pick (home/draw/away) → display name
@@ -224,20 +302,40 @@ export const playerMatchesApi = {
                 else if (rawPick === "away") match.selectedOption = match.away.name;
                 else match.selectedOption = "Draw";
             }
+            match.existingScores = scoreMap.get(m.ID) || [];
             return match;
         });
     },
 
-    /** Completed (finished) matches. */
-    async getCompleted(): Promise<Match[]> {
-        const matches = await json<ODataMatch[]>(
-            `${BASE}/Matches?$filter=status eq 'finished'&$expand=homeTeam,awayTeam&$orderby=kickoff desc`
-        );
-        return matches.map((m) => ({
-            ...toMatch(m),
-            timeLabel: "Locked",
-            selectedOption: "", // No pick info at this level — will be enriched by predictions
-        }));
+    /** Completed (finished) matches, optionally filtered by tournament. */
+    async getCompleted(tournamentId?: string): Promise<Match[]> {
+        let filter = "status eq 'finished'";
+        if (tournamentId) filter += ` and tournament_ID eq '${tournamentId}'`;
+
+        const [matches, predictions] = await Promise.all([
+            json<ODataMatch[]>(
+                `${BASE}/Matches?$filter=${encodeURIComponent(filter)}&$expand=homeTeam,awayTeam&$orderby=kickoff desc`
+            ),
+            json<ODataPrediction[]>(`${BASE}/MyPredictions`).catch(() => [] as ODataPrediction[]),
+        ]);
+
+        const pickMap = new Map<string, string>();
+        for (const p of predictions) pickMap.set(p.match_ID, p.pick);
+
+        return matches.map((m) => {
+            const match = toMatch(m);
+            match.timeLabel = "Locked";
+            match.kickoffIso = m.kickoff;
+            match.stage = m.stage;
+            if (m.homeScore !== null && m.awayScore !== null) {
+                match.finalScore = { home: m.homeScore, away: m.awayScore };
+            }
+            const rawPick = pickMap.get(m.ID);
+            if (rawPick === "home") match.selectedOption = "home";
+            else if (rawPick === "away") match.selectedOption = "away";
+            else if (rawPick === "draw") match.selectedOption = "draw";
+            return match;
+        });
     },
 
     /** Live matches. */
@@ -248,10 +346,13 @@ export const playerMatchesApi = {
         return matches.map(toLiveMatch);
     },
 
-    /** Upcoming kickoff list for the sidebar table. */
-    async getUpcoming(): Promise<UpcomingMatch[]> {
+    /** Upcoming kickoff list for the sidebar table, optionally filtered by tournament. */
+    async getUpcoming(tournamentId?: string): Promise<UpcomingMatch[]> {
+        let filter = "status eq 'upcoming'";
+        if (tournamentId) filter += ` and tournament_ID eq '${tournamentId}'`;
+
         const matches = await json<ODataMatch[]>(
-            `${BASE}/Matches?$filter=status eq 'upcoming'&$expand=homeTeam,awayTeam&$orderby=kickoff asc&$top=10`
+            `${BASE}/Matches?$filter=${encodeURIComponent(filter)}&$expand=homeTeam,awayTeam&$orderby=kickoff asc&$top=10`
         );
         return matches.map(toUpcomingMatch);
     },
@@ -266,11 +367,19 @@ export const playerMatchesApi = {
 };
 
 export const playerLeaderboardApi = {
+    /** Global leaderboard. */
     async getAll(): Promise<LeaderboardEntry[]> {
         const entries = await json<ODataLeaderboardEntry[]>(
             `${BASE}/Leaderboard?$orderby=totalPoints desc`
         );
         return entries.map(toLeaderboardEntry);
+    },
+
+    /** Tournament-specific prediction leaderboard (UC2). */
+    async getByTournament(tournamentId: string): Promise<TournamentLeaderboardItem[]> {
+        return json<TournamentLeaderboardItem[]>(
+            `${BASE}/getPredictionLeaderboard(tournamentId='${tournamentId}')`
+        );
     },
 };
 
@@ -278,14 +387,33 @@ export const playerTeamsApi = {
     /** Teams for champion picker. */
     async getAll(): Promise<ChampionTeam[]> {
         const teams = await json<ODataTeam[]>(
-            `${BASE}/Teams?$filter=isEliminated eq false&$orderby=fifaRanking asc`
+            `${BASE}/Teams?$orderby=fifaRanking asc`
         );
         return teams.map((t) => ({
             name: t.name,
             flag: t.flagCode,
+            crest: t.crest ?? undefined,
             confederation: t.confederation || "",
             selected: false,
+            ID: t.ID,
         }));
+    },
+
+    /** Teams participating in a specific tournament (non-eliminated), for champion picker. */
+    async getByTournament(tournamentId: string): Promise<ChampionTeam[]> {
+        const entries = await json<{ team?: ODataTeam; isEliminated?: boolean }[]>(
+            `${BASE}/TournamentTeams?$filter=tournament_ID eq '${tournamentId}' and isEliminated eq false&$expand=team&$orderby=team/fifaRanking asc`
+        );
+        return entries
+            .filter((e) => e.team)
+            .map((e) => ({
+                name: e.team!.name,
+                flag: e.team!.flagCode,
+                crest: e.team!.crest ?? undefined,
+                confederation: e.team!.confederation || "",
+                selected: false,
+                ID: e.team!.ID,
+            }));
     },
 
     /** Get team flag code lookup map. */
@@ -317,7 +445,6 @@ export const playerPredictionsApi = {
                 kickoff: m ? formatKickoff(m.kickoff) : "",
                 predictionType: "Match Winner",
                 pick: p.pick,
-                weight: m?.weight || 1,
                 submissionStatus: p.submittedAt ? "submitted" : "draft",
             });
         }
@@ -331,8 +458,7 @@ export const playerPredictionsApi = {
                 match: `${home} vs ${away}`,
                 kickoff: m ? formatKickoff(m.kickoff) : "",
                 predictionType: "Exact Score",
-                pick: `${sb.homeScore} - ${sb.awayScore}`,
-                weight: m?.weight || 1,
+                pick: `${sb.predictedHomeScore} - ${sb.predictedAwayScore}`,
                 submissionStatus: sb.submittedAt ? "submitted" : "draft",
             });
         }
@@ -349,8 +475,10 @@ export const playerPredictionsApi = {
     },
 
     /** Get current user's champion pick. */
-    async getChampionPick(): Promise<string | null> {
-        const picks = await json<ODataChampionPick[]>(`${BASE}/MyChampionPick?$expand=team`);
+    async getChampionPick(tournamentId?: string): Promise<string | null> {
+        let url = `${BASE}/MyChampionPick?$expand=team`;
+        if (tournamentId) url += `&$filter=tournament_ID eq '${tournamentId}'`;
+        const picks = await json<ODataChampionPick[]>(url);
         return picks.length > 0 ? picks[0].team?.name || null : null;
     },
 };
@@ -372,11 +500,72 @@ export const playerActionsApi = {
         );
     },
 
+    /** Combined: submit winner pick + score bets for a match. */
+    async submitMatchPrediction(matchId: string, pick: string, scores: { homeScore: number; awayScore: number }[]) {
+        return post<{ success: boolean; message: string }>(
+            `${BASE}/submitMatchPrediction`,
+            { matchId, pick, scores }
+        );
+    },
+
+    /** Cancel/clear match prediction and associated score bets. */
+    async cancelMatchPrediction(matchId: string) {
+        return post<{ success: boolean; message: string }>(
+            `${BASE}/cancelMatchPrediction`,
+            { matchId }
+        );
+    },
+
     /** Pick tournament champion (UC3). */
-    async pickChampion(teamId: string) {
+    async pickChampion(teamId: string, tournamentId: string) {
         return post<{ success: boolean; message: string }>(
             `${BASE}/pickChampion`,
-            { teamId }
+            { teamId, tournamentId }
+        );
+    },
+};
+
+/** Tournament-specific query functions. */
+export const playerTournamentQueryApi = {
+    /** Get latest results for a tournament. */
+    async getLatestResults(tournamentId: string): Promise<MatchResultItem[]> {
+        return json<MatchResultItem[]>(
+            `${BASE}/getLatestResults(tournamentId='${tournamentId}')`
+        );
+    },
+
+    /** Get upcoming matches for a tournament. */
+    async getUpcomingMatches(tournamentId: string): Promise<UpcomingMatchItem[]> {
+        return json<UpcomingMatchItem[]>(
+            `${BASE}/getUpcomingMatches(tournamentId='${tournamentId}')`
+        );
+    },
+
+    /** Get league standings for a tournament. */
+    async getStandings(tournamentId: string): Promise<StandingItem[]> {
+        return json<StandingItem[]>(
+            `${BASE}/getStandings(tournamentId='${tournamentId}')`
+        );
+    },
+
+    /** Get the current user's recent predictions. */
+    async getMyRecentPredictions(limit: number = 20): Promise<RecentPredictionItem[]> {
+        return json<RecentPredictionItem[]>(
+            `${BASE}/getMyRecentPredictions(limit=${limit})`
+        );
+    },
+
+    /** Get the tournament bracket (knockout tree). */
+    async getTournamentBracket(tournamentId: string) {
+        return json<any[]>(
+            `${BASE}/getTournamentBracket(tournamentId='${tournamentId}')`
+        );
+    },
+
+    /** Get champion pick counts by team for a tournament. */
+    async getChampionPickCounts(tournamentId: string): Promise<{ teamId: string; teamName: string; teamCrest: string; count: number }[]> {
+        return json<{ teamId: string; teamName: string; teamCrest: string; count: number }[]>(
+            `${BASE}/getChampionPickCounts(tournamentId='${tournamentId}')`
         );
     },
 };

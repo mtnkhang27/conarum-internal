@@ -1,0 +1,326 @@
+import { useEffect, useState } from "react";
+
+/* ────────────────────────────────────────────────────────── */
+/*  Types                                                     */
+/* ────────────────────────────────────────────────────────── */
+
+export interface BracketSlot {
+    slotId: string;
+    stage: string;
+    position: number;
+    label: string;
+    homeTeamId: string | null;
+    homeTeamName: string;
+    homeTeamFlag: string;
+    homeTeamCrest: string;
+    awayTeamId: string | null;
+    awayTeamName: string;
+    awayTeamFlag: string;
+    awayTeamCrest: string;
+    leg1Id: string | null;
+    leg1HomeScore: number | null;
+    leg1AwayScore: number | null;
+    leg1Status: string | null;
+    leg2Id: string | null;
+    leg2HomeScore: number | null;
+    leg2AwayScore: number | null;
+    leg2Status: string | null;
+    homeAgg: number;
+    awayAgg: number;
+    winnerId: string | null;
+    winnerName: string;
+    nextSlotId: string | null;
+    nextSlotSide: string | null;
+}
+
+/* Stage ordering (lower = earlier round) */
+const STAGE_ORDER: Record<string, number> = {
+    playoff: 0,
+    roundOf16: 1,
+    quarterFinal: 2,
+    semiFinal: 3,
+    final: 4,
+};
+
+const STAGE_LABEL: Record<string, string> = {
+    playoff: "Playoff",
+    roundOf16: "Round of 16",
+    quarterFinal: "Quarter-Finals",
+    semiFinal: "Semi-Finals",
+    final: "Final",
+};
+
+/* ────────────────────────────────────────────────────────── */
+/*  Sub-components                                            */
+/* ────────────────────────────────────────────────────────── */
+
+function TeamRow({
+    name,
+    crest,
+    agg,
+    isWinner,
+    isEmpty,
+    leg1Score,
+    leg2Score,
+    showLegs,
+}: {
+    name: string;
+    crest: string;
+    agg: number;
+    isWinner: boolean;
+    isEmpty: boolean;
+    leg1Score: number | null;
+    leg2Score: number | null;
+    showLegs: boolean;
+}) {
+    return (
+        <div
+            className={`
+                flex items-center gap-2 px-3 py-2 transition-colors
+                ${isWinner ? "bg-emerald-500/15" : ""}
+                ${isEmpty ? "opacity-40" : ""}
+            `}
+        >
+            {/* Team crest/logo */}
+            <div className="h-6 w-6 flex-shrink-0 overflow-hidden rounded-sm">
+                {crest ? (
+                    <img
+                        src={crest}
+                        alt={name}
+                        className="h-full w-full object-contain"
+                        onError={(e) => {
+                            (e.target as HTMLImageElement).style.display = "none";
+                        }}
+                    />
+                ) : (
+                    <div className="flex h-full w-full items-center justify-center rounded-sm bg-white/5 text-[9px] text-muted-foreground">
+                        ?
+                    </div>
+                )}
+            </div>
+
+            {/* Team name */}
+            <span
+                className={`flex-1 truncate text-xs ${
+                    isWinner
+                        ? "font-bold text-emerald-400"
+                        : isEmpty
+                        ? "italic text-muted-foreground"
+                        : "text-white"
+                }`}
+            >
+                {isEmpty ? "TBD" : name}
+            </span>
+
+            {/* Leg scores */}
+            {showLegs && (
+                <div className="flex gap-1 text-[10px] text-muted-foreground">
+                    <span className="w-4 text-center">
+                        {leg1Score !== null ? leg1Score : "-"}
+                    </span>
+                    <span className="w-4 text-center">
+                        {leg2Score !== null ? leg2Score : "-"}
+                    </span>
+                </div>
+            )}
+
+            {/* Aggregate score */}
+            <span
+                className={`w-5 text-center text-xs font-bold ${
+                    isWinner ? "text-emerald-400" : "text-white/70"
+                }`}
+            >
+                {isEmpty && agg === 0 ? "-" : agg}
+            </span>
+        </div>
+    );
+}
+
+function SlotCard({ slot, showLegs }: { slot: BracketSlot; showLegs: boolean }) {
+    const homeEmpty = !slot.homeTeamId;
+    const awayEmpty = !slot.awayTeamId;
+    const hasWinner = !!slot.winnerId;
+    const homeIsWinner = hasWinner && slot.winnerId === slot.homeTeamId;
+    const awayIsWinner = hasWinner && slot.winnerId === slot.awayTeamId;
+
+    return (
+        <div
+            className={`
+                w-52 overflow-hidden rounded-lg border transition-all
+                ${hasWinner
+                    ? "border-emerald-500/30 shadow-md shadow-emerald-500/5"
+                    : "border-border/40 shadow-sm"}
+                bg-card/80 backdrop-blur-sm
+            `}
+        >
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-border/30 bg-white/[0.02] px-3 py-1">
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    {slot.label}
+                </span>
+                {showLegs && (
+                    <div className="flex gap-1 text-[9px] text-muted-foreground/60">
+                        <span className="w-4 text-center">L1</span>
+                        <span className="w-4 text-center">L2</span>
+                        <span className="w-5 text-center">A</span>
+                    </div>
+                )}
+                {!showLegs && (
+                    <span className="w-5 text-center text-[9px] text-muted-foreground/60"></span>
+                )}
+            </div>
+
+            {/* Home team */}
+            <TeamRow
+                name={slot.homeTeamName}
+                crest={slot.homeTeamCrest}
+                agg={slot.homeAgg}
+                isWinner={homeIsWinner}
+                isEmpty={homeEmpty}
+                leg1Score={slot.leg1HomeScore}
+                leg2Score={slot.leg2AwayScore}
+                showLegs={showLegs}
+            />
+
+            {/* Divider */}
+            <div className="mx-3 border-t border-border/20" />
+
+            {/* Away team */}
+            <TeamRow
+                name={slot.awayTeamName}
+                crest={slot.awayTeamCrest}
+                agg={slot.awayAgg}
+                isWinner={awayIsWinner}
+                isEmpty={awayEmpty}
+                leg1Score={slot.leg1AwayScore}
+                leg2Score={slot.leg2HomeScore}
+                showLegs={showLegs}
+            />
+        </div>
+    );
+}
+
+/* ────────────────────────────────────────────────────────── */
+/*  Main Bracket Component                                    */
+/* ────────────────────────────────────────────────────────── */
+
+interface TournamentBracketProps {
+
+    tournamentId: string;
+    /** bracket data fetched externally */
+    slots?: BracketSlot[];
+    /** Hide playoff round (default false) */
+    hidePlayoff?: boolean;
+    /** Compact mode for embedding */
+    compact?: boolean;
+}
+
+export function TournamentBracket({
+    tournamentId,
+    slots: externalSlots,
+    hidePlayoff = true,
+    compact = false,
+}: TournamentBracketProps) {
+    const [slots, setSlots] = useState<BracketSlot[]>(externalSlots ?? []);
+    const [loading, setLoading] = useState(!externalSlots);
+    const [error, setError] = useState("");
+
+    useEffect(() => {
+        if (externalSlots) {
+            setSlots(externalSlots);
+            return;
+        }
+        if (!tournamentId) return;
+
+        setLoading(true);
+        fetch(
+            `/api/player/getTournamentBracket(tournamentId='${tournamentId}')`
+        )
+            .then(async (res) => {
+                if (!res.ok) throw new Error("Failed to load bracket");
+                const data = await res.json();
+                setSlots(data.value ?? data);
+            })
+            .catch((e) => setError(e.message))
+            .finally(() => setLoading(false));
+    }, [tournamentId, externalSlots]);
+
+    if (loading)
+        return (
+            <div className="flex h-48 items-center justify-center text-muted-foreground">
+                Loading bracket…
+            </div>
+        );
+    if (error)
+        return (
+            <div className="flex h-48 items-center justify-center text-red-400">
+                {error}
+            </div>
+        );
+    if (slots.length === 0)
+        return (
+            <div className="flex h-32 items-center justify-center text-muted-foreground text-sm">
+                No bracket data available for this tournament.
+            </div>
+        );
+
+    // Filter out playoff if requested; group by stage
+    const filteredSlots = hidePlayoff
+        ? slots.filter((s) => s.stage !== "playoff")
+        : slots;
+
+    const stageGroups = new Map<string, BracketSlot[]>();
+    for (const s of filteredSlots) {
+        if (!stageGroups.has(s.stage)) stageGroups.set(s.stage, []);
+        stageGroups.get(s.stage)!.push(s);
+    }
+
+    // Sort stages by order
+    const orderedStages = [...stageGroups.keys()].sort(
+        (a, b) => (STAGE_ORDER[a] ?? 99) - (STAGE_ORDER[b] ?? 99)
+    );
+
+    // Check if tournament has legs (2-leg ties) — see if any slot has leg2
+    const hasLegs = slots.some((s) => s.leg2Id !== null);
+
+    return (
+        <div className="w-full overflow-x-auto">
+            <div className="flex items-start gap-3 p-4" style={{ minWidth: orderedStages.length * 240 }}>
+                {orderedStages.map((stage) => {
+                    const stageSlots = stageGroups.get(stage)!;
+                    stageSlots.sort((a, b) => a.position - b.position);
+
+                    // For final stage, don't show legs
+                    const showLegs = hasLegs && stage !== "final";
+
+                    return (
+                        <div key={stage} className="flex flex-col items-center gap-2">
+                            {/* Stage header */}
+                            <div className="mb-2 text-center">
+                                <h3 className="text-xs font-bold uppercase tracking-widest text-primary/80">
+                                    {STAGE_LABEL[stage] ?? stage}
+                                </h3>
+                                <span className="text-[10px] text-muted-foreground">
+                                    {stageSlots.length} tie{stageSlots.length === 1 ? "" : "s"}
+                                </span>
+                            </div>
+
+                            {/* Bracket cards for this stage */}
+                            <div
+                                className="flex flex-col justify-center gap-3"
+                                style={{
+                                    // Vertically center fewer cards as rounds progress
+                                    minHeight: compact ? undefined : `${stageSlots.length * 100}px`,
+                                }}
+                            >
+                                {stageSlots.map((slot) => (
+                                    <SlotCard key={slot.slotId} slot={slot} showLegs={showLegs} />
+                                ))}
+                            </div>
+                        </div>
+                    );
+                })}
+            </div>
+        </div>
+    );
+}

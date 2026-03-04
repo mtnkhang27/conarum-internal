@@ -1,7 +1,6 @@
 import { Outlet, useLocation } from "react-router-dom";
 import { Header } from "@/components/Header";
 import { LeftSidebar } from "@/components/LeftSidebar";
-import { PredictionSlip } from "@/components/PredictionSlip";
 import { MobileBottomNav } from "@/components/MobileBottomNav";
 
 export function AppShell() {
@@ -18,8 +17,6 @@ export function AppShell() {
                 <main className="min-w-0 flex-1 overflow-y-auto bg-background">
                     <Outlet />
                 </main>
-
-                {!isAccountPage && <PredictionSlip />}
             </div>
 
             <MobileBottomNav />

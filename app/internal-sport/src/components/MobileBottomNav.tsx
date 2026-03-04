@@ -1,29 +1,49 @@
-import { NavLink } from "react-router-dom";
-import { Home, BarChart3, Trophy, History } from "lucide-react";
+import { useLocation } from "react-router-dom";
+import { Trophy, BarChart3, Home, Clock } from "lucide-react";
+import { scrollToSection, SECTION } from "@/pages/SportPage";
 
 const navItems = [
-    { to: "/available", icon: Home, label: "Home" },
-    { to: "/my-predictions", icon: BarChart3, label: "My Picks" },
-    { to: "/leaderboard", icon: Trophy, label: "Leaders" },
-    { to: "/completed", icon: History, label: "Submitted" },
+    { section: SECTION.leaderboard, icon: Trophy, label: "Leaders" },
+    { section: SECTION.matches, icon: Home, label: "Matches" },
+    { section: SECTION.completed, icon: BarChart3, label: "Results" },
+    { section: SECTION.recent, icon: Clock, label: "Mine" },
 ];
 
 export function MobileBottomNav() {
+    const { pathname, hash } = useLocation();
+    const isOnSportPage = pathname === "/";
+
+    const handleClick = (e: React.MouseEvent, sectionId: string) => {
+        if (isOnSportPage) {
+            e.preventDefault();
+            scrollToSection(sectionId);
+            window.history.replaceState(null, "", `/#${sectionId}`);
+        } else {
+            // Navigate to sport page + hash via standard anchor
+        }
+    };
+
     return (
         <div className="fixed bottom-0 z-40 flex w-full items-center justify-around border-t border-border bg-surface-dark px-4 py-2 xl:hidden">
-            {navItems.map((item) => (
-                <NavLink
-                    key={item.to}
-                    to={item.to}
-                    className={({ isActive }) =>
-                        `relative flex flex-col items-center gap-1 ${isActive ? "text-primary" : "text-muted-foreground"
-                        }`
-                    }
-                >
-                    <item.icon className="h-5 w-5" />
-                    <span className="text-[9px] font-bold uppercase">{item.label}</span>
-                </NavLink>
-            ))}
+            {navItems.map((item) => {
+                const isActive =
+                    isOnSportPage &&
+                    (hash === `#${item.section}` ||
+                        (hash === "" && item.section === SECTION.leaderboard));
+                return (
+                    <a
+                        key={item.section}
+                        href={`/#${item.section}`}
+                        onClick={(e) => handleClick(e, item.section)}
+                        className={`relative flex flex-col items-center gap-1 ${
+                            isActive ? "text-primary" : "text-muted-foreground"
+                        }`}
+                    >
+                        <item.icon className="h-5 w-5" />
+                        <span className="text-[9px] font-bold uppercase">{item.label}</span>
+                    </a>
+                );
+            })}
         </div>
     );
 }

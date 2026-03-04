@@ -79,6 +79,28 @@ export interface AdminMatch {
     externalId: number | null; // football-data.org match ID
     // Betting lock
     bettingLocked: boolean;
+    // Bracket
+    bracketSlot_ID: string | null;
+    leg: number | null;
+}
+
+export interface AdminBracketSlot {
+    ID: string;
+    tournament_ID: string;
+    stage: string;
+    position: number;
+    label: string;
+    homeTeam_ID: string | null;
+    awayTeam_ID: string | null;
+    leg1_ID: string | null;
+    leg2_ID: string | null;
+    homeAgg: number;
+    awayAgg: number;
+    homePen: number | null;
+    awayPen: number | null;
+    winner_ID: string | null;
+    nextSlot_ID: string | null;
+    nextSlotSide: string | null;
 }
 
 export interface AdminPlayer {

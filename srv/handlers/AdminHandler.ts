@@ -41,7 +41,7 @@ export class AdminHandler {
         if (!match) return req.error(404, 'Match not found');
 
         if (match.status === 'finished') {
-            return req.error(400, 'Match result has already been entered. Edit the match to correct it.');
+            return req.error(400, 'Match result has already been entered. Use correctMatchResult to fix it.');
         }
 
         // Determine outcome
@@ -134,6 +134,88 @@ export class AdminHandler {
             message: `Match result ${homeScore}-${awayScore} entered. ${predictionsScored} predictions, ${scoreBetsScored} score bets scored.`,
             predictionsScored,
             scoreBetsScored
+        };
+    }
+
+    /**
+     * Correct an already-finished match result.
+     * Resets scored predictions back to submitted, score bets back to pending,
+     * re-enters the new result, and re-scores everything.
+     */
+    async correctMatchResult(req: Request) {
+        const { matchId, homeScore, awayScore } = req.data;
+        const { Match, Prediction, ScoreBet } = cds.entities('cnma.prediction');
+
+        if (!matchId) return req.error(400, 'matchId is required');
+
+        const match = await SELECT.one.from(Match).where({ ID: matchId });
+        if (!match) return req.error(404, 'Match not found');
+        if (match.status !== 'finished') return req.error(400, 'Match is not finished yet. Use enterMatchResult instead.');
+
+        // Reset scored predictions back to submitted
+        await UPDATE(Prediction)
+            .where({ match_ID: matchId, status: 'scored' })
+            .set({ status: 'submitted', isCorrect: null, pointsEarned: 0, scoredAt: null });
+
+        // Reset score bets
+        await UPDATE(ScoreBet)
+            .where({ match_ID: matchId, status: { in: ['won', 'lost'] } })
+            .set({ status: 'pending', isCorrect: null, payout: 0 });
+
+        // Re-open the match so enterMatchResult accepts it
+        await UPDATE(Match).where({ ID: matchId }).set({ status: 'live' });
+
+        // Re-enter with new scores (this scores predictions, bets, triggers bracket)
+        const fakeReq = {
+            data: { matchId, homeScore, awayScore },
+            error: (code: number, msg: string) => { throw new Error(msg); }
+        } as unknown as Request;
+
+        const result: any = await this.enterMatchResult(fakeReq);
+
+        // Recalculate leaderboard for the tournament
+        if (match.tournament_ID) {
+            const fakeRecalcReq = {
+                data: { tournamentId: match.tournament_ID },
+                error: (code: number, msg: string) => { throw new Error(msg); }
+            } as unknown as Request;
+            await this.recalculateLeaderboard(fakeRecalcReq);
+        }
+
+        return {
+            success: true,
+            message: `Match result corrected to ${homeScore}-${awayScore}. ${result?.predictionsScored ?? 0} predictions and ${result?.scoreBetsScored ?? 0} score bets re-scored.`,
+            predictionsScored: result?.predictionsScored ?? 0,
+            scoreBetsScored: result?.scoreBetsScored ?? 0,
+        };
+    }
+
+    /**
+     * Set the penalty shootout winner for a bracket slot.
+     * Stores pen scores and advances the winner in the bracket.
+     */
+    async setPenaltyWinner(req: Request) {
+        const { slotId, winnerId } = req.data;
+        const { BracketSlot, Team } = cds.entities('cnma.prediction');
+
+        const slot = await SELECT.one.from(BracketSlot).where({ ID: slotId });
+        if (!slot) return req.error(404, 'Bracket slot not found');
+        if (slot.winner_ID) return req.error(400, `Slot ${slot.label} already has a winner. Cannot override.`);
+
+        await UPDATE(BracketSlot).where({ ID: slotId }).set({
+            winner_ID: winnerId,
+            homePen: req.data.homePen ?? null,
+            awayPen: req.data.awayPen ?? null,
+        });
+        await this.advanceWinner(slot, winnerId);
+
+        const winner = await SELECT.one.from(Team).where({ ID: winnerId });
+        const penStr = (req.data.homePen != null && req.data.awayPen != null)
+            ? ` (${req.data.homePen}\u2013${req.data.awayPen} pens)`
+            : '';
+        return {
+            success: true,
+            message: `${winner?.name ?? winnerId} set as winner of ${slot.label} via penalty shootout${penStr} and advanced to next round.`,
         };
     }
 
@@ -397,9 +479,13 @@ export class AdminHandler {
 
         // Two-leg tie: both legs must be finished
         if (leg1?.status === 'finished' && leg2?.status === 'finished') {
-            // In CL two-leg: leg1 homeTeam = slot.homeTeam, leg2 homeTeam = slot.awayTeam
-            const homeAgg = (leg1.homeScore ?? 0) + (leg2.awayScore ?? 0);
-            const awayAgg = (leg1.awayScore ?? 0) + (leg2.homeScore ?? 0);
+            // Determine each team's goals per leg dynamically (don't assume leg1 homeTeam = slot homeTeam)
+            const leg1Home = leg1.homeTeam_ID === slot.homeTeam_ID ? (leg1.homeScore ?? 0) : (leg1.awayScore ?? 0);
+            const leg1Away = leg1.homeTeam_ID === slot.homeTeam_ID ? (leg1.awayScore ?? 0) : (leg1.homeScore ?? 0);
+            const leg2Home = leg2.homeTeam_ID === slot.homeTeam_ID ? (leg2.homeScore ?? 0) : (leg2.awayScore ?? 0);
+            const leg2Away = leg2.homeTeam_ID === slot.homeTeam_ID ? (leg2.awayScore ?? 0) : (leg2.homeScore ?? 0);
+            const homeAgg = leg1Home + leg2Home;
+            const awayAgg = leg1Away + leg2Away;
 
             let winnerId: string | null = null;
             if (homeAgg > awayAgg) {
@@ -550,7 +636,7 @@ export class AdminHandler {
      */
     async syncMatchResults(req: Request) {
         const { tournamentId, apiKey } = req.data;
-        const { Tournament, Match, Team } = cds.entities('cnma.prediction');
+        const { Tournament, Match, Team, BracketSlot } = cds.entities('cnma.prediction');
 
         if (!tournamentId) return req.error(400, 'tournamentId is required');
 
@@ -697,6 +783,28 @@ export class AdminHandler {
                     scored++;
                 } catch (_) {
                     // already finished or error — skip scoring
+                }
+
+                // Handle penalty shootout: auto-set bracket winner from penalty scores
+                const penHomeExt = ext.score?.penalties?.home ?? null;
+                const penAwayExt = ext.score?.penalties?.away ?? null;
+                if (penHomeExt !== null && penAwayExt !== null && penHomeExt !== penAwayExt && ourMatch.bracketSlot_ID) {
+                    try {
+                        const slot = await SELECT.one.from(BracketSlot).where({ ID: ourMatch.bracketSlot_ID });
+                        if (slot && !slot.winner_ID) {
+                            const winnerId = penHomeExt > penAwayExt ? ourMatch.homeTeam_ID : ourMatch.awayTeam_ID;
+                            if (winnerId) {
+                                await UPDATE(BracketSlot).where({ ID: slot.ID }).set({
+                                    winner_ID: winnerId,
+                                    homePen: penHomeExt,
+                                    awayPen: penAwayExt,
+                                });
+                                await this.advanceWinner(slot, winnerId);
+                            }
+                        }
+                    } catch (_) {
+                        // skip penalty bracket advancement if it fails
+                    }
                 }
             }
         }

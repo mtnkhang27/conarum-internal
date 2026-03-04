@@ -736,6 +736,8 @@ export class PredictionHandler {
                 leg2Status: leg2?.status ?? null,
                 homeAgg: slot.homeAgg ?? 0,
                 awayAgg: slot.awayAgg ?? 0,
+                homePen: slot.homePen ?? null,
+                awayPen: slot.awayPen ?? null,
                 winnerId: slot.winner_ID,
                 winnerName: winnerTeam?.name ?? '',
                 nextSlotId: slot.nextSlot_ID,

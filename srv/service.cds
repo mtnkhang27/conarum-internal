@@ -340,6 +340,8 @@ service PlayerService {
         leg2Status   : String;
         homeAgg      : Integer;
         awayAgg      : Integer;
+        homePen      : Integer;
+        awayPen      : Integer;
         winnerId     : UUID;
         winnerName   : String;
         nextSlotId   : UUID;
@@ -428,6 +430,12 @@ service AdminService {
 
     /** Enter match result and trigger scoring. */
     action enterMatchResult(matchId: UUID, homeScore: Integer, awayScore: Integer) returns MatchResultResponse;
+
+    /** Correct an already-finished match result. Re-scores predictions/bets and recalculates leaderboard. */
+    action correctMatchResult(matchId: UUID, homeScore: Integer, awayScore: Integer) returns MatchResultResponse;
+
+    /** Set the penalty shootout winner for a bracket slot. Stores pen scores and advances winner. */
+    action setPenaltyWinner(slotId: UUID, winnerId: UUID, homePen: Integer, awayPen: Integer) returns ActionResult;
 
     /** Force recalculate leaderboard rankings (all or by tournament). */
     action recalculateLeaderboard(tournamentId: UUID)                               returns ActionResult;

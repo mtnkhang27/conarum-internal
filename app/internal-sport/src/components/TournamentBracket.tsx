@@ -27,6 +27,8 @@ export interface BracketSlot {
     leg2Status: string | null;
     homeAgg: number;
     awayAgg: number;
+    homePen: number | null;
+    awayPen: number | null;
     winnerId: string | null;
     winnerName: string;
     nextSlotId: string | null;
@@ -63,6 +65,8 @@ function TeamRow({
     leg1Score,
     leg2Score,
     showLegs,
+    hasPen,
+    penScore,
 }: {
     name: string;
     crest: string;
@@ -72,6 +76,8 @@ function TeamRow({
     leg1Score: number | null;
     leg2Score: number | null;
     showLegs: boolean;
+    hasPen: boolean;
+    penScore: number | null;
 }) {
     return (
         <div
@@ -112,26 +118,31 @@ function TeamRow({
                 {isEmpty ? "TBD" : name}
             </span>
 
-            {/* Leg scores */}
-            {showLegs && (
-                <div className="flex gap-1 text-[10px] text-muted-foreground">
-                    <span className="w-4 text-center">
-                        {leg1Score !== null ? leg1Score : "-"}
+            {/* Scores: leg1 / leg2 / aggregate / pen */}
+            <div className="flex items-center gap-1">
+                {showLegs && (
+                    <>
+                        <span className="w-4 text-center text-[10px] text-muted-foreground">
+                            {leg1Score !== null ? leg1Score : "-"}
+                        </span>
+                        <span className="w-4 text-center text-[10px] text-muted-foreground">
+                            {leg2Score !== null ? leg2Score : "-"}
+                        </span>
+                    </>
+                )}
+                <span
+                    className={`w-5 text-center text-xs font-bold ${
+                        isWinner ? "text-emerald-400" : "text-white/70"
+                    }`}
+                >
+                    {isEmpty && agg === 0 ? "-" : agg}
+                </span>
+                {hasPen && (
+                    <span className="w-5 text-center text-[10px] font-semibold text-amber-400">
+                        {penScore !== null ? penScore : "-"}
                     </span>
-                    <span className="w-4 text-center">
-                        {leg2Score !== null ? leg2Score : "-"}
-                    </span>
-                </div>
-            )}
-
-            {/* Aggregate score */}
-            <span
-                className={`w-5 text-center text-xs font-bold ${
-                    isWinner ? "text-emerald-400" : "text-white/70"
-                }`}
-            >
-                {isEmpty && agg === 0 ? "-" : agg}
-            </span>
+                )}
+            </div>
         </div>
     );
 }
@@ -142,6 +153,7 @@ function SlotCard({ slot, showLegs }: { slot: BracketSlot; showLegs: boolean }) 
     const hasWinner = !!slot.winnerId;
     const homeIsWinner = hasWinner && slot.winnerId === slot.homeTeamId;
     const awayIsWinner = hasWinner && slot.winnerId === slot.awayTeamId;
+    const hasPen = slot.homePen !== null && slot.homePen !== undefined;
 
     return (
         <div
@@ -158,16 +170,18 @@ function SlotCard({ slot, showLegs }: { slot: BracketSlot; showLegs: boolean }) 
                 <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                     {slot.label}
                 </span>
-                {showLegs && (
-                    <div className="flex gap-1 text-[9px] text-muted-foreground/60">
-                        <span className="w-4 text-center">L1</span>
-                        <span className="w-4 text-center">L2</span>
-                        <span className="w-5 text-center">A</span>
-                    </div>
-                )}
-                {!showLegs && (
-                    <span className="w-5 text-center text-[9px] text-muted-foreground/60"></span>
-                )}
+                <div className="flex items-center gap-1 text-[9px] text-muted-foreground/60">
+                    {showLegs && (
+                        <>
+                            <span className="w-4 text-center">L1</span>
+                            <span className="w-4 text-center">L2</span>
+                        </>
+                    )}
+                    <span className="w-5 text-center">A</span>
+                    {hasPen && (
+                        <span className="w-5 text-center text-amber-400/70">P</span>
+                    )}
+                </div>
             </div>
 
             {/* Home team */}
@@ -180,6 +194,8 @@ function SlotCard({ slot, showLegs }: { slot: BracketSlot; showLegs: boolean }) 
                 leg1Score={slot.leg1HomeScore}
                 leg2Score={slot.leg2AwayScore}
                 showLegs={showLegs}
+                hasPen={hasPen}
+                penScore={hasPen ? (slot.homePen ?? null) : null}
             />
 
             {/* Divider */}
@@ -195,6 +211,8 @@ function SlotCard({ slot, showLegs }: { slot: BracketSlot; showLegs: boolean }) 
                 leg1Score={slot.leg1AwayScore}
                 leg2Score={slot.leg2HomeScore}
                 showLegs={showLegs}
+                hasPen={hasPen}
+                penScore={hasPen ? (slot.awayPen ?? null) : null}
             />
         </div>
     );

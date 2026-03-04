@@ -51,6 +51,7 @@ export interface AdminTournamentTeam {
     team_ID: string;
     groupName: string | null;
     isEliminated: boolean;
+    finalPosition: number | null;
     team?: AdminTeam;
     tournament?: AdminTournament;
 }
@@ -175,6 +176,20 @@ export interface AdminChampionPick {
     team_ID: string;
     tournament_ID: string;
     submittedAt: string | null;
+    isCorrect: boolean | null;
     player?: AdminPlayer;
     team?: AdminTeam;
+}
+
+export interface AdminPlayerTournamentStats {
+    ID: string;
+    player_ID: string;
+    tournament_ID: string;
+    totalPoints: number;
+    totalCorrect: number;
+    totalPredictions: number;
+    currentStreak: number;
+    bestStreak: number;
+    rank: number | null;
+    player?: AdminPlayer;
 }

@@ -262,6 +262,35 @@ export class AdminHandler {
         };
     }
 
+    /**
+     * Admin action: manually resolve champion picks for a tournament.
+     * Marks all champion picks as correct/incorrect based on the given champion team.
+     */
+    async resolveChampionPicksAction(req: Request) {
+        const { tournamentId, championTeamId } = req.data;
+        const { Tournament, ChampionPick } = cds.entities('cnma.prediction');
+
+        if (!tournamentId) return req.error(400, 'tournamentId is required');
+        if (!championTeamId) return req.error(400, 'championTeamId is required');
+
+        const tournament = await SELECT.one.from(Tournament).where({ ID: tournamentId });
+        if (!tournament) return req.error(404, 'Tournament not found');
+
+        const picks = await SELECT.from(ChampionPick).where({ tournament_ID: tournamentId });
+
+        let correctCount = 0;
+        for (const pick of picks) {
+            const correct = pick.team_ID === championTeamId;
+            if (correct) correctCount++;
+            await UPDATE(ChampionPick).where({ ID: pick.ID }).set({ isCorrect: correct });
+        }
+
+        return {
+            success: true,
+            message: `Champion picks resolved: ${correctCount} correct out of ${picks.length} total picks.`,
+        };
+    }
+
     // ── Helpers ──────────────────────────────────────────────
 
     /**
@@ -413,6 +442,9 @@ export class AdminHandler {
                 await UPDATE(TournamentTeam)
                     .where({ tournament_ID: slot.tournament_ID, team_ID: winnerId })
                     .set({ finalPosition: 1 });
+
+                // Resolve champion picks (UC3) — mark correct/incorrect
+                await this.resolveChampionPicks(slot.tournament_ID, winnerId);
             }
             if (loserId) {
                 await UPDATE(TournamentTeam)
@@ -483,6 +515,29 @@ export class AdminHandler {
                 }
             }
         }
+    }
+
+    /**
+     * Resolve champion picks for a tournament after the final is decided.
+     * Sets isCorrect=true for picks matching the champion team, false for others.
+     */
+    private async resolveChampionPicks(tournamentId: string, championTeamId: string) {
+        const { ChampionPick } = cds.entities('cnma.prediction');
+
+        const picks = await SELECT.from(ChampionPick)
+            .where({ tournament_ID: tournamentId });
+
+        for (const pick of picks) {
+            const correct = pick.team_ID === championTeamId;
+            await UPDATE(ChampionPick).where({ ID: pick.ID }).set({
+                isCorrect: correct,
+            });
+        }
+
+        console.log(
+            `Champion picks resolved for tournament ${tournamentId}: ` +
+            `${picks.filter((p: any) => p.team_ID === championTeamId).length} correct out of ${picks.length} total`
+        );
     }
 
     // ── External Sync ─────────────────────────────────────────
@@ -977,8 +1032,8 @@ export class AdminHandler {
             GROUP_STAGE:  'group',
             LAST_16:       'roundOf16',
             LAST_32:       'roundOf32',
-            QUARTER_FINAL: 'quarterFinal',
-            SEMI_FINAL:    'semiFinal',
+            QUARTER_FINALS: 'quarterFinal',
+            SEMI_FINALS:    'semiFinal',
             THIRD_PLACE:   'thirdPlace',
             FINAL:         'final',
             PLAY_OFF_ROUND:'playoff',
@@ -1015,15 +1070,25 @@ export class AdminHandler {
             DRAW: 'draw',
         };
 
+        // Knockout stages where TBD placeholder matches should be skipped
+        // (they are created on-demand when teams advance via advanceWinner)
+        const knockoutStageSet = new Set(['roundOf16', 'roundOf32', 'quarterFinal', 'semiFinal', 'final', 'playoff', 'thirdPlace']);
+
         let matchesImported = 0;
+        let matchesSkipped = 0;
         let finishedMatchesImported = 0;
         try {
             for (const apiMatch of apiMatches) {
                 const homeTeamId = apiMatch.homeTeam?.id ? teamIdMap.get(apiMatch.homeTeam.id) ?? null : null;
                 const awayTeamId = apiMatch.awayTeam?.id ? teamIdMap.get(apiMatch.awayTeam.id) ?? null : null;
+                const stage = stageMap[apiMatch.stage] ?? 'group';
 
-                // Skip matches whose teams are completely unknown (TBD placeholder from API)
-                // We allow null teams — they'll be resolved later via syncMatchResults
+                // Skip TBD knockout matches (both teams null) — these are created
+                // on-demand when teams advance through the bracket
+                if (!homeTeamId && !awayTeamId && knockoutStageSet.has(stage)) {
+                    matchesSkipped++;
+                    continue;
+                }
 
                 const matchStatus = statusMap[apiMatch.status] ?? 'upcoming';
                 const homeScore = apiMatch.score?.fullTime?.home ?? null;
@@ -1039,7 +1104,7 @@ export class AdminHandler {
                     awayTeam_ID:   awayTeamId,
                     kickoff:       apiMatch.utcDate ?? startDate,
                     venue:         apiMatch.venue ?? null,
-                    stage:         stageMap[apiMatch.stage] ?? 'group',
+                    stage,
                     status:        matchStatus,
                     matchday:      apiMatch.matchday ?? null,
                     externalId:    apiMatch.id,
@@ -1074,7 +1139,7 @@ export class AdminHandler {
 
         return {
             success: true,
-            message: `Tournament '${comp.name}' imported: ${teamsImported} new team(s), ${membersImported} member(s), ${matchesImported} match(es) (${finishedMatchesImported} finished), ${bracketSlotsCreated} bracket slot(s).`,
+            message: `Tournament '${comp.name}' imported: ${teamsImported} new team(s), ${membersImported} member(s), ${matchesImported} match(es) (${finishedMatchesImported} finished, ${matchesSkipped} TBD skipped), ${bracketSlotsCreated} bracket slot(s).`,
             tournamentId,
             teamsImported,
             membersImported,

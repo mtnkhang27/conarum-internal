@@ -5,6 +5,7 @@ import type {
     AdminTournament,
     AdminTournamentTeam,
     AdminPlayer,
+    AdminPlayerTournamentStats,
     MatchScoreBetConfig,
     ActionResult,
     MatchResultResponse,
@@ -186,6 +187,11 @@ export const tournamentActionsApi = {
         odata<ActionResult>("/lockChampionPredictions", {
             method: "POST",
             body: JSON.stringify({ tournamentId }),
+        }),
+    resolveChampionPicks: (tournamentId: string, championTeamId: string) =>
+        odata<ActionResult>("/resolveChampionPicks", {
+            method: "POST",
+            body: JSON.stringify({ tournamentId, championTeamId }),
         }),    lockBetting: (tournamentId: string, locked: boolean) =>
         odata<ActionResult>("/lockTournamentBetting", {
             method: "POST",
@@ -236,5 +242,14 @@ export const championPicksApi = {
     listByTournament: (tournamentId: string) =>
         odataList<AdminChampionPick>(
             `/AllChampionPicks?$filter=tournament_ID eq '${tournamentId}'&$expand=player,team&$orderby=submittedAt desc`
+        ),
+};
+
+// ── Player Tournament Stats (Admin read-only) ────────────────
+
+export const playerTournamentStatsApi = {
+    listByTournament: (tournamentId: string) =>
+        odataList<AdminPlayerTournamentStats>(
+            `/PlayerTournamentStats?$filter=tournament_ID eq '${tournamentId}'&$expand=player&$orderby=totalPoints desc`
         ),
 };

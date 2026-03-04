@@ -250,7 +250,7 @@ export function TeamManagement() {
                                 {selectedTournament !== "all" && (
                                     <>
                                         <th className="px-4 py-3">Position</th>
-                                        <th className="px-4 py-3">Status</th>
+                                        {/* <th className="px-4 py-3">Status</th> */}
                                     </>
                                 )}
                                 <th className="px-4 py-3">Actions</th>
@@ -308,7 +308,7 @@ export function TeamManagement() {
                                                 <td className="px-4 py-3 text-center font-mono text-muted-foreground">
                                                     {tt?.leaguePosition || "—"}
                                                 </td>
-                                                <td className="px-4 py-3">
+                                                {/* <td className="px-4 py-3">
                                                     <Badge
                                                         variant={
                                                             tt?.isEliminated
@@ -320,7 +320,7 @@ export function TeamManagement() {
                                                             ? `Eliminated (${tt.eliminatedAt || ""})`
                                                             : "Active"}
                                                     </Badge>
-                                                </td>
+                                                </td> */}
                                             </>
                                         )}
                                         <td className="px-4 py-3">

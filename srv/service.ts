@@ -51,6 +51,7 @@ export class AdminService extends cds.ApplicationService {
         this.on('enterMatchResult', this.adminHandler.enterMatchResult.bind(this.adminHandler));
         this.on('recalculateLeaderboard', this.adminHandler.recalculateLeaderboard.bind(this.adminHandler));
         this.on('lockChampionPredictions', this.adminHandler.lockChampionPredictions.bind(this.adminHandler));
+        this.on('resolveChampionPicks', this.adminHandler.resolveChampionPicksAction.bind(this.adminHandler));
         this.on('syncMatchResults', this.adminHandler.syncMatchResults.bind(this.adminHandler));
         this.on('lockMatchBetting', this.adminHandler.lockMatchBetting.bind(this.adminHandler));
         this.on('lockTournamentBetting', this.adminHandler.lockTournamentBetting.bind(this.adminHandler));

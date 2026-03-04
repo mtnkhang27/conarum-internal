@@ -8,6 +8,8 @@ import {
     AlertTriangle,
     Users,
     CheckCircle2,
+    Crown,
+    Award,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -18,10 +20,14 @@ import {
     tournamentsApi,
     tournamentActionsApi,
     championPicksApi,
+    playerTournamentStatsApi,
+    tournamentTeamsApi,
 } from "@/services/adminApi";
 import type {
     AdminTournament,
     AdminChampionPick,
+    AdminPlayerTournamentStats,
+    AdminTournamentTeam,
 } from "@/types/admin";
 
 function ConfigRow({
@@ -73,24 +79,35 @@ export function TournamentDetail() {
     const [championBettingStatus, setChampionBettingStatus] = useState<"open" | "locked">("open");
     const [championLockDate, setChampionLockDate] = useState<string | null>(null);
     const [championPicks, setChampionPicks] = useState<AdminChampionPick[]>([]);
-    const [loadingPicks, setLoadingPicks] = useState(false);
+    const [tournamentStats, setTournamentStats] = useState<AdminPlayerTournamentStats[]>([]);
+    const [tournamentTeams, setTournamentTeams] = useState<AdminTournamentTeam[]>([]);
     const isTournamentLocked = tournament?.status === "completed" || tournament?.status === "cancelled";
+
+    // Champion resolution state
+    const [selectedChampionTeam, setSelectedChampionTeam] = useState<string>("");
+    const [resolving, setResolving] = useState(false);
+
     const load = useCallback(async () => {
         if (!tournamentId) return;
         setLoading(true);
         try {
-            const [tournaments, picks] = await Promise.all([
+            const [tournaments, picks, stats, teams] = await Promise.all([
                 tournamentsApi.list(),
                 championPicksApi.listByTournament(tournamentId),
+                playerTournamentStatsApi.listByTournament(tournamentId),
+                tournamentTeamsApi.listByTournament(tournamentId),
             ]);
             const t = tournaments.find((t) => t.ID === tournamentId);
             setTournament(t ?? null);
             setChampionPicks(picks);
+            setTournamentStats(stats);
+            setTournamentTeams(teams);
 
             if (t) {
                 setOutcomePrize(t.outcomePrize ?? "iPhone 15 Pro Max");
                 setChampionPrizePool(t.championPrizePool ?? "iPhone 15 Pro Max 256GB");
-                setChampionBettingStatus(t.championBettingStatus ?? "open");                setChampionLockDate(t.championLockDate ?? null);
+                setChampionBettingStatus(t.championBettingStatus ?? "open");
+                setChampionLockDate(t.championLockDate ?? null);
             }
         } catch (e: any) {
             toast.error(e.message);
@@ -131,6 +148,27 @@ export function TournamentDetail() {
             toast.error(e.message);
         }
     }
+
+    async function handleResolveChampion() {
+        if (!tournamentId || !selectedChampionTeam) return;
+        setResolving(true);
+        try {
+            const res = await tournamentActionsApi.resolveChampionPicks(tournamentId, selectedChampionTeam);
+            toast.success(res.message);
+            load();
+        } catch (e: any) {
+            toast.error(e.message);
+        } finally {
+            setResolving(false);
+        }
+    }
+
+    // Derived data
+    const hasChampionResults = championPicks.some((p) => p.isCorrect != null);
+    const winners = championPicks.filter((p) => p.isCorrect === true);
+    const uc2Leader = tournamentStats.length > 0 ? tournamentStats[0] : null;
+    // Check if champion already resolved from bracket (TournamentTeam with finalPosition=1)
+    const championTeam = tournamentTeams.find((tt) => tt.finalPosition === 1);
 
     if (loading || !tournament) {
         return (
@@ -238,6 +276,43 @@ export function TournamentDetail() {
                         Champion Picks ({championPicks.length} total)
                     </h3>
 
+                    {/* Manual resolve champion (if not yet resolved) */}
+                    {!hasChampionResults && championPicks.length > 0 && championBettingStatus === "locked" && (
+                        <div className="mb-4 rounded-lg border border-blue-500/30 bg-blue-500/10 p-4">
+                            <p className="mb-2 text-sm text-blue-400">
+                                <strong>Resolve champion picks:</strong> Select the winning team and resolve all picks.
+                                {championTeam && (
+                                    <span className="ml-1">(Detected champion from bracket: <strong>{championTeam.team?.name}</strong>)</span>
+                                )}
+                            </p>
+                            <div className="flex items-center gap-2">
+                                <select
+                                    className="flex-1 rounded border border-border bg-surface-dark px-3 py-1.5 text-sm text-white"
+                                    value={selectedChampionTeam}
+                                    onChange={(e) => setSelectedChampionTeam(e.target.value)}
+                                >
+                                    <option value="">Select champion team…</option>
+                                    {tournamentTeams
+                                        .filter((tt) => tt.team)
+                                        .sort((a, b) => (a.team?.name ?? "").localeCompare(b.team?.name ?? ""))
+                                        .map((tt) => (
+                                            <option key={tt.team_ID} value={tt.team_ID}>
+                                                {tt.team?.name}
+                                            </option>
+                                        ))}
+                                </select>
+                                <Button
+                                    onClick={handleResolveChampion}
+                                    disabled={!selectedChampionTeam || resolving}
+                                    size="sm"
+                                >
+                                    <Crown className="mr-2 h-4 w-4" />
+                                    {resolving ? "Resolving…" : "Resolve"}
+                                </Button>
+                            </div>
+                        </div>
+                    )}
+
                     {championPicks.length === 0 ? (
                         <p className="py-6 text-center text-sm text-muted-foreground">
                             No champion picks submitted yet.
@@ -259,22 +334,19 @@ export function TournamentDetail() {
                                 }
                                 const sorted = [...byTeam.entries()].sort((a, b) => b[1].picks.length - a[1].picks.length);
 
-                                // Find winners (those whose isCorrect=true)
-                                const winners = championPicks.filter((p) => p.isCorrect === true);
-                                const hasResults = championPicks.some((p) => p.isCorrect != null);
-
                                 return (
                                     <div className="space-y-4">
-                                        {/* Winners banner */}
-                                        {hasResults && winners.length > 0 && (
+                                        {/* Winners banner (UC3) */}
+                                        {hasChampionResults && winners.length > 0 && (
                                             <div className="rounded-lg border border-green-500/30 bg-green-500/10 p-4">
                                                 <div className="mb-2 flex items-center gap-2 text-sm font-bold text-green-400">
                                                     <Trophy className="h-4 w-4" />
-                                                    {winners.length} Winner{winners.length !== 1 && "s"} — Prize: {championPrizePool}
+                                                    UC3 Champion Prize — {winners.length} Winner{winners.length !== 1 && "s"}
+                                                </div>
+                                                <div className="mb-2 text-xs text-green-400/80">
+                                                    Prize: <strong>{championPrizePool || "—"}</strong>
                                                     {winners.length > 1 && (
-                                                        <span className="ml-1 text-xs font-normal text-green-400/70">
-                                                            (split {winners.length} ways)
-                                                        </span>
+                                                        <span> (split {winners.length} ways)</span>
                                                     )}
                                                 </div>
                                                 <div className="flex flex-wrap gap-2">
@@ -290,7 +362,7 @@ export function TournamentDetail() {
                                             </div>
                                         )}
 
-                                        {hasResults && winners.length === 0 && (
+                                        {hasChampionResults && winners.length === 0 && (
                                             <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-400">
                                                 No correct champion picks.
                                             </div>
@@ -301,13 +373,20 @@ export function TournamentDetail() {
                                             {sorted.map(([teamId, { teamName, teamCrest, picks }]) => (
                                                 <div
                                                     key={teamId}
-                                                    className="rounded-lg border border-border bg-surface-dark p-3"
+                                                    className={`rounded-lg border p-3 ${
+                                                        hasChampionResults && picks[0]?.isCorrect === true
+                                                            ? "border-green-500/30 bg-green-500/5"
+                                                            : "border-border bg-surface-dark"
+                                                    }`}
                                                 >
                                                     <div className="mb-2 flex items-center gap-2">
                                                         {teamCrest && (
                                                             <img src={teamCrest} alt="" className="h-5 w-5 object-contain" />
                                                         )}
                                                         <span className="text-sm font-bold text-white">{teamName}</span>
+                                                        {hasChampionResults && picks[0]?.isCorrect === true && (
+                                                            <Crown className="h-3.5 w-3.5 text-yellow-400" />
+                                                        )}
                                                         <Badge variant="outline" className="ml-auto text-[10px]">
                                                             {picks.length}
                                                         </Badge>
@@ -332,6 +411,67 @@ export function TournamentDetail() {
                         </>
                     )}
                 </Card>
+
+                {/* ── UC2 Outcome Prediction Leaderboard Winner ────── */}
+                {tournamentStats.length > 0 && (
+                    <Card className="border-border bg-card p-5">
+                        <h3 className="mb-4 flex items-center gap-2 text-sm font-semibold uppercase text-muted-foreground">
+                            <Award className="h-4 w-4" />
+                            UC2 Outcome Prediction — Tournament Leaderboard
+                        </h3>
+
+                        {/* Winner banner */}
+                        {uc2Leader && (
+                            <div className="mb-4 rounded-lg border border-primary/30 bg-primary/10 p-4">
+                                <div className="mb-1 flex items-center gap-2 text-sm font-bold text-primary">
+                                    <Trophy className="h-4 w-4" />
+                                    UC2 Winner — Prize: {outcomePrize || "—"}
+                                </div>
+                                <div className="flex items-center gap-3 mt-2">
+                                    {uc2Leader.player?.avatarUrl && (
+                                        <img src={uc2Leader.player.avatarUrl} alt="" className="h-8 w-8 rounded-full object-cover" />
+                                    )}
+                                    <div>
+                                        <p className="text-sm font-semibold text-white">
+                                            {uc2Leader.player?.displayName ?? uc2Leader.player_ID}
+                                        </p>
+                                        <p className="text-xs text-muted-foreground">
+                                            {uc2Leader.totalPoints} pts · {uc2Leader.totalCorrect}/{uc2Leader.totalPredictions} correct
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Top players table */}
+                        <div className="space-y-1">
+                            {tournamentStats.slice(0, 10).map((s, idx) => (
+                                <div
+                                    key={s.ID}
+                                    className={`flex items-center gap-3 rounded px-3 py-2 text-sm ${
+                                        idx === 0 ? "bg-primary/5" : ""
+                                    }`}
+                                >
+                                    <span className={`w-6 text-center font-bold ${idx === 0 ? "text-primary" : "text-muted-foreground"}`}>
+                                        {idx + 1}
+                                    </span>
+                                    {s.player?.avatarUrl && (
+                                        <img src={s.player.avatarUrl} alt="" className="h-5 w-5 rounded-full object-cover" />
+                                    )}
+                                    <span className="flex-1 text-white">
+                                        {s.player?.displayName ?? s.player_ID}
+                                    </span>
+                                    <span className="text-xs text-muted-foreground">
+                                        {s.totalCorrect}/{s.totalPredictions}
+                                    </span>
+                                    <span className="w-16 text-right font-semibold text-white">
+                                        {s.totalPoints} pts
+                                    </span>
+                                </div>
+                            ))}
+                        </div>
+                    </Card>
+                )}
 
             </div>
         </div>

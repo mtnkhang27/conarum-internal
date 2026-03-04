@@ -435,6 +435,9 @@ service AdminService {
     /** Lock champion predictions for a specific tournament (UC3). */
     action lockChampionPredictions(tournamentId: UUID)                              returns ActionResult;
 
+    /** Resolve champion picks after final is decided — marks correct/incorrect picks. */
+    action resolveChampionPicks(tournamentId: UUID, championTeamId: UUID)           returns ActionResult;
+
     // ── Sync & Betting Lock ──────────────────────────────────
 
     type SyncMatchResult : ActionResult {

@@ -356,7 +356,7 @@ export function TournamentManagement() {
                                     >
                                         {/* Emblem */}
                                         {c.emblem ? (
-                                            <img src={c.emblem} alt={c.name} className="h-10 w-10 object-contain flex-shrink-0" />
+                                            <img src={c.emblem} alt={c.name} className="h-12 w-12 object-contain flex-shrink-0 bg-white p-2 rounded-sm" />
                                         ) : (
                                             <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-primary/20">
                                                 <Trophy className="h-5 w-5 text-primary" />

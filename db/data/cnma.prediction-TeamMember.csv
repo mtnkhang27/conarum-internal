@@ -1,1 +1,105 @@
 ID;team_ID;name;role;jerseyNumber;position;isCaptain;isActive
+d0000000-0001-4000-8000-000000000001;c1a7f9e2-3b4d-4f9a-8c1e-1a2b3c4d0001;Mikel Arteta;headCoach;;;false;true
+d0000000-0001-4000-8000-000000000002;c1a7f9e2-3b4d-4f9a-8c1e-1a2b3c4d0001;David Raya;player;1;GK;false;true
+d0000000-0001-4000-8000-000000000003;c1a7f9e2-3b4d-4f9a-8c1e-1a2b3c4d0001;William Saliba;player;2;CB;false;true
+d0000000-0001-4000-8000-000000000004;c1a7f9e2-3b4d-4f9a-8c1e-1a2b3c4d0001;Martin Ødegaard;captain;8;CM;true;true
+d0000000-0001-4000-8000-000000000005;c1a7f9e2-3b4d-4f9a-8c1e-1a2b3c4d0001;Bukayo Saka;player;7;RW;false;true
+d0000000-0001-4000-8000-000000000006;c1a7f9e2-3b4d-4f9a-8c1e-1a2b3c4d0001;Declan Rice;player;41;CM;false;true
+d0000000-0001-4000-8000-000000000007;c1a7f9e2-3b4d-4f9a-8c1e-1a2b3c4d0001;Kai Havertz;player;29;ST;false;true
+d0000000-0002-4000-8000-000000000001;c1a7f9e2-3b4d-4f9a-8c1e-1a2b3c4d0002;Vincent Kompany;headCoach;;;false;true
+d0000000-0002-4000-8000-000000000002;c1a7f9e2-3b4d-4f9a-8c1e-1a2b3c4d0002;Manuel Neuer;player;1;GK;false;true
+d0000000-0002-4000-8000-000000000003;c1a7f9e2-3b4d-4f9a-8c1e-1a2b3c4d0002;Joshua Kimmich;captain;6;CM;true;true
+d0000000-0002-4000-8000-000000000004;c1a7f9e2-3b4d-4f9a-8c1e-1a2b3c4d0002;Jamal Musiala;player;42;AM;false;true
+d0000000-0002-4000-8000-000000000005;c1a7f9e2-3b4d-4f9a-8c1e-1a2b3c4d0002;Harry Kane;player;9;ST;false;true
+d0000000-0002-4000-8000-000000000006;c1a7f9e2-3b4d-4f9a-8c1e-1a2b3c4d0002;Leroy Sané;player;10;RW;false;true
+d0000000-0003-4000-8000-000000000001;c1a7f9e2-3b4d-4f9a-8c1e-1a2b3c4d0003;Arne Slot;headCoach;;;false;true
+d0000000-0003-4000-8000-000000000002;c1a7f9e2-3b4d-4f9a-8c1e-1a2b3c4d0003;Alisson Becker;player;1;GK;false;true
+d0000000-0003-4000-8000-000000000003;c1a7f9e2-3b4d-4f9a-8c1e-1a2b3c4d0003;Virgil van Dijk;captain;4;CB;true;true
+d0000000-0003-4000-8000-000000000004;c1a7f9e2-3b4d-4f9a-8c1e-1a2b3c4d0003;Mohamed Salah;player;11;RW;false;true
+d0000000-0003-4000-8000-000000000005;c1a7f9e2-3b4d-4f9a-8c1e-1a2b3c4d0003;Alexis Mac Allister;player;10;CM;false;true
+d0000000-0003-4000-8000-000000000006;c1a7f9e2-3b4d-4f9a-8c1e-1a2b3c4d0003;Luis Díaz;player;7;LW;false;true
+d0000000-0005-4000-8000-000000000001;c1a7f9e2-3b4d-4f9a-8c1e-1a2b3c4d0005;Hansi Flick;headCoach;;;false;true
+d0000000-0005-4000-8000-000000000002;c1a7f9e2-3b4d-4f9a-8c1e-1a2b3c4d0005;Marc-André ter Stegen;player;1;GK;false;true
+d0000000-0005-4000-8000-000000000003;c1a7f9e2-3b4d-4f9a-8c1e-1a2b3c4d0005;Ronald Araújo;captain;4;CB;true;true
+d0000000-0005-4000-8000-000000000004;c1a7f9e2-3b4d-4f9a-8c1e-1a2b3c4d0005;Pedri;player;8;CM;false;true
+d0000000-0005-4000-8000-000000000005;c1a7f9e2-3b4d-4f9a-8c1e-1a2b3c4d0005;Lamine Yamal;player;19;RW;false;true
+d0000000-0005-4000-8000-000000000006;c1a7f9e2-3b4d-4f9a-8c1e-1a2b3c4d0005;Robert Lewandowski;player;9;ST;false;true
+d0000000-0008-4000-8000-000000000001;c1a7f9e2-3b4d-4f9a-8c1e-1a2b3c4d0008;Pep Guardiola;headCoach;;;false;true
+d0000000-0008-4000-8000-000000000002;c1a7f9e2-3b4d-4f9a-8c1e-1a2b3c4d0008;Ederson;player;31;GK;false;true
+d0000000-0008-4000-8000-000000000003;c1a7f9e2-3b4d-4f9a-8c1e-1a2b3c4d0008;Kyle Walker;captain;2;RB;true;true
+d0000000-0008-4000-8000-000000000004;c1a7f9e2-3b4d-4f9a-8c1e-1a2b3c4d0008;Kevin De Bruyne;player;17;CM;false;true
+d0000000-0008-4000-8000-000000000005;c1a7f9e2-3b4d-4f9a-8c1e-1a2b3c4d0008;Erling Haaland;player;9;ST;false;true
+d0000000-0008-4000-8000-000000000006;c1a7f9e2-3b4d-4f9a-8c1e-1a2b3c4d0008;Phil Foden;player;47;AM;false;true
+d0000000-0009-4000-8000-000000000001;c1a7f9e2-3b4d-4f9a-8c1e-1a2b3c4d0009;Arbeloa;headCoach;;;false;true
+d0000000-0009-4000-8000-000000000002;c1a7f9e2-3b4d-4f9a-8c1e-1a2b3c4d0009;Thibaut Courtois;player;1;GK;false;true
+d0000000-0009-4000-8000-000000000003;c1a7f9e2-3b4d-4f9a-8c1e-1a2b3c4d0009;Luka Modrić;captain;10;CM;true;true
+d0000000-0009-4000-8000-000000000004;c1a7f9e2-3b4d-4f9a-8c1e-1a2b3c4d0009;Vinícius Júnior;player;7;LW;false;true
+d0000000-0009-4000-8000-000000000005;c1a7f9e2-3b4d-4f9a-8c1e-1a2b3c4d0009;Jude Bellingham;player;5;AM;false;true
+d0000000-0009-4000-8000-000000000006;c1a7f9e2-3b4d-4f9a-8c1e-1a2b3c4d0009;Kylian Mbappé;player;9;ST;false;true
+d0000000-0010-4000-8000-000000000001;c1a7f9e2-3b4d-4f9a-8c1e-1a2b3c4d0010;Cristian Chivu;headCoach;;;false;true
+d0000000-0010-4000-8000-000000000002;c1a7f9e2-3b4d-4f9a-8c1e-1a2b3c4d0010;Yann Sommer;player;1;GK;false;true
+d0000000-0010-4000-8000-000000000003;c1a7f9e2-3b4d-4f9a-8c1e-1a2b3c4d0010;Lautaro Martínez;captain;10;ST;true;true
+d0000000-0010-4000-8000-000000000004;c1a7f9e2-3b4d-4f9a-8c1e-1a2b3c4d0010;Nicolò Barella;player;23;CM;false;true
+d0000000-0010-4000-8000-000000000005;c1a7f9e2-3b4d-4f9a-8c1e-1a2b3c4d0010;Hakan Çalhanoğlu;player;20;CM;false;true
+d0000000-0011-4000-8000-000000000001;c1a7f9e2-3b4d-4f9a-8c1e-1a2b3c4d0011;Luis Enrique;headCoach;;;false;true
+d0000000-0011-4000-8000-000000000002;c1a7f9e2-3b4d-4f9a-8c1e-1a2b3c4d0011;Gianluigi Donnarumma;player;99;GK;false;true
+d0000000-0011-4000-8000-000000000003;c1a7f9e2-3b4d-4f9a-8c1e-1a2b3c4d0011;Marquinhos;captain;5;CB;true;true
+d0000000-0011-4000-8000-000000000004;c1a7f9e2-3b4d-4f9a-8c1e-1a2b3c4d0011;Ousmane Dembélé;player;10;RW;false;true
+d0000000-0011-4000-8000-000000000005;c1a7f9e2-3b4d-4f9a-8c1e-1a2b3c4d0011;Bradley Barcola;player;29;LW;false;true
+d0000000-0013-4000-8000-000000000001;c1a7f9e2-3b4d-4f9a-8c1e-1a2b3c4d0013;Luciano Spalletti;headCoach;;;false;true
+d0000000-0013-4000-8000-000000000002;c1a7f9e2-3b4d-4f9a-8c1e-1a2b3c4d0013;Wojciech Szczęsny;player;1;GK;false;true
+d0000000-0013-4000-8000-000000000003;c1a7f9e2-3b4d-4f9a-8c1e-1a2b3c4d0013;Danilo;captain;6;CB;true;true
+d0000000-0013-4000-8000-000000000004;c1a7f9e2-3b4d-4f9a-8c1e-1a2b3c4d0013;Dušan Vlahović;player;9;ST;false;true
+d0000000-0013-4000-8000-000000000005;c1a7f9e2-3b4d-4f9a-8c1e-1a2b3c4d0013;Federico Chiesa;player;7;RW;false;true
+d0000000-0014-4000-8000-000000000001;c1a7f9e2-3b4d-4f9a-8c1e-1a2b3c4d0014;Diego Simeone;headCoach;;;false;true
+d0000000-0014-4000-8000-000000000002;c1a7f9e2-3b4d-4f9a-8c1e-1a2b3c4d0014;Jan Oblak;player;13;GK;false;true
+d0000000-0014-4000-8000-000000000003;c1a7f9e2-3b4d-4f9a-8c1e-1a2b3c4d0014;Koke;captain;6;CM;true;true
+d0000000-0014-4000-8000-000000000004;c1a7f9e2-3b4d-4f9a-8c1e-1a2b3c4d0014;Antoine Griezmann;player;7;ST;false;true
+d0000000-0014-4000-8000-000000000005;c1a7f9e2-3b4d-4f9a-8c1e-1a2b3c4d0014;Julián Álvarez;player;19;ST;false;true
+d0000000-0017-4000-8000-000000000001;c1a7f9e2-3b4d-4f9a-8c1e-1a2b3c4d0017;Niko Kovać;headCoach;;;false;true
+d0000000-0017-4000-8000-000000000002;c1a7f9e2-3b4d-4f9a-8c1e-1a2b3c4d0017;Gregor Kobel;player;1;GK;false;true
+d0000000-0017-4000-8000-000000000003;c1a7f9e2-3b4d-4f9a-8c1e-1a2b3c4d0017;Emre Can;captain;23;CM;true;true
+d0000000-0017-4000-8000-000000000004;c1a7f9e2-3b4d-4f9a-8c1e-1a2b3c4d0017;Marco Reus;player;11;AM;false;true
+d0000000-0017-4000-8000-000000000005;c1a7f9e2-3b4d-4f9a-8c1e-1a2b3c4d0017;Donyell Malen;player;21;ST;false;true
+d0000000-0016-4000-8000-000000000001;c1a7f9e2-3b4d-4f9a-8c1e-1a2b3c4d0016;Kasper Hjulmand;headCoach;;;false;true
+d0000000-0016-4000-8000-000000000002;c1a7f9e2-3b4d-4f9a-8c1e-1a2b3c4d0016;Lukáš Hrádecký;player;1;GK;false;true
+d0000000-0016-4000-8000-000000000003;c1a7f9e2-3b4d-4f9a-8c1e-1a2b3c4d0016;Granit Xhaka;captain;34;CM;true;true
+d0000000-0016-4000-8000-000000000004;c1a7f9e2-3b4d-4f9a-8c1e-1a2b3c4d0016;Florian Wirtz;player;10;AM;false;true
+d0000000-0016-4000-8000-000000000005;c1a7f9e2-3b4d-4f9a-8c1e-1a2b3c4d0016;Victor Boniface;player;14;ST;false;true
+d0000000-0006-4000-8000-000000000001;c1a7f9e2-3b4d-4f9a-8c1e-1a2b3c4d0006;Liam Rosenior;headCoach;;;false;true
+d0000000-0006-4000-8000-000000000002;c1a7f9e2-3b4d-4f9a-8c1e-1a2b3c4d0006;Robert Sánchez;player;1;GK;false;true
+d0000000-0006-4000-8000-000000000003;c1a7f9e2-3b4d-4f9a-8c1e-1a2b3c4d0006;Reece James;captain;24;RB;true;true
+d0000000-0006-4000-8000-000000000004;c1a7f9e2-3b4d-4f9a-8c1e-1a2b3c4d0006;Cole Palmer;player;20;AM;false;true
+d0000000-0006-4000-8000-000000000005;c1a7f9e2-3b4d-4f9a-8c1e-1a2b3c4d0006;Nicolas Jackson;player;15;ST;false;true
+d0000000-0015-4000-8000-000000000001;c1a7f9e2-3b4d-4f9a-8c1e-1a2b3c4d0015;Raffaele Palladino;headCoach;;;false;true
+d0000000-0015-4000-8000-000000000002;c1a7f9e2-3b4d-4f9a-8c1e-1a2b3c4d0015;Marco Carnesecchi;player;29;GK;false;true
+d0000000-0015-4000-8000-000000000003;c1a7f9e2-3b4d-4f9a-8c1e-1a2b3c4d0015;Marten de Roon;captain;15;CM;true;true
+d0000000-0015-4000-8000-000000000004;c1a7f9e2-3b4d-4f9a-8c1e-1a2b3c4d0015;Ademola Lookman;player;11;ST;false;true
+d0000000-0004-4000-8000-000000000001;c1a7f9e2-3b4d-4f9a-8c1e-1a2b3c4d0004;Igor Tudor;headCoach;;;false;true
+d0000000-0004-4000-8000-000000000002;c1a7f9e2-3b4d-4f9a-8c1e-1a2b3c4d0004;Guglielmo Vicario;player;13;GK;false;true
+d0000000-0004-4000-8000-000000000003;c1a7f9e2-3b4d-4f9a-8c1e-1a2b3c4d0004;Son Heung-min;captain;7;ST;true;true
+d0000000-0004-4000-8000-000000000004;c1a7f9e2-3b4d-4f9a-8c1e-1a2b3c4d0004;James Maddison;player;10;AM;false;true
+d0000000-0007-4000-8000-000000000001;c1a7f9e2-3b4d-4f9a-8c1e-1a2b3c4d0007;Rui Borges;headCoach;;;false;true
+d0000000-0007-4000-8000-000000000002;c1a7f9e2-3b4d-4f9a-8c1e-1a2b3c4d0007;Rui Silva;player;1;GK;false;true
+d0000000-0007-4000-8000-000000000003;c1a7f9e2-3b4d-4f9a-8c1e-1a2b3c4d0007;Gonçalo Inácio;player;25;CB;false;true
+d0000000-0007-4000-8000-000000000004;c1a7f9e2-3b4d-4f9a-8c1e-1a2b3c4d0007;Morten Hjulmand;captain;6;CM;true;true
+d0000000-0007-4000-8000-000000000005;c1a7f9e2-3b4d-4f9a-8c1e-1a2b3c4d0007;Pedro Gonçalves;player;28;AM;false;true
+d0000000-0007-4000-8000-000000000006;c1a7f9e2-3b4d-4f9a-8c1e-1a2b3c4d0007;Viktor Gyökeres;player;9;ST;false;true
+d0000000-0012-4000-8000-000000000001;c1a7f9e2-3b4d-4f9a-8c1e-1a2b3c4d0012;Eddie Howe;headCoach;;;false;true
+d0000000-0012-4000-8000-000000000002;c1a7f9e2-3b4d-4f9a-8c1e-1a2b3c4d0012;Nick Pope;player;22;GK;false;true
+d0000000-0012-4000-8000-000000000003;c1a7f9e2-3b4d-4f9a-8c1e-1a2b3c4d0012;Sven Botman;player;4;CB;false;true
+d0000000-0012-4000-8000-000000000004;c1a7f9e2-3b4d-4f9a-8c1e-1a2b3c4d0012;Bruno Guimarães;captain;39;CM;true;true
+d0000000-0012-4000-8000-000000000005;c1a7f9e2-3b4d-4f9a-8c1e-1a2b3c4d0012;Anthony Gordon;player;10;LW;false;true
+d0000000-0012-4000-8000-000000000006;c1a7f9e2-3b4d-4f9a-8c1e-1a2b3c4d0012;Alexander Isak;player;14;ST;false;true
+d0000000-0020-4000-8000-000000000001;c1a7f9e2-3b4d-4f9a-8c1e-1a2b3c4d0020;Okan Buruk;headCoach;;;false;true
+d0000000-0020-4000-8000-000000000002;c1a7f9e2-3b4d-4f9a-8c1e-1a2b3c4d0020;Uğurcan Çakır;player;1;GK;false;true
+d0000000-0020-4000-8000-000000000003;c1a7f9e2-3b4d-4f9a-8c1e-1a2b3c4d0020;Davinson Sánchez;player;6;CB;false;true
+d0000000-0020-4000-8000-000000000004;c1a7f9e2-3b4d-4f9a-8c1e-1a2b3c4d0020;Lucas Torreira;captain;34;CM;true;true
+d0000000-0020-4000-8000-000000000005;c1a7f9e2-3b4d-4f9a-8c1e-1a2b3c4d0020;Victor Osimhen;player;45;ST;false;true
+d0000000-0020-4000-8000-000000000006;c1a7f9e2-3b4d-4f9a-8c1e-1a2b3c4d0020;Mauro Icardi;player;9;ST;false;true
+d0000000-0023-4000-8000-000000000001;c1a7f9e2-3b4d-4f9a-8c1e-1a2b3c4d0023;Kjetil Knutsen;headCoach;;;false;true
+d0000000-0023-4000-8000-000000000002;c1a7f9e2-3b4d-4f9a-8c1e-1a2b3c4d0023;Nikita Haikin;player;1;GK;false;true
+d0000000-0023-4000-8000-000000000003;c1a7f9e2-3b4d-4f9a-8c1e-1a2b3c4d0023;Fredrik Bjørkan;player;5;CB;false;true
+d0000000-0023-4000-8000-000000000004;c1a7f9e2-3b4d-4f9a-8c1e-1a2b3c4d0023;Patrick Berg;captain;6;CM;true;true
+d0000000-0023-4000-8000-000000000005;c1a7f9e2-3b4d-4f9a-8c1e-1a2b3c4d0023;Ulrik Saltnes;player;8;CM;false;true
+d0000000-0023-4000-8000-000000000006;c1a7f9e2-3b4d-4f9a-8c1e-1a2b3c4d0023;Kasper Høgh;player;11;ST;false;true

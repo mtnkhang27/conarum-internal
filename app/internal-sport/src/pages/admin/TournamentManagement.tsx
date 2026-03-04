@@ -316,12 +316,12 @@ export function TournamentManagement() {
                                 className="pl-9"
                             />
                         </div>
-                        <Input
+                        {/* <Input
                             placeholder="API key (optional)"
                             value={importApiKey}
                             onChange={(e) => setImportApiKey(e.target.value)}
                             className="w-52"
-                        />
+                        /> */}
                         <Button variant="outline" size="icon"
                             title="Refresh competition list"
                             onClick={() => fetchCompetitions(importApiKey)}

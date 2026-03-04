@@ -757,12 +757,26 @@ export class AdminHandler {
 
         if (!externalCode) return req.error(400, 'externalCode is required');
 
-        const { Tournament, Team, TournamentTeam, Match } = cds.entities('cnma.prediction');
+        const { Tournament, Team, TournamentTeam, Match, BracketSlot, TeamMember } = cds.entities('cnma.prediction');
 
-        // 1. Guard: prevent duplicate import
+        // 1. Guard: prevent duplicate import and check for orphaned data
         const existing = await SELECT.one.from(Tournament).where({ externalCode });
         if (existing) {
-            return req.error(409, `A tournament with code '${externalCode}' already exists (ID: ${existing.ID})`);
+            return req.error(409, `A tournament with code '${externalCode}' already exists (ID: ${existing.ID}). Use syncMatchResults to update existing tournament data.`);
+        }
+
+        // Check for orphaned TournamentTeam records that might cause conflicts
+        const allTournamentIds = await SELECT.from(Tournament).columns('ID');
+        const tournamentIdSet = new Set(allTournamentIds.map(t => t.ID));
+        
+        const allTournamentTeams = await SELECT.from(TournamentTeam);
+        const orphanedTeams = allTournamentTeams.filter(tt => !tournamentIdSet.has(tt.tournament_ID));
+        
+        if (orphanedTeams.length > 0) {
+            console.warn(`Found ${orphanedTeams.length} orphaned TournamentTeam records that will be cleaned up.`);
+            for (const orphan of orphanedTeams) {
+                await DELETE.from(TournamentTeam).where({ ID: orphan.ID });
+            }
         }
 
         // Helper: fetch from API
@@ -796,17 +810,21 @@ export class AdminHandler {
 
         // 4. Create Tournament — pre-generate UUID for reliable ID access
         const tournamentId: string = cds.utils.uuid();
-        await INSERT.into(Tournament).entries({
-            ID: tournamentId,
-            name: comp.name,
-            startDate,
-            endDate,
-            status: 'upcoming',
-            format,
-            hasGroupStage,
-            externalCode,
-            season: seasonLabel,
-        });
+        try {
+            await INSERT.into(Tournament).entries({
+                ID: tournamentId,
+                name: comp.name,
+                startDate,
+                endDate,
+                status: 'upcoming',
+                format,
+                hasGroupStage,
+                externalCode,
+                season: seasonLabel,
+            });
+        } catch (err: any) {
+            return req.error(500, `Failed to create tournament: ${err.message}`);
+        }
 
         // 5. Fetch teams
         let apiTeams: any[] = [];
@@ -815,66 +833,123 @@ export class AdminHandler {
             apiTeams = teamsData.teams ?? [];
         } catch (_) { /* no teams available yet — continue */ }
 
-        // 6. Fetch standings for group assignments (best-effort)
+        // 6. Fetch standings for group assignments & league positions (best-effort)
         const groupByTeamId = new Map<number, string>();
+        const leaguePositionByTeamId = new Map<number, number>();
+        let standingsData: any = null;
         try {
-            const standingsData = await apiFetch(`/competitions/${externalCode}/standings`);
+            standingsData = await apiFetch(`/competitions/${externalCode}/standings`);
             for (const standing of standingsData.standings ?? []) {
                 const raw: string = standing.group ?? '';
                 // e.g. 'GROUP_A' or 'Group A' → 'A'
                 const group = raw.replace(/^(GROUP_|Group\s+)/i, '').trim();
-                if (group.length === 1) {
-                    for (const row of standing.table ?? []) {
-                        if (row.team?.id) groupByTeamId.set(row.team.id, group);
+                for (const row of standing.table ?? []) {
+                    if (row.team?.id) {
+                        if (row.position != null) {
+                            leaguePositionByTeamId.set(row.team.id, row.position);
+                        }
+                        if (group.length === 1) {
+                            groupByTeamId.set(row.team.id, group);
+                        }
                     }
                 }
             }
         } catch (_) { /* standings not available yet */ }
 
-        // 7. Upsert teams & create TournamentTeam links
+        // 7. Upsert teams, create TournamentTeam links & import team members
         let teamsImported = 0;
+        let membersImported = 0;
         const teamIdMap = new Map<number, string>(); // external ID → internal UUID
 
         const allTeams = await SELECT.from(Team).columns('ID', 'crest', 'tla');
         const teamByCrest = new Map<string, string>(allTeams.filter((t: any) => t.crest).map((t: any) => [t.crest, t.ID]));
         const teamByTla   = new Map<string, string>(allTeams.filter((t: any) => t.tla).map((t: any) => [t.tla,   t.ID]));
 
-        for (const apiTeam of apiTeams) {
-            let internalId: string | undefined;
+        try {
+            for (const apiTeam of apiTeams) {
+                let internalId: string | undefined;
 
-            // Lookup by crest first, then by TLA
-            if (apiTeam.crest && teamByCrest.has(apiTeam.crest)) {
-                internalId = teamByCrest.get(apiTeam.crest)!;
-            } else if (apiTeam.tla && teamByTla.has(apiTeam.tla)) {
-                internalId = teamByTla.get(apiTeam.tla)!;
+                // Lookup by crest first, then by TLA
+                if (apiTeam.crest && teamByCrest.has(apiTeam.crest)) {
+                    internalId = teamByCrest.get(apiTeam.crest)!;
+                } else if (apiTeam.tla && teamByTla.has(apiTeam.tla)) {
+                    internalId = teamByTla.get(apiTeam.tla)!;
+                }
+
+                if (!internalId) {
+                    // Create new team — pre-generate UUID
+                    const areaCode: string = (apiTeam.area?.code ?? 'XX').toLowerCase().substring(0, 5);
+                    const newTeamId = cds.utils.uuid();
+                    await INSERT.into(Team).entries({
+                        ID: newTeamId,
+                        name: apiTeam.name,
+                        shortName: apiTeam.shortName ?? apiTeam.name,
+                        tla: apiTeam.tla ?? null,
+                        crest: apiTeam.crest ?? null,
+                        flagCode: areaCode,
+                    });
+                    internalId = newTeamId;
+                    if (apiTeam.crest)  teamByCrest.set(apiTeam.crest, internalId!);
+                    if (apiTeam.tla)    teamByTla.set(apiTeam.tla, internalId!);
+                    teamsImported++;
+                }
+
+                teamIdMap.set(apiTeam.id, internalId!);
+
+                // Check if TournamentTeam association already exists before inserting
+                const existingTournamentTeam = await SELECT.one.from(TournamentTeam)
+                    .where({ tournament_ID: tournamentId, team_ID: internalId! });
+
+                if (!existingTournamentTeam) {
+                    const groupName = groupByTeamId.get(apiTeam.id) ?? null;
+                    const leaguePosition = leaguePositionByTeamId.get(apiTeam.id) ?? null;
+                    await INSERT.into(TournamentTeam).entries({
+                        tournament_ID: tournamentId,
+                        team_ID: internalId!,
+                        groupName,
+                        leaguePosition,
+                    });
+                }
+
+                // Import team members (coach + squad)
+                const existingMembers = await SELECT.from(TeamMember)
+                    .where({ team_ID: internalId! })
+                    .columns('name');
+                const existingMemberNames = new Set(existingMembers.map((m: any) => m.name));
+
+                // Import coach
+                if (apiTeam.coach?.name && !existingMemberNames.has(apiTeam.coach.name)) {
+                    await INSERT.into(TeamMember).entries({
+                        team_ID: internalId!,
+                        name: apiTeam.coach.name,
+                        role: 'headCoach',
+                        dateOfBirth: apiTeam.coach.dateOfBirth ?? null,
+                    });
+                    existingMemberNames.add(apiTeam.coach.name);
+                    membersImported++;
+                }
+
+                // Import squad players
+                for (const squadMember of (apiTeam.squad ?? [])) {
+                    if (!squadMember.name || existingMemberNames.has(squadMember.name)) continue;
+                    existingMemberNames.add(squadMember.name);
+
+                    await INSERT.into(TeamMember).entries({
+                        team_ID: internalId!,
+                        name: squadMember.name,
+                        role: 'player',
+                        position: squadMember.position ?? null,
+                        dateOfBirth: squadMember.dateOfBirth ?? null,
+                    });
+                    membersImported++;
+                }
             }
-
-            if (!internalId) {
-                // Create new team — pre-generate UUID
-                const areaCode: string = (apiTeam.area?.code ?? 'XX').toLowerCase().substring(0, 5);
-                const newTeamId = cds.utils.uuid();
-                await INSERT.into(Team).entries({
-                    ID: newTeamId,
-                    name: apiTeam.name,
-                    shortName: apiTeam.shortName ?? apiTeam.name,
-                    tla: apiTeam.tla ?? null,
-                    crest: apiTeam.crest ?? null,
-                    flagCode: areaCode,
-                });
-                internalId = newTeamId;
-                if (apiTeam.crest)  teamByCrest.set(apiTeam.crest, internalId!);
-                if (apiTeam.tla)    teamByTla.set(apiTeam.tla, internalId!);
-                teamsImported++;
-            }
-
-            teamIdMap.set(apiTeam.id, internalId!);
-
-            const groupName = groupByTeamId.get(apiTeam.id) ?? null;
-            await INSERT.into(TournamentTeam).entries({
-                tournament_ID: tournamentId,
-                team_ID: internalId!,
-                groupName,
-            });
+        } catch (err: any) {
+            // Clean up partially created tournament on team import failure
+            console.error('Team import failed, cleaning up tournament:', err);
+            await DELETE.from(Tournament).where({ ID: tournamentId });
+            await DELETE.from(TournamentTeam).where({ tournament_ID: tournamentId });
+            return req.error(500, `Team import failed: ${err.message}`);
         }
 
         // 8. Fetch & create matches
@@ -914,35 +989,299 @@ export class AdminHandler {
             apiMatches = matchesData.matches ?? [];
         } catch (_) { /* no matches available */ }
 
+        // Outcome mapping for finished matches
+        const outcomeMap: Record<string, string> = {
+            HOME_TEAM: 'home',
+            AWAY_TEAM: 'away',
+            DRAW: 'draw',
+        };
+
         let matchesImported = 0;
-        for (const apiMatch of apiMatches) {
-            const homeTeamId = apiMatch.homeTeam?.id ? teamIdMap.get(apiMatch.homeTeam.id) ?? null : null;
-            const awayTeamId = apiMatch.awayTeam?.id ? teamIdMap.get(apiMatch.awayTeam.id) ?? null : null;
+        let finishedMatchesImported = 0;
+        try {
+            for (const apiMatch of apiMatches) {
+                const homeTeamId = apiMatch.homeTeam?.id ? teamIdMap.get(apiMatch.homeTeam.id) ?? null : null;
+                const awayTeamId = apiMatch.awayTeam?.id ? teamIdMap.get(apiMatch.awayTeam.id) ?? null : null;
 
-            // Skip matches whose teams are completely unknown (TBD placeholder from API)
-            // We allow null teams — they'll be resolved later via syncMatchResults
+                // Skip matches whose teams are completely unknown (TBD placeholder from API)
+                // We allow null teams — they'll be resolved later via syncMatchResults
 
-            await INSERT.into(Match).entries({
-                tournament_ID: tournamentId,
-                homeTeam_ID:   homeTeamId,
-                awayTeam_ID:   awayTeamId,
-                kickoff:       apiMatch.utcDate ?? startDate,
-                venue:         apiMatch.venue ?? null,
-                stage:         stageMap[apiMatch.stage] ?? 'group',
-                status:        statusMap[apiMatch.status] ?? 'upcoming',
-                matchday:      apiMatch.matchday ?? null,
-                externalId:    apiMatch.id,
-            });
-            matchesImported++;
+                const matchStatus = statusMap[apiMatch.status] ?? 'upcoming';
+                const homeScore = apiMatch.score?.fullTime?.home ?? null;
+                const awayScore = apiMatch.score?.fullTime?.away ?? null;
+                const isFinished = matchStatus === 'finished' && homeScore !== null && awayScore !== null;
+                const outcome = isFinished
+                    ? (outcomeMap[apiMatch.score?.winner] ?? ScoringEngine.determineOutcome(homeScore, awayScore))
+                    : null;
+
+                await INSERT.into(Match).entries({
+                    tournament_ID: tournamentId,
+                    homeTeam_ID:   homeTeamId,
+                    awayTeam_ID:   awayTeamId,
+                    kickoff:       apiMatch.utcDate ?? startDate,
+                    venue:         apiMatch.venue ?? null,
+                    stage:         stageMap[apiMatch.stage] ?? 'group',
+                    status:        matchStatus,
+                    matchday:      apiMatch.matchday ?? null,
+                    externalId:    apiMatch.id,
+                    homeScore,
+                    awayScore,
+                    outcome,
+                });
+                matchesImported++;
+                if (isFinished) finishedMatchesImported++;
+            }
+        } catch (err: any) {
+            console.error('Match import failed:', err);
+            // Don't clean up tournament here as teams are already created
+            // Just log the error and continue with partial import
+            console.warn(`Match import partially failed: ${err.message}. Tournament created with teams but some matches may be missing.`);
+        }
+
+        // 9. Create bracket slots from knockout matches (CL-like tournaments)
+        let bracketSlotsCreated = 0;
+        const knockoutStages = ['roundOf16', 'quarterFinal', 'semiFinal', 'final', 'playoff', 'roundOf32'];
+        const isKnockoutFormat = ['knockout', 'groupKnockout', 'cup'].includes(format);
+
+        if (isKnockoutFormat && matchesImported > 0) {
+            try {
+                bracketSlotsCreated = await this._createBracketFromMatches(
+                    tournamentId, knockoutStages, format
+                );
+            } catch (err: any) {
+                console.warn(`Bracket creation failed: ${err.message}. Tournament imported without bracket.`);
+            }
         }
 
         return {
             success: true,
-            message: `Tournament '${comp.name}' imported: ${teamsImported} new team(s), ${matchesImported} match(es) created.`,
+            message: `Tournament '${comp.name}' imported: ${teamsImported} new team(s), ${membersImported} member(s), ${matchesImported} match(es) (${finishedMatchesImported} finished), ${bracketSlotsCreated} bracket slot(s).`,
             tournamentId,
             teamsImported,
+            membersImported,
             matchesImported,
+            finishedMatchesImported,
+            bracketSlotsCreated,
         };
+    }
+
+    /**
+     * Create bracket slots from knockout-stage matches already imported for this tournament.
+     * Groups two-leg matches into ties, creates BracketSlot entries, and links the bracket tree.
+     *
+     * Bracket tree pairing: R16-1 & R16-2 → QF-1, R16-3 & R16-4 → QF-2, etc.
+     * NOTE: This default sequential pairing may not match the actual draw for tournaments
+     * like the Champions League. Once QF/SF matches appear via syncMatchResults, the
+     * bracket can be validated/corrected by matching team IDs.
+     */
+    private async _createBracketFromMatches(
+        tournamentId: string,
+        knockoutStages: string[],
+        format: string
+    ): Promise<number> {
+        const { Match, BracketSlot } = cds.entities('cnma.prediction');
+
+        // Fetch all matches for this tournament
+        const allMatches = await SELECT.from(Match).where({ tournament_ID: tournamentId });
+
+        // Filter knockout matches
+        const knockoutMatches = allMatches.filter((m: any) => knockoutStages.includes(m.stage));
+        if (knockoutMatches.length === 0) return 0;
+
+        // Group by stage
+        const matchesByStage = new Map<string, any[]>();
+        for (const m of knockoutMatches) {
+            if (!matchesByStage.has(m.stage)) matchesByStage.set(m.stage, []);
+            matchesByStage.get(m.stage)!.push(m);
+        }
+
+        /**
+         * Pair two-leg matches into ties.
+         * A tie consists of two matches with the same two teams (home/away swapped).
+         * Returns ties sorted by first-leg kickoff date.
+         */
+        const createTiesFromMatches = (
+            matches: any[]
+        ): { leg1: any; leg2: any | null; homeTeamId: string | null; awayTeamId: string | null }[] => {
+            const ties: { leg1: any; leg2: any | null; homeTeamId: string | null; awayTeamId: string | null }[] = [];
+            const used = new Set<string>();
+
+            // Sort by date so leg1 is always the earlier match
+            matches.sort((a: any, b: any) => new Date(a.kickoff).getTime() - new Date(b.kickoff).getTime());
+
+            for (let i = 0; i < matches.length; i++) {
+                if (used.has(matches[i].ID)) continue;
+                const m1 = matches[i];
+                let paired = false;
+
+                // Look for matching return leg (teams swapped)
+                for (let j = i + 1; j < matches.length; j++) {
+                    if (used.has(matches[j].ID)) continue;
+                    const m2 = matches[j];
+
+                    if (
+                        m1.homeTeam_ID && m1.awayTeam_ID &&
+                        m1.homeTeam_ID === m2.awayTeam_ID &&
+                        m1.awayTeam_ID === m2.homeTeam_ID
+                    ) {
+                        used.add(m1.ID);
+                        used.add(m2.ID);
+                        ties.push({
+                            leg1: m1,
+                            leg2: m2,
+                            homeTeamId: m1.homeTeam_ID,
+                            awayTeamId: m1.awayTeam_ID,
+                        });
+                        paired = true;
+                        break;
+                    }
+                }
+
+                if (!paired) {
+                    used.add(m1.ID);
+                    ties.push({
+                        leg1: m1,
+                        leg2: null,
+                        homeTeamId: m1.homeTeam_ID ?? null,
+                        awayTeamId: m1.awayTeam_ID ?? null,
+                    });
+                }
+            }
+
+            return ties;
+        };
+
+        // Define stages in bracket order
+        const stageOrder = ['roundOf32', 'roundOf16', 'quarterFinal', 'semiFinal', 'final']
+            .filter(s => knockoutStages.includes(s));
+        const stageLabels: Record<string, string> = {
+            roundOf32: 'R32',
+            roundOf16: 'R16',
+            quarterFinal: 'QF',
+            semiFinal: 'SF',
+            final: 'Final',
+            playoff: 'PO',
+        };
+        const expectedTiesPerStage: Record<string, number> = {
+            roundOf32: 16,
+            roundOf16: 8,
+            quarterFinal: 4,
+            semiFinal: 2,
+            final: 1,
+        };
+
+        // Create bracket slots for each stage
+        const bracketSlotsByStage = new Map<string, string[]>(); // stage → slot IDs
+        let totalCreated = 0;
+
+        for (const stage of stageOrder) {
+            const stageMatches = matchesByStage.get(stage) ?? [];
+            const ties = stageMatches.length > 0 ? createTiesFromMatches(stageMatches) : [];
+
+            // Use actual tie count or expected count, whichever is larger
+            // (create placeholder slots for stages where matches don't exist yet)
+            const numTies = ties.length > 0 ? ties.length : (expectedTiesPerStage[stage] ?? 0);
+
+            // Only create placeholder slots for stages that logically follow existing ones
+            // e.g., if we have R16 matches, also create QF/SF/Final placeholders
+            const hasEarlierStage = stageOrder.some(
+                (s, idx) => idx < stageOrder.indexOf(stage) && (matchesByStage.get(s)?.length ?? 0) > 0
+            );
+            if (ties.length === 0 && !hasEarlierStage && stage !== 'final') continue;
+
+            const slotIds: string[] = [];
+
+            for (let pos = 1; pos <= numTies; pos++) {
+                const tie = ties[pos - 1] ?? null;
+                const slotId = cds.utils.uuid();
+
+                const slotData: Record<string, any> = {
+                    ID: slotId,
+                    tournament_ID: tournamentId,
+                    stage,
+                    position: pos,
+                    label: stage === 'final' ? 'Final' : `${stageLabels[stage] ?? stage}-${pos}`,
+                };
+
+                if (tie) {
+                    slotData.homeTeam_ID = tie.homeTeamId ?? null;
+                    slotData.awayTeam_ID = tie.awayTeamId ?? null;
+                    slotData.leg1_ID = tie.leg1.ID;
+                    if (tie.leg2) slotData.leg2_ID = tie.leg2.ID;
+
+                    // Compute aggregate scores for finished legs
+                    // In two-leg: homeAgg = leg1.homeScore + leg2.awayScore
+                    //             awayAgg = leg1.awayScore + leg2.homeScore
+                    let homeAgg = 0;
+                    let awayAgg = 0;
+                    let hasScore = false;
+
+                    if (tie.leg1.status === 'finished' && tie.leg1.homeScore != null) {
+                        homeAgg += tie.leg1.homeScore ?? 0;
+                        awayAgg += tie.leg1.awayScore ?? 0;
+                        hasScore = true;
+                    }
+                    if (tie.leg2?.status === 'finished' && tie.leg2.homeScore != null) {
+                        // leg2 home is tie's away team, leg2 away is tie's home team
+                        awayAgg += tie.leg2.homeScore ?? 0;
+                        homeAgg += tie.leg2.awayScore ?? 0;
+                        hasScore = true;
+                    }
+
+                    if (hasScore) {
+                        slotData.homeAgg = homeAgg;
+                        slotData.awayAgg = awayAgg;
+                    }
+
+                    // Determine winner if both legs finished (or single-leg tie)
+                    const bothFinished = tie.leg2
+                        ? (tie.leg1.status === 'finished' && tie.leg2.status === 'finished')
+                        : (tie.leg1.status === 'finished');
+                    if (bothFinished && hasScore) {
+                        if (homeAgg > awayAgg) {
+                            slotData.winner_ID = tie.homeTeamId;
+                        } else if (awayAgg > homeAgg) {
+                            slotData.winner_ID = tie.awayTeamId;
+                        }
+                        // Tied aggregate → admin decides (penalties)
+                    }
+                }
+
+                await INSERT.into(BracketSlot).entries(slotData);
+                slotIds.push(slotId);
+                totalCreated++;
+
+                // Link matches back to their bracket slot
+                if (tie) {
+                    await UPDATE(Match).where({ ID: tie.leg1.ID }).set({ bracketSlot_ID: slotId, leg: 1 });
+                    if (tie.leg2) {
+                        await UPDATE(Match).where({ ID: tie.leg2.ID }).set({ bracketSlot_ID: slotId, leg: 2 });
+                    }
+                }
+            }
+
+            bracketSlotsByStage.set(stage, slotIds);
+        }
+
+        // Link bracket tree: each pair of slots in a stage feeds into the next stage
+        // R16-1 & R16-2 → QF-1, R16-3 & R16-4 → QF-2, etc.
+        for (let si = 0; si < stageOrder.length - 1; si++) {
+            const currentStage = stageOrder[si];
+            const nextStage = stageOrder[si + 1];
+            const currentSlots = bracketSlotsByStage.get(currentStage) ?? [];
+            const nextSlots = bracketSlotsByStage.get(nextStage) ?? [];
+
+            for (let i = 0; i < currentSlots.length && Math.floor(i / 2) < nextSlots.length; i++) {
+                const nextSlotId = nextSlots[Math.floor(i / 2)];
+                const side: string = (i % 2 === 0) ? 'home' : 'away';
+                await UPDATE(BracketSlot).where({ ID: currentSlots[i] }).set({
+                    nextSlot_ID: nextSlotId,
+                    nextSlotSide: side,
+                });
+            }
+        }
+
+        return totalCreated;
     }
 
     /** Determine tournament format from football-data.org competition type and code. */

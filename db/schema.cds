@@ -135,11 +135,11 @@ entity Tournament : cuid, managed {
     bracket        : Composition of many BracketSlot
                          on bracket.tournament = $self;
     // ── UC2: Outcome Prediction Prize (single prize description) ──
-    outcomePrize : String(200) default 'iPhone 15 Pro Max';
+    outcomePrize : String(200) default '';
     // ── UC3: Champion Prediction Config & Prize Pool ──
     championBettingStatus : BettingStatus default 'open';
     championLockDate      : Date;
-    championPrizePool     : String(200) default 'iPhone 15 Pro Max 256GB';
+    championPrizePool     : String(200) default '';
     // ── External Sync ──
     externalCode   : String(20); // football-data.org competition code, e.g., 'CL', 'WC'
     // ── Betting Lock (admin-controlled) ──

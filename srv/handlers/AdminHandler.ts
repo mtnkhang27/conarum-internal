@@ -861,19 +861,38 @@ export class AdminHandler {
         let membersImported = 0;
         const teamIdMap = new Map<number, string>(); // external ID → internal UUID
 
-        const allTeams = await SELECT.from(Team).columns('ID', 'crest', 'tla');
+        const allTeams = await SELECT.from(Team).columns('ID', 'name', 'shortName', 'crest', 'tla');
         const teamByCrest = new Map<string, string>(allTeams.filter((t: any) => t.crest).map((t: any) => [t.crest, t.ID]));
         const teamByTla   = new Map<string, string>(allTeams.filter((t: any) => t.tla).map((t: any) => [t.tla,   t.ID]));
+
+        // Pre-detect ambiguous TLAs in this import batch to avoid collisions
+        // (e.g., FCB is used by both FC Barcelona and FC Bayern München)
+        const apiTlaCounts = new Map<string, number>();
+        for (const apiTeam of apiTeams) {
+            if (apiTeam.tla) apiTlaCounts.set(apiTeam.tla, (apiTlaCounts.get(apiTeam.tla) ?? 0) + 1);
+        }
 
         try {
             for (const apiTeam of apiTeams) {
                 let internalId: string | undefined;
 
-                // Lookup by crest first, then by TLA
+                // Lookup by crest first (unique), then by TLA (with collision guard)
                 if (apiTeam.crest && teamByCrest.has(apiTeam.crest)) {
                     internalId = teamByCrest.get(apiTeam.crest)!;
                 } else if (apiTeam.tla && teamByTla.has(apiTeam.tla)) {
-                    internalId = teamByTla.get(apiTeam.tla)!;
+                    // Skip TLA matching if multiple teams in this batch share the same TLA
+                    if ((apiTlaCounts.get(apiTeam.tla) ?? 0) <= 1) {
+                        const candidateId = teamByTla.get(apiTeam.tla)!;
+                        const candidate = allTeams.find((t: any) => t.ID === candidateId);
+                        // Verify by name: at least one significant word (>2 chars) must overlap
+                        // to prevent cross-team TLA matches (e.g., Bayern ≠ Barcelona despite both FCB)
+                        const apiWords = new Set<string>((apiTeam.name ?? '').toLowerCase().split(/\s+/));
+                        const dbWords = new Set<string>((candidate?.name ?? '').toLowerCase().split(/\s+/));
+                        const hasWordOverlap = Array.from(apiWords).some(w => w.length > 2 && dbWords.has(w));
+                        if (hasWordOverlap) {
+                            internalId = candidateId;
+                        }
+                    }
                 }
 
                 if (!internalId) {
@@ -1069,10 +1088,10 @@ export class AdminHandler {
      * Create bracket slots from knockout-stage matches already imported for this tournament.
      * Groups two-leg matches into ties, creates BracketSlot entries, and links the bracket tree.
      *
-     * Bracket tree pairing: R16-1 & R16-2 → QF-1, R16-3 & R16-4 → QF-2, etc.
-     * NOTE: This default sequential pairing may not match the actual draw for tournaments
-     * like the Champions League. Once QF/SF matches appear via syncMatchResults, the
-     * bracket can be validated/corrected by matching team IDs.
+     * Bracket ordering uses externalId (from football-data.org) to preserve the actual
+     * bracket structure. Team-based cross-referencing is then used when next-stage matches
+     * have known team assignments to correctly link the bracket tree. Sequential pairing
+     * (by externalId order) is used as a fallback for stages where teams are still TBD.
      */
     private async _createBracketFromMatches(
         tournamentId: string,
@@ -1098,16 +1117,19 @@ export class AdminHandler {
         /**
          * Pair two-leg matches into ties.
          * A tie consists of two matches with the same two teams (home/away swapped).
-         * Returns ties sorted by first-leg kickoff date.
-         */
+     * Ties are sorted by minimum externalId to preserve the bracket ordering
+     * from football-data.org (externalId follows bracket structure).
+     * Within each tie, leg1 is the earlier kickoff (first leg).
+     */
         const createTiesFromMatches = (
             matches: any[]
         ): { leg1: any; leg2: any | null; homeTeamId: string | null; awayTeamId: string | null }[] => {
             const ties: { leg1: any; leg2: any | null; homeTeamId: string | null; awayTeamId: string | null }[] = [];
             const used = new Set<string>();
 
-            // Sort by date so leg1 is always the earlier match
-            matches.sort((a: any, b: any) => new Date(a.kickoff).getTime() - new Date(b.kickoff).getTime());
+            // Sort by externalId (API match ID) to preserve bracket ordering
+            // The football-data.org API assigns IDs that follow the bracket structure
+            matches.sort((a: any, b: any) => (a.externalId ?? 0) - (b.externalId ?? 0));
 
             for (let i = 0; i < matches.length; i++) {
                 if (used.has(matches[i].ID)) continue;
@@ -1126,11 +1148,14 @@ export class AdminHandler {
                     ) {
                         used.add(m1.ID);
                         used.add(m2.ID);
+                        // Determine leg1 (earlier kickoff) and leg2 (later kickoff)
+                        const [leg1, leg2] = new Date(m1.kickoff).getTime() <= new Date(m2.kickoff).getTime()
+                            ? [m1, m2] : [m2, m1];
                         ties.push({
-                            leg1: m1,
-                            leg2: m2,
-                            homeTeamId: m1.homeTeam_ID,
-                            awayTeamId: m1.awayTeam_ID,
+                            leg1,
+                            leg2,
+                            homeTeamId: leg1.homeTeam_ID,
+                            awayTeamId: leg1.awayTeam_ID,
                         });
                         paired = true;
                         break;
@@ -1147,6 +1172,13 @@ export class AdminHandler {
                     });
                 }
             }
+
+            // Sort ties by minimum externalId of their legs to preserve bracket ordering
+            ties.sort((a, b) => {
+                const aId = Math.min(a.leg1.externalId ?? Infinity, a.leg2?.externalId ?? Infinity);
+                const bId = Math.min(b.leg1.externalId ?? Infinity, b.leg2?.externalId ?? Infinity);
+                return aId - bId;
+            });
 
             return ties;
         };
@@ -1170,8 +1202,9 @@ export class AdminHandler {
             final: 1,
         };
 
-        // Create bracket slots for each stage
+        // Create bracket slots for each stage, keeping track of ties per stage for cross-referencing
         const bracketSlotsByStage = new Map<string, string[]>(); // stage → slot IDs
+        const tiesByStage = new Map<string, { leg1: any; leg2: any | null; homeTeamId: string | null; awayTeamId: string | null }[]>();
         let totalCreated = 0;
 
         for (const stage of stageOrder) {
@@ -1189,6 +1222,7 @@ export class AdminHandler {
             );
             if (ties.length === 0 && !hasEarlierStage && stage !== 'final') continue;
 
+            tiesByStage.set(stage, ties);
             const slotIds: string[] = [];
 
             for (let pos = 1; pos <= numTies; pos++) {
@@ -1263,21 +1297,63 @@ export class AdminHandler {
             bracketSlotsByStage.set(stage, slotIds);
         }
 
-        // Link bracket tree: each pair of slots in a stage feeds into the next stage
-        // R16-1 & R16-2 → QF-1, R16-3 & R16-4 → QF-2, etc.
+        // Link bracket tree: use team-based cross-referencing when next-stage ties
+        // have known teams, fall back to sequential pairing (now correct due to externalId ordering).
+        // This ensures the bracket matches the actual draw (e.g., PSG/Chelsea → QF-1 with
+        // Galatasaray/Liverpool, not with Atalanta/Bayern).
         for (let si = 0; si < stageOrder.length - 1; si++) {
             const currentStage = stageOrder[si];
             const nextStage = stageOrder[si + 1];
             const currentSlots = bracketSlotsByStage.get(currentStage) ?? [];
             const nextSlots = bracketSlotsByStage.get(nextStage) ?? [];
+            const currentTies = tiesByStage.get(currentStage) ?? [];
+            const nextTies = tiesByStage.get(nextStage) ?? [];
 
-            for (let i = 0; i < currentSlots.length && Math.floor(i / 2) < nextSlots.length; i++) {
-                const nextSlotId = nextSlots[Math.floor(i / 2)];
-                const side: string = (i % 2 === 0) ? 'home' : 'away';
-                await UPDATE(BracketSlot).where({ ID: currentSlots[i] }).set({
-                    nextSlot_ID: nextSlotId,
-                    nextSlotSide: side,
-                });
+            // Try team-based matching: for each next-stage tie that has known teams,
+            // find the current-stage tie whose teams match and link them correctly.
+            const linkedSlots = new Map<string, { nextSlotId: string; side: string }>();
+
+            for (let ni = 0; ni < nextSlots.length && ni < nextTies.length; ni++) {
+                const nextTie = nextTies[ni];
+                const nextSlotId = nextSlots[ni];
+
+                // Collect teams known in this next-stage tie
+                const nextHomeTeam = nextTie.homeTeamId ?? nextTie.leg1.homeTeam_ID ?? null;
+                const nextAwayTeam = nextTie.awayTeamId ?? nextTie.leg1.awayTeam_ID ?? null;
+
+                // Find current-stage slots whose teams match the next-stage home/away
+                for (let ci = 0; ci < currentSlots.length && ci < currentTies.length; ci++) {
+                    if (linkedSlots.has(currentSlots[ci])) continue;
+                    const currentTie = currentTies[ci];
+                    const currentTeams = new Set<string>();
+                    if (currentTie.homeTeamId) currentTeams.add(currentTie.homeTeamId);
+                    if (currentTie.awayTeamId) currentTeams.add(currentTie.awayTeamId);
+
+                    if (nextHomeTeam && currentTeams.has(nextHomeTeam)) {
+                        linkedSlots.set(currentSlots[ci], { nextSlotId, side: 'home' });
+                    } else if (nextAwayTeam && currentTeams.has(nextAwayTeam)) {
+                        linkedSlots.set(currentSlots[ci], { nextSlotId, side: 'away' });
+                    }
+                }
+            }
+
+            // Apply team-based links, then sequential fallback for unmatched slots
+            for (let i = 0; i < currentSlots.length; i++) {
+                const link = linkedSlots.get(currentSlots[i]);
+                if (link) {
+                    await UPDATE(BracketSlot).where({ ID: currentSlots[i] }).set({
+                        nextSlot_ID: link.nextSlotId,
+                        nextSlotSide: link.side,
+                    });
+                } else if (Math.floor(i / 2) < nextSlots.length) {
+                    // Sequential fallback (based on externalId order, which follows the bracket)
+                    const nextSlotId = nextSlots[Math.floor(i / 2)];
+                    const side: string = (i % 2 === 0) ? 'home' : 'away';
+                    await UPDATE(BracketSlot).where({ ID: currentSlots[i] }).set({
+                        nextSlot_ID: nextSlotId,
+                        nextSlotSide: side,
+                    });
+                }
             }
         }
 

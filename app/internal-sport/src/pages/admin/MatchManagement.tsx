@@ -97,6 +97,13 @@ export function MatchManagement() {
     const [resultMatch, setResultMatch] = useState<AdminMatch | null>(null);
     const [resultHome, setResultHome] = useState("");
     const [resultAway, setResultAway] = useState("");
+    const [isCorrection, setIsCorrection] = useState(false);
+
+    // Penalty winner dialog
+    const [penaltyDialogOpen, setPenaltyDialogOpen] = useState(false);
+    const [penaltyMatch, setPenaltyMatch] = useState<AdminMatch | null>(null);
+    const [penHome, setPenHome] = useState("");
+    const [penAway, setPenAway] = useState("");
 
     // Sync dialog
     const [syncDialogOpen, setSyncDialogOpen] = useState(false);
@@ -173,8 +180,17 @@ export function MatchManagement() {
 
     function openResult(match: AdminMatch) {
         setResultMatch(match);
+        setIsCorrection(false);
         setResultHome("");
         setResultAway("");
+        setResultDialogOpen(true);
+    }
+
+    function openCorrectResult(match: AdminMatch) {
+        setResultMatch(match);
+        setIsCorrection(true);
+        setResultHome(String(match.homeScore ?? ""));
+        setResultAway(String(match.awayScore ?? ""));
         setResultDialogOpen(true);
     }
 
@@ -219,13 +235,30 @@ export function MatchManagement() {
     async function handleEnterResult() {
         if (!resultMatch) return;
         try {
-            const res = await matchesApi.enterResult(
-                resultMatch.ID,
-                parseInt(resultHome),
-                parseInt(resultAway)
-            );
+            const res = isCorrection
+                ? await matchesApi.correctResult(resultMatch.ID, parseInt(resultHome), parseInt(resultAway))
+                : await matchesApi.enterResult(resultMatch.ID, parseInt(resultHome), parseInt(resultAway));
             toast.success(res.message);
             setResultDialogOpen(false);
+            load();
+        } catch (e: any) {
+            toast.error(e.message);
+        }
+    }
+
+    async function handleSetPenaltyWinner() {
+        if (!penaltyMatch?.bracketSlot_ID) return;
+        const h = parseInt(penHome);
+        const a = parseInt(penAway);
+        if (isNaN(h) || isNaN(a)) { toast.error("Please enter valid penalty scores."); return; }
+        if (h === a) { toast.error("Penalty scores cannot be equal \u2014 there must be a winner."); return; }
+        const winnerId = h > a ? penaltyMatch.homeTeam_ID : penaltyMatch.awayTeam_ID;
+        try {
+            const res = await matchesApi.setPenaltyWinner(penaltyMatch.bracketSlot_ID, winnerId, h, a);
+            toast.success(res.message);
+            setPenaltyDialogOpen(false);
+            setPenHome("");
+            setPenAway("");
             load();
         } catch (e: any) {
             toast.error(e.message);
@@ -492,6 +525,18 @@ export function MatchManagement() {
                                                         Enter Result
                                                     </DropdownMenuItem>
                                                 )}
+                                                {m.status === "finished" && (
+                                                    <DropdownMenuItem onClick={() => openCorrectResult(m)}>
+                                                        <Edit className="mr-2 h-4 w-4" />
+                                                        Correct Result
+                                                    </DropdownMenuItem>
+                                                )}
+                                                {m.status === "finished" && m.bracketSlot_ID && (
+                                                    <DropdownMenuItem onClick={() => { setPenaltyMatch(m); setPenHome(""); setPenAway(""); setPenaltyDialogOpen(true); }}>
+                                                        <Trophy className="mr-2 h-4 w-4 text-amber-400" />
+                                                        Penalty Shootout
+                                                    </DropdownMenuItem>
+                                                )}
                                                 {m.status !== "finished" && (
                                                     <>
                                                         <DropdownMenuSeparator />
@@ -668,11 +713,11 @@ export function MatchManagement() {
                 </DialogContent>
             </Dialog>
 
-            {/* Enter Result Dialog */}
+            {/* Enter / Correct Result Dialog */}
             <Dialog open={resultDialogOpen} onOpenChange={setResultDialogOpen}>
                 <DialogContent className="border-border bg-card text-white sm:max-w-sm">
                     <DialogHeader>
-                        <DialogTitle>Enter Match Result</DialogTitle>
+                        <DialogTitle>{isCorrection ? "Correct Match Result" : "Enter Match Result"}</DialogTitle>
                     </DialogHeader>
                     {resultMatch && (
                         <div className="space-y-4 py-4">
@@ -681,6 +726,11 @@ export function MatchManagement() {
                                 vs{" "}
                                 {resultMatch.awayTeam?.name || teamName(resultMatch.awayTeam_ID)}
                             </p>
+                            {isCorrection && (
+                                <p className="text-center text-xs text-amber-400">
+                                    ⚠ Predictions and score bets will be re-scored, and the leaderboard will be recalculated.
+                                </p>
+                            )}
                             <div className="flex items-center justify-center gap-4">
                                 <div className="space-y-1 text-center">
                                     <label className="text-xs text-muted-foreground">Home</label>
@@ -721,7 +771,57 @@ export function MatchManagement() {
                             onClick={handleEnterResult}
                             disabled={resultHome === "" || resultAway === ""}
                         >
-                            Submit Result
+                            {isCorrection ? "Save Correction" : "Submit Result"}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* Penalty Shootout Dialog */}
+            <Dialog open={penaltyDialogOpen} onOpenChange={(o) => { if (!o) { setPenHome(""); setPenAway(""); } setPenaltyDialogOpen(o); }}>
+                <DialogContent className="border-border bg-card text-white sm:max-w-sm">
+                    <DialogHeader>
+                        <DialogTitle>Penalty Shootout Result</DialogTitle>
+                    </DialogHeader>
+                    {penaltyMatch && (
+                        <div className="space-y-5 py-4">
+                            <p className="text-center text-xs text-amber-400">
+                                ⚠ Only applicable when aggregate is level and no winner is set yet.
+                            </p>
+                            <div className="flex items-end justify-center gap-3">
+                                <div className="space-y-1 text-center">
+                                    <label className="text-xs text-muted-foreground">{penaltyMatch.homeTeam?.name || teamName(penaltyMatch.homeTeam_ID)}</label>
+                                    <input
+                                        type="number" min="0" max="99"
+                                        className="w-20 rounded border border-border bg-card text-center text-lg text-white"
+                                        value={penHome}
+                                        onChange={(e) => setPenHome(e.target.value)}
+                                        placeholder="0"
+                                    />
+                                </div>
+                                <span className="mb-2 text-sm text-muted-foreground">–</span>
+                                <div className="space-y-1 text-center">
+                                    <label className="text-xs text-muted-foreground">{penaltyMatch.awayTeam?.name || teamName(penaltyMatch.awayTeam_ID)}</label>
+                                    <input
+                                        type="number" min="0" max="99"
+                                        className="w-20 rounded border border-border bg-card text-center text-lg text-white"
+                                        value={penAway}
+                                        onChange={(e) => setPenAway(e.target.value)}
+                                        placeholder="0"
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => { setPenHome(""); setPenAway(""); setPenaltyDialogOpen(false); }}>
+                            Cancel
+                        </Button>
+                        <Button
+                            disabled={penHome === "" || penAway === ""}
+                            onClick={handleSetPenaltyWinner}
+                        >
+                            Confirm
                         </Button>
                     </DialogFooter>
                 </DialogContent>

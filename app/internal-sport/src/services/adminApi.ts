@@ -15,6 +15,7 @@ import type {
     AdminPrediction,
     AdminScoreBet,
     AdminChampionPick,
+    AdminBracketSlot,
 } from "@/types/admin";
 
 // ── Helpers ────────────────────────────────────────────────
@@ -68,11 +69,28 @@ export const matchesApi = {
             method: "POST",
             body: JSON.stringify({ matchId, homeScore, awayScore }),
         }),
+    correctResult: (matchId: string, homeScore: number, awayScore: number) =>
+        odata<MatchResultResponse>("/correctMatchResult", {
+            method: "POST",
+            body: JSON.stringify({ matchId, homeScore, awayScore }),
+        }),
+    setPenaltyWinner: (slotId: string, winnerId: string, homePen: number, awayPen: number) =>
+        odata<ActionResult>("/setPenaltyWinner", {
+            method: "POST",
+            body: JSON.stringify({ slotId, winnerId, homePen, awayPen }),
+        }),
     lockBetting: (matchId: string, locked: boolean) =>
         odata<ActionResult>("/lockMatchBetting", {
             method: "POST",
             body: JSON.stringify({ matchId, locked }),
         }),
+};
+
+// ── Bracket Slots (admin fetch) ──────────────────────────────────────
+
+export const bracketSlotsApi = {
+    get: (id: string) =>
+        odata<AdminBracketSlot>(`/BracketSlots('${id}')`),
 };
 
 // ── Match Score Bet Config ─────────────────────────────────

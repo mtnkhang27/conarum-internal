@@ -389,6 +389,9 @@ entity BracketSlot : cuid, managed {
     // ── Aggregate scores ──
     homeAgg       : Integer default 0;                    // aggregate score home team
     awayAgg       : Integer default 0;                    // aggregate score away team
+    // ── Penalties (null if not needed) ──
+    homePen       : Integer;                              // home team penalty goals
+    awayPen       : Integer;                              // away team penalty goals
     // ── Result ──
     winner        : Association to Team;                  // resolved after tie is decided
     // ── Bracket tree ──

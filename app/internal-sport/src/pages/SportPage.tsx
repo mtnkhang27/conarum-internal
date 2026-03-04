@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { useLocation } from "react-router-dom";
-import { MatchCard } from "@/components/MatchCard";
+import { MatchPredictionTable } from "@/components/MatchPredictionTable";
 import { LiveMatchesTable } from "@/components/LiveMatchesTable";
 import { CompletedMatchesTable } from "@/components/CompletedMatchesTable";
 import { TournamentSelector } from "@/components/TournamentSelector";
@@ -183,7 +183,7 @@ export function SportPage() {
                         subtitle="Pick the winner for each upcoming match. Use the cards below to submit your prediction."
                     />
 
-                    {/* Available match cards */}
+                    {/* Available match table */}
                     {loadingMatches ? (
                         <div className="flex h-48 items-center justify-center text-muted-foreground">
                             Loading matches…
@@ -193,11 +193,7 @@ export function SportPage() {
                             No upcoming matches available for prediction.
                         </p>
                     ) : (
-                        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
-                            {matches.map((match) => (
-                                <MatchCard key={match.id} match={match} onPredictionChange={refreshAll} />
-                            ))}
-                        </div>
+                        <MatchPredictionTable matches={matches} onPredictionChange={refreshAll} />
                     )}
 
                     {/* Live matches */}

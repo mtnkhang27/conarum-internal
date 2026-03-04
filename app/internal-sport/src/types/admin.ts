@@ -39,6 +39,10 @@ export interface AdminTournament {
     championBettingStatus: "open" | "locked";
     championLockDate: string | null;
     championPrizePool: string;
+    // External sync
+    externalCode: string | null;  // football-data.org code e.g. 'CL'
+    // Betting lock
+    bettingLocked: boolean;
 }
 
 export interface AdminTournamentTeam {
@@ -70,6 +74,10 @@ export interface AdminMatch {
     awayScore: number | null;
     outcome: "home" | "draw" | "away" | null;
     scoreBetConfig?: MatchScoreBetConfig[];
+    // External sync
+    externalId: number | null; // football-data.org match ID
+    // Betting lock
+    bettingLocked: boolean;
 }
 
 export interface AdminPlayer {
@@ -107,4 +115,47 @@ export interface ActionResult {
 export interface MatchResultResponse extends ActionResult {
     predictionsScored: number;
     scoreBetsScored: number;
+}
+
+export interface SyncMatchResult extends ActionResult {
+    synced: number;
+    scored: number;
+}
+
+// === Prediction & Bet Types (Admin read-only views) ===
+
+export interface AdminPrediction {
+    ID: string;
+    player_ID: string;
+    match_ID: string;
+    tournament_ID: string | null;
+    pick: "home" | "draw" | "away";
+    isCorrect: boolean | null;
+    pointsEarned: number;
+    status: string;
+    submittedAt: string | null;
+    player?: AdminPlayer;
+}
+
+export interface AdminScoreBet {
+    ID: string;
+    player_ID: string;
+    match_ID: string;
+    predictedHomeScore: number;
+    predictedAwayScore: number;
+    status: string;
+    isCorrect: boolean | null;
+    payout: number;
+    submittedAt: string | null;
+    player?: AdminPlayer;
+}
+
+export interface AdminChampionPick {
+    ID: string;
+    player_ID: string;
+    team_ID: string;
+    tournament_ID: string;
+    pickedAt: string | null;
+    player?: AdminPlayer;
+    team?: AdminTeam;
 }

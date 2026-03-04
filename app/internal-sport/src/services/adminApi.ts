@@ -8,6 +8,10 @@ import type {
     MatchScoreBetConfig,
     ActionResult,
     MatchResultResponse,
+    SyncMatchResult,
+    AdminPrediction,
+    AdminScoreBet,
+    AdminChampionPick,
 } from "@/types/admin";
 
 // ── Helpers ────────────────────────────────────────────────
@@ -60,6 +64,11 @@ export const matchesApi = {
         odata<MatchResultResponse>("/enterMatchResult", {
             method: "POST",
             body: JSON.stringify({ matchId, homeScore, awayScore }),
+        }),
+    lockBetting: (matchId: string, locked: boolean) =>
+        odata<ActionResult>("/lockMatchBetting", {
+            method: "POST",
+            body: JSON.stringify({ matchId, locked }),
         }),
 };
 
@@ -175,5 +184,41 @@ export const tournamentActionsApi = {
         odata<ActionResult>("/lockChampionPredictions", {
             method: "POST",
             body: JSON.stringify({ tournamentId }),
+        }),    lockBetting: (tournamentId: string, locked: boolean) =>
+        odata<ActionResult>("/lockTournamentBetting", {
+            method: "POST",
+            body: JSON.stringify({ tournamentId, locked }),
         }),
+    syncMatchResults: (tournamentId: string, apiKey?: string) =>
+        odata<SyncMatchResult>("/syncMatchResults", {
+            method: "POST",
+            body: JSON.stringify({ tournamentId, apiKey: apiKey || "" }),
+        }),
+};
+
+// ── Predictions (Admin read-only) ──────────────────────────
+
+export const predictionsApi = {
+    listByMatch: (matchId: string) =>
+        odataList<AdminPrediction>(
+            `/AllPredictions?$filter=match_ID eq '${matchId}'&$expand=player&$orderby=submittedAt desc`
+        ),
+};
+
+// ── Score Bets (Admin read-only) ───────────────────────────
+
+export const scoreBetsApi = {
+    listByMatch: (matchId: string) =>
+        odataList<AdminScoreBet>(
+            `/AllScoreBets?$filter=match_ID eq '${matchId}'&$expand=player&$orderby=submittedAt desc`
+        ),
+};
+
+// ── Champion Picks (Admin read-only) ───────────────────────
+
+export const championPicksApi = {
+    listByTournament: (tournamentId: string) =>
+        odataList<AdminChampionPick>(
+            `/AllChampionPicks?$filter=tournament_ID eq '${tournamentId}'&$expand=player,team&$orderby=pickedAt desc`
+        ),
 };

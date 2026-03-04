@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus, Edit, Trash2, Trophy, Settings } from "lucide-react";
+import { Plus, Edit, Trash2, Trophy, Settings, Lock, Unlock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -30,7 +30,7 @@ import {
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
-import { tournamentsApi } from "@/services/adminApi";
+import { tournamentsApi, tournamentActionsApi } from "@/services/adminApi";
 import type { AdminTournament } from "@/types/admin";
 
 function statusVariant(status: string) {
@@ -130,6 +130,16 @@ export function TournamentManagement() {
         }
     }
 
+    async function handleToggleBettingLock(t: AdminTournament) {
+        try {
+            const res = await tournamentActionsApi.lockBetting(t.ID, !t.bettingLocked);
+            toast.success(res.message);
+            load();
+        } catch (e: any) {
+            toast.error(e.message);
+        }
+    }
+
     if (loading) {
         return (
             <div className="flex h-64 items-center justify-center text-muted-foreground">
@@ -174,7 +184,14 @@ export function TournamentManagement() {
                                     </p>
                                 </div>
                             </div>
-                            <Badge variant={statusVariant(t.status)}>{t.status}</Badge>
+                            <div className="flex flex-col items-end gap-1">
+                                <Badge variant={statusVariant(t.status)}>{t.status}</Badge>
+                                {t.bettingLocked && (
+                                    <Badge variant="outline" className="border-amber-500/40 text-amber-400 text-[10px]">
+                                        <Lock className="mr-1 h-3 w-3" /> Betting Locked
+                                    </Badge>
+                                )}
+                            </div>
                         </div>
 
                         {t.description && (
@@ -184,6 +201,24 @@ export function TournamentManagement() {
                         )}
 
                         <div className="flex items-center justify-end gap-1 border-t border-border pt-3">
+                            {/* Tournament-wide betting lock toggle */}
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                className={`h-8 w-8 p-0 ${
+                                    t.bettingLocked
+                                        ? "text-amber-400 hover:text-amber-300"
+                                        : "text-muted-foreground hover:text-amber-400"
+                                }`}
+                                title={t.bettingLocked ? "Unlock all betting" : "Lock all betting"}
+                                onClick={() => handleToggleBettingLock(t)}
+                            >
+                                {t.bettingLocked ? (
+                                    <Lock className="h-4 w-4" />
+                                ) : (
+                                    <Unlock className="h-4 w-4" />
+                                )}
+                            </Button>
                             <Button
                                 variant="ghost"
                                 size="sm"

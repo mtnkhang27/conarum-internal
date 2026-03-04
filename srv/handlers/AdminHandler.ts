@@ -1,6 +1,9 @@
 import cds, { Request } from '@sap/cds';
 import { ScoringEngine } from '../lib/ScoringEngine';
 
+/** Default football-data.org API token — used when no apiKey is provided. */
+const FOOTBALL_DATA_API_TOKEN = 'f96dc87cc7b54da08321475e744a52f2';
+
 /**
  * AdminHandler — Handles admin operations.
  * Match result entry, scoring, leaderboard recalculation.
@@ -480,5 +483,218 @@ export class AdminHandler {
                 }
             }
         }
+    }
+
+    // ── External Sync ─────────────────────────────────────────
+
+    /**
+     * Sync match status and results from football-data.org.
+     * Fetches all matches for the tournament's externalCode (e.g. 'CL'),
+     * matches them by externalId, and updates status/scores/outcome.
+     * Newly finished matches are automatically scored.
+     */
+    async syncMatchResults(req: Request) {
+        const { tournamentId, apiKey } = req.data;
+        const { Tournament, Match, Team } = cds.entities('cnma.prediction');
+
+        if (!tournamentId) return req.error(400, 'tournamentId is required');
+
+        // Use provided apiKey or fall back to built-in token
+        const token = apiKey?.trim() || FOOTBALL_DATA_API_TOKEN;
+
+        const tournament = await SELECT.one.from(Tournament).where({ ID: tournamentId });
+        if (!tournament) return req.error(404, 'Tournament not found');
+
+        const code = tournament.externalCode;
+        if (!code) return req.error(400, 'Tournament has no externalCode configured');
+
+        // Fetch from football-data.org
+        let apiData: any;
+        try {
+            const res = await fetch(`https://api.football-data.org/v4/competitions/${code}/matches`, {
+                headers: { 'X-Auth-Token': token }
+            });
+            if (!res.ok) {
+                const errText = await res.text();
+                return req.error(502, `football-data.org API error ${res.status}: ${errText}`);
+            }
+            apiData = await res.json();
+        } catch (err: any) {
+            return req.error(502, `Failed to reach football-data.org: ${err.message}`);
+        }
+
+        const externalMatches: any[] = apiData.matches ?? [];
+
+        // Stage mapping from football-data.org to schema
+        const stageMap: Record<string, string> = {
+            LEAGUE_STAGE: 'regular',
+            GROUP_STAGE: 'group',
+            LAST_16: 'roundOf16',
+            QUARTER_FINAL: 'quarterFinal',
+            SEMI_FINAL: 'semiFinal',
+            THIRD_PLACE: 'thirdPlace',
+            FINAL: 'final',
+            PLAY_OFF_ROUND: 'playoff',
+            REGULAR: 'regular',
+            PLAYOFF: 'playoff',
+            RELEGATION: 'relegation',
+        };
+
+        // Status mapping
+        const statusMap: Record<string, string> = {
+            SCHEDULED: 'upcoming',
+            TIMED: 'upcoming',
+            IN_PLAY: 'live',
+            PAUSED: 'live',
+            HALFTIME: 'live',
+            EXTRA_TIME: 'live',
+            PENALTY_SHOOTOUT: 'live',
+            FINISHED: 'finished',
+            AWARDED: 'finished',
+            INTERRUPTED: 'live',
+            SUSPENDED: 'cancelled',
+            POSTPONED: 'cancelled',
+            CANCELLED: 'cancelled',
+        };
+
+        // Outcome mapping
+        const outcomeMap: Record<string, string> = {
+            HOME_TEAM: 'home',
+            AWAY_TEAM: 'away',
+            DRAW: 'draw',
+        };
+
+        // Build crest→Team ID lookup for resolving teams by API crest URL
+        const allTeams = await SELECT.from(Team).columns('ID', 'crest');
+        const teamByCrest = new Map<string, string>();
+        for (const t of allTeams) {
+            if (t.crest) teamByCrest.set(t.crest, t.ID);
+        }
+
+        // Load all our matches for this tournament, indexed by externalId
+        const ourMatches = await SELECT.from(Match).where({ tournament_ID: tournamentId });
+        const matchByExternalId = new Map<number, any>();
+        for (const m of ourMatches) {
+            if (m.externalId != null) matchByExternalId.set(Number(m.externalId), m);
+        }
+
+        let synced = 0;
+        let scored = 0;
+
+        for (const ext of externalMatches) {
+            const ourMatch = matchByExternalId.get(ext.id);
+            if (!ourMatch) continue; // no match linked to this external ID — skip
+
+            const newStatus = statusMap[ext.status] ?? 'upcoming';
+            const newStage = stageMap[ext.stage] ?? ourMatch.stage;
+            const homeScore = ext.score?.fullTime?.home ?? null;
+            const awayScore = ext.score?.fullTime?.away ?? null;
+            const extOutcome = ext.score?.winner ? (outcomeMap[ext.score.winner] ?? null) : null;
+
+            // Determine if we should trigger scoring (was not finished, now is)
+            const wasFinished = ourMatch.status === 'finished';
+            const nowFinished = newStatus === 'finished';
+
+            const updateData: Record<string, any> = {
+                status: newStatus,
+                stage: newStage,
+            };
+
+            // Sync additional match info: kickoff, venue, matchday
+            if (ext.utcDate) updateData.kickoff = ext.utcDate;
+            if (ext.venue) updateData.venue = ext.venue;
+            if (ext.matchday != null) updateData.matchday = ext.matchday;
+
+            // Sync teams if they were previously TBD (null) and now known
+            const extHomeCrest = ext.homeTeam?.crest;
+            const extAwayCrest = ext.awayTeam?.crest;
+            if (extHomeCrest && !ourMatch.homeTeam_ID) {
+                const resolvedHome = teamByCrest.get(extHomeCrest);
+                if (resolvedHome) updateData.homeTeam_ID = resolvedHome;
+            }
+            if (extAwayCrest && !ourMatch.awayTeam_ID) {
+                const resolvedAway = teamByCrest.get(extAwayCrest);
+                if (resolvedAway) updateData.awayTeam_ID = resolvedAway;
+            }
+
+            if (nowFinished && homeScore !== null && awayScore !== null) {
+                updateData.homeScore = homeScore;
+                updateData.awayScore = awayScore;
+                updateData.outcome = extOutcome ?? ScoringEngine.determineOutcome(homeScore, awayScore);
+            }
+
+            await UPDATE(Match).where({ ID: ourMatch.ID }).set(updateData);
+            synced++;
+
+            // Auto-score if newly finished
+            if (!wasFinished && nowFinished && homeScore !== null && awayScore !== null) {
+                try {
+                    const fakeReq = {
+                        data: {
+                            matchId: ourMatch.ID,
+                            homeScore: homeScore,
+                            awayScore: awayScore,
+                        },
+                        error: (code: number, msg: string) => { throw new Error(msg); }
+                    } as unknown as Request;
+
+                    await this.enterMatchResult(fakeReq);
+                    scored++;
+                } catch (_) {
+                    // already finished or error — skip scoring
+                }
+            }
+        }
+
+        return {
+            success: true,
+            message: `Sync complete: ${synced} match(es) updated, ${scored} newly scored.`,
+            synced,
+            scored,
+        };
+    }
+
+    // ── Betting Locks ─────────────────────────────────────────
+
+    /**
+     * Toggle per-match betting lock.
+     * When locked=true, users cannot place or change bets for this match.
+     */
+    async lockMatchBetting(req: Request) {
+        const { matchId, locked } = req.data;
+        const { Match } = cds.entities('cnma.prediction');
+
+        if (!matchId) return req.error(400, 'matchId is required');
+
+        const match = await SELECT.one.from(Match).where({ ID: matchId });
+        if (!match) return req.error(404, 'Match not found');
+
+        await UPDATE(Match).where({ ID: matchId }).set({ bettingLocked: locked === true });
+
+        return {
+            success: true,
+            message: locked ? 'Betting locked for this match' : 'Betting unlocked for this match',
+        };
+    }
+
+    /**
+     * Toggle tournament-wide betting lock.
+     * When locked=true, all betting (outcome, score, champion) is blocked for this tournament.
+     */
+    async lockTournamentBetting(req: Request) {
+        const { tournamentId, locked } = req.data;
+        const { Tournament } = cds.entities('cnma.prediction');
+
+        if (!tournamentId) return req.error(400, 'tournamentId is required');
+
+        const tournament = await SELECT.one.from(Tournament).where({ ID: tournamentId });
+        if (!tournament) return req.error(404, 'Tournament not found');
+
+        await UPDATE(Tournament).where({ ID: tournamentId }).set({ bettingLocked: locked === true });
+
+        return {
+            success: true,
+            message: locked ? 'All betting locked for this tournament' : 'Betting unlocked for this tournament',
+        };
     }
 }

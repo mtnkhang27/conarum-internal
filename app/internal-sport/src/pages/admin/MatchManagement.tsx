@@ -9,6 +9,10 @@ import {
     Trash2,
     Trophy,
     Settings,
+    RefreshCw,
+    Lock,
+    Unlock,
+    MoreHorizontal,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -38,8 +42,15 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
-import { matchesApi, teamsApi, tournamentsApi } from "@/services/adminApi";
+import { matchesApi, teamsApi, tournamentsApi, tournamentActionsApi } from "@/services/adminApi";
 import type { AdminMatch, AdminTeam, AdminTournament } from "@/types/admin";
 
 const STAGES = [
@@ -86,6 +97,13 @@ export function MatchManagement() {
     const [resultMatch, setResultMatch] = useState<AdminMatch | null>(null);
     const [resultHome, setResultHome] = useState("");
     const [resultAway, setResultAway] = useState("");
+
+    // Sync dialog
+    const [syncDialogOpen, setSyncDialogOpen] = useState(false);
+    const [syncing, setSyncing] = useState(false);
+
+    // Per-match lock state
+    const [lockingMatchId, setLockingMatchId] = useState<string | null>(null);
 
     // Form state
     const [form, setForm] = useState({
@@ -214,6 +232,38 @@ export function MatchManagement() {
         }
     }
 
+    async function handleSync() {
+        const tournamentId = selectedTournament !== "all" ? selectedTournament : null;
+        if (!tournamentId) {
+            toast.error("Please select a specific tournament to sync");
+            return;
+        }
+        setSyncing(true);
+        try {
+            const res = await tournamentActionsApi.syncMatchResults(tournamentId);
+            toast.success(res.message);
+            setSyncDialogOpen(false);
+            load();
+        } catch (e: any) {
+            toast.error(e.message);
+        } finally {
+            setSyncing(false);
+        }
+    }
+
+    async function handleToggleMatchLock(match: AdminMatch) {
+        setLockingMatchId(match.ID);
+        try {
+            const res = await matchesApi.lockBetting(match.ID, !match.bettingLocked);
+            toast.success(res.message);
+            load();
+        } catch (e: any) {
+            toast.error(e.message);
+        } finally {
+            setLockingMatchId(null);
+        }
+    }
+
     // Filter matches based on selected filters
     const filteredMatches = matches.filter((match) => {
         const tournamentMatch = selectedTournament === "all" || match.tournament_ID === selectedTournament;
@@ -284,6 +334,15 @@ export function MatchManagement() {
                         <Plus className="mr-2 h-4 w-4" />
                         Add Match
                     </Button>
+                    {selectedTournament !== "all" && (
+                        <Button
+                            variant="outline"
+                            onClick={() => setSyncDialogOpen(true)}
+                        >
+                            <RefreshCw className="mr-2 h-4 w-4" />
+                            Sync Results
+                        </Button>
+                    )}
                 </div>
             </div>
 
@@ -328,7 +387,7 @@ export function MatchManagement() {
                                 <th className="px-4 py-3">Stage</th>
                                 <th className="px-4 py-3">Date &amp; Time</th>
                                 <th className="px-4 py-3">Venue</th>
-                                <th className="px-4 py-3">Day</th>
+                                {/* <th className="px-4 py-3">Day</th> */}
                                 <th className="px-4 py-3">Result</th>
                                 <th className="px-4 py-3">Status</th>
                                 <th className="px-4 py-3">Actions</th>
@@ -338,7 +397,8 @@ export function MatchManagement() {
                             {filteredMatches.map((m) => (
                                 <tr
                                     key={m.ID}
-                                    className="border-b border-border/50 transition-colors hover:bg-surface"
+                                    className="border-b border-border/50 cursor-pointer transition-colors hover:bg-surface"
+                                    onClick={() => navigate(`/admin/matches/${m.ID}`)}
                                 >
                                     <td className="px-4 py-3">
                                         <div className="flex items-center gap-1 font-medium text-white">
@@ -368,7 +428,7 @@ export function MatchManagement() {
                                     <td className="px-4 py-3 capitalize text-muted-foreground">
                                         {m.stage}
                                     </td>
-                                    <td className="px-4 py-3">
+                                    {/* <td className="px-4 py-3">
                                         <div className="text-muted-foreground">
                                             {new Date(m.kickoff).toLocaleDateString()}
                                         </div>
@@ -378,7 +438,7 @@ export function MatchManagement() {
                                                 minute: "2-digit",
                                             })}
                                         </div>
-                                    </td>
+                                    </td> */}
                                     <td className="px-4 py-3 text-muted-foreground">
                                         {m.venue || "—"}
                                     </td>
@@ -395,50 +455,61 @@ export function MatchManagement() {
                                             {m.status}
                                         </Badge>
                                     </td>
-                                    <td className="px-4 py-3">
-                                        <div className="flex items-center gap-1">
-                                            <Button
-                                                variant="ghost"
-                                                size="sm"
-                                                className="h-8 w-8 p-0 text-primary hover:text-primary/80"
-                                                title="Configure match"
-                                                onClick={() => navigate(`/admin/matches/${m.ID}`)}
-                                                disabled={m.status === "finished"}
-                                            >
-                                                <Settings className="h-4 w-4" />
-                                            </Button>
-                                            {m.status === "upcoming" && (
+                                    <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                                        <DropdownMenu>
+                                            <DropdownMenuTrigger asChild>
                                                 <Button
                                                     variant="ghost"
                                                     size="sm"
-                                                    className="h-8 w-8 p-0 text-green-400 hover:text-green-300"
-                                                    title="Enter Result"
-                                                    onClick={() => openResult(m)}
+                                                    className="h-8 w-8 p-0 text-muted-foreground hover:text-white"
                                                 >
-                                                    <Trophy className="h-4 w-4" />
+                                                    <MoreHorizontal className="h-4 w-4" />
                                                 </Button>
-                                            )}
-                                            {m.status !== "finished" && (
-                                                <>
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="sm"
-                                                        className="h-8 w-8 p-0 text-muted-foreground hover:text-white"
-                                                        onClick={() => openEdit(m)}
-                                                    >
-                                                        <Edit className="h-4 w-4" />
-                                                    </Button>
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="sm"
-                                                        className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
-                                                        onClick={() => setDeleteId(m.ID)}
-                                                    >
-                                                        <Trash2 className="h-4 w-4" />
-                                                    </Button>
-                                                </>
-                                            )}
-                                        </div>
+                                            </DropdownMenuTrigger>
+                                            <DropdownMenuContent align="end" className="w-48">
+                                                <DropdownMenuItem onClick={() => navigate(`/admin/matches/${m.ID}`)}>
+                                                    <Settings className="mr-2 h-4 w-4" />
+                                                    Configure
+                                                </DropdownMenuItem>
+                                                {m.status !== "finished" && (
+                                                    <DropdownMenuItem onClick={() => handleToggleMatchLock(m)}>
+                                                        {m.bettingLocked ? (
+                                                            <>
+                                                                <Unlock className="mr-2 h-4 w-4" />
+                                                                Unlock Betting
+                                                            </>
+                                                        ) : (
+                                                            <>
+                                                                <Lock className="mr-2 h-4 w-4" />
+                                                                Lock Betting
+                                                            </>
+                                                        )}
+                                                    </DropdownMenuItem>
+                                                )}
+                                                {m.status === "upcoming" && (
+                                                    <DropdownMenuItem onClick={() => openResult(m)}>
+                                                        <Trophy className="mr-2 h-4 w-4" />
+                                                        Enter Result
+                                                    </DropdownMenuItem>
+                                                )}
+                                                {m.status !== "finished" && (
+                                                    <>
+                                                        <DropdownMenuSeparator />
+                                                        <DropdownMenuItem onClick={() => openEdit(m)}>
+                                                            <Edit className="mr-2 h-4 w-4" />
+                                                            Edit Match
+                                                        </DropdownMenuItem>
+                                                        <DropdownMenuItem
+                                                            variant="destructive"
+                                                            onClick={() => setDeleteId(m.ID)}
+                                                        >
+                                                            <Trash2 className="mr-2 h-4 w-4" />
+                                                            Delete Match
+                                                        </DropdownMenuItem>
+                                                    </>
+                                                )}
+                                            </DropdownMenuContent>
+                                        </DropdownMenu>
                                     </td>
                                 </tr>
                             ))}
@@ -679,6 +750,38 @@ export function MatchManagement() {
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
+
+            {/* Sync Results Dialog */}
+            <Dialog open={syncDialogOpen} onOpenChange={setSyncDialogOpen}>
+                <DialogContent className="border-border bg-card text-white sm:max-w-sm">
+                    <DialogHeader>
+                        <DialogTitle>Sync Match Results</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4 py-4">
+                        <p className="text-sm text-muted-foreground">
+                            Fetches match status, scores, venues, and team info from
+                            football-data.org and updates all matches linked by their
+                            external ID. Uses the built-in API token.
+                        </p>
+                    </div>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setSyncDialogOpen(false)}>
+                            Cancel
+                        </Button>
+                        <Button
+                            onClick={handleSync}
+                            disabled={syncing}
+                        >
+                            {syncing ? (
+                                <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
+                            ) : (
+                                <RefreshCw className="mr-2 h-4 w-4" />
+                            )}
+                            {syncing ? "Syncing…" : "Sync Now"}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }

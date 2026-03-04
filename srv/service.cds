@@ -347,6 +347,16 @@ service PlayerService {
     }
 
     function getTournamentBracket(tournamentId: UUID) returns many BracketSlotItem;
+
+    /** Champion pick counts by team for a tournament. */
+    type ChampionPickCountItem {
+        teamId    : UUID;
+        teamName  : String;
+        teamCrest : String;
+        count     : Integer;
+    }
+
+    function getChampionPickCounts(tournamentId: UUID) returns many ChampionPickCountItem;
 }
 
 // ────────────────────────────────────────────────────────────
@@ -424,4 +434,31 @@ service AdminService {
 
     /** Lock champion predictions for a specific tournament (UC3). */
     action lockChampionPredictions(tournamentId: UUID)                              returns ActionResult;
+
+    // ── Sync & Betting Lock ──────────────────────────────────
+
+    type SyncMatchResult : ActionResult {
+        synced   : Integer; // number of matches updated
+        scored   : Integer; // number of matches newly scored
+    }
+
+    /**
+     * Sync match results from football-data.org for a tournament.
+     * Uses the tournament's externalCode (e.g. 'CL') to fetch from the API.
+     * Matches are identified by their externalId field.
+     * Newly finished matches are automatically scored.
+     */
+    action syncMatchResults(tournamentId: UUID, apiKey: String default '')           returns SyncMatchResult;
+
+    /**
+     * Toggle per-match betting lock.
+     * When locked=true, users cannot place or change outcome/score bets for this match.
+     */
+    action lockMatchBetting(matchId: UUID, locked: Boolean)                         returns ActionResult;
+
+    /**
+     * Toggle tournament-wide betting lock.
+     * When locked=true, all betting (outcome, score, champion) for this tournament is blocked.
+     */
+    action lockTournamentBetting(tournamentId: UUID, locked: Boolean)               returns ActionResult;
 }

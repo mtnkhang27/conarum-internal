@@ -140,6 +140,10 @@ entity Tournament : cuid, managed {
     championBettingStatus : BettingStatus default 'open';
     championLockDate      : Date;
     championPrizePool     : String(200) default 'iPhone 15 Pro Max 256GB';
+    // ── External Sync ──
+    externalCode   : String(20); // football-data.org competition code, e.g., 'CL', 'WC'
+    // ── Betting Lock (admin-controlled) ──
+    bettingLocked  : Boolean default false; // if true, no new bets (outcome/score/champion) accepted
 }
 
 /**
@@ -226,6 +230,10 @@ entity Match : cuid, managed {
     // Per-match score bet configuration (UC1)
     scoreBetConfig : Composition of many MatchScoreBetConfig
                          on scoreBetConfig.match = $self;
+    // ── External Sync ──
+    externalId     : Integer; // football-data.org match ID for syncing
+    // ── Betting Lock (admin-controlled per-match) ──
+    bettingLocked  : Boolean default false; // if true, users cannot place/change bets for this match
 }
 
 /**
@@ -389,7 +397,3 @@ entity BracketSlot : cuid, managed {
 }
 
 annotate BracketSlot with @assert.unique: {stagePosition: [tournament, stage, position]};
-
-
-
-

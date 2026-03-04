@@ -561,4 +561,11 @@ export const playerTournamentQueryApi = {
             `${BASE}/getTournamentBracket(tournamentId='${tournamentId}')`
         );
     },
+
+    /** Get champion pick counts by team for a tournament. */
+    async getChampionPickCounts(tournamentId: string): Promise<{ teamId: string; teamName: string; teamCrest: string; count: number }[]> {
+        return json<{ teamId: string; teamName: string; teamCrest: string; count: number }[]>(
+            `${BASE}/getChampionPickCounts(tournamentId='${tournamentId}')`
+        );
+    },
 };

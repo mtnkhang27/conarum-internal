@@ -26,6 +26,7 @@ export class PlayerService extends cds.ApplicationService {
         this.on('getStandings', this.predictionHandler.getStandings.bind(this.predictionHandler));
         this.on('getMyRecentPredictions', this.predictionHandler.getMyRecentPredictions.bind(this.predictionHandler));
         this.on('getTournamentBracket', this.predictionHandler.getTournamentBracket.bind(this.predictionHandler));
+        this.on('getChampionPickCounts', this.predictionHandler.getChampionPickCounts.bind(this.predictionHandler));
 
         // ── Auto-filter MyPredictions / MyScoreBets / MyChampionPick to current user ──
         this.before('READ', 'MyPredictions', this.predictionHandler.filterByCurrentUser.bind(this.predictionHandler));
@@ -50,6 +51,9 @@ export class AdminService extends cds.ApplicationService {
         this.on('enterMatchResult', this.adminHandler.enterMatchResult.bind(this.adminHandler));
         this.on('recalculateLeaderboard', this.adminHandler.recalculateLeaderboard.bind(this.adminHandler));
         this.on('lockChampionPredictions', this.adminHandler.lockChampionPredictions.bind(this.adminHandler));
+        this.on('syncMatchResults', this.adminHandler.syncMatchResults.bind(this.adminHandler));
+        this.on('lockMatchBetting', this.adminHandler.lockMatchBetting.bind(this.adminHandler));
+        this.on('lockTournamentBetting', this.adminHandler.lockTournamentBetting.bind(this.adminHandler));
 
         // ── Guard: block match creation/update for completed/cancelled tournaments ──
         this.before(['CREATE', 'UPDATE'], 'Matches', async (req: any) => {

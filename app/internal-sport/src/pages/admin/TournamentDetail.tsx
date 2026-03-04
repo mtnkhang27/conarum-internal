@@ -6,6 +6,8 @@ import {
     Trophy,
     Lock,
     AlertTriangle,
+    Users,
+    CheckCircle2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -15,9 +17,11 @@ import { toast } from "sonner";
 import {
     tournamentsApi,
     tournamentActionsApi,
+    championPicksApi,
 } from "@/services/adminApi";
 import type {
     AdminTournament,
+    AdminChampionPick,
 } from "@/types/admin";
 
 function ConfigRow({
@@ -68,14 +72,20 @@ export function TournamentDetail() {
     const [championPrizePool, setChampionPrizePool] = useState("iPhone 15 Pro Max 256GB");
     const [championBettingStatus, setChampionBettingStatus] = useState<"open" | "locked">("open");
     const [championLockDate, setChampionLockDate] = useState<string | null>(null);
+    const [championPicks, setChampionPicks] = useState<AdminChampionPick[]>([]);
+    const [loadingPicks, setLoadingPicks] = useState(false);
     const isTournamentLocked = tournament?.status === "completed" || tournament?.status === "cancelled";
     const load = useCallback(async () => {
         if (!tournamentId) return;
         setLoading(true);
         try {
-            const tournaments = await tournamentsApi.list();
+            const [tournaments, picks] = await Promise.all([
+                tournamentsApi.list(),
+                championPicksApi.listByTournament(tournamentId),
+            ]);
             const t = tournaments.find((t) => t.ID === tournamentId);
             setTournament(t ?? null);
+            setChampionPicks(picks);
 
             if (t) {
                 setOutcomePrize(t.outcomePrize ?? "iPhone 15 Pro Max");
@@ -218,6 +228,108 @@ export function TournamentDetail() {
                                 Lock Champion Predictions
                             </Button>
                         </div>
+                    )}
+                </Card>
+
+                {/* ── Champion Picks Overview ─────────────────────── */}
+                <Card className="border-border bg-card p-5">
+                    <h3 className="mb-4 flex items-center gap-2 text-sm font-semibold uppercase text-muted-foreground">
+                        <Users className="h-4 w-4" />
+                        Champion Picks ({championPicks.length} total)
+                    </h3>
+
+                    {championPicks.length === 0 ? (
+                        <p className="py-6 text-center text-sm text-muted-foreground">
+                            No champion picks submitted yet.
+                        </p>
+                    ) : (
+                        <>
+                            {/* Group by team */}
+                            {(() => {
+                                const byTeam = new Map<string, { teamName: string; teamCrest: string | null; picks: AdminChampionPick[] }>();
+                                for (const pick of championPicks) {
+                                    const teamId = pick.team_ID;
+                                    const entry = byTeam.get(teamId) ?? {
+                                        teamName: pick.team?.name ?? teamId,
+                                        teamCrest: pick.team?.crest ?? null,
+                                        picks: [],
+                                    };
+                                    entry.picks.push(pick);
+                                    byTeam.set(teamId, entry);
+                                }
+                                const sorted = [...byTeam.entries()].sort((a, b) => b[1].picks.length - a[1].picks.length);
+
+                                // Find winners (those whose isCorrect=true)
+                                const winners = championPicks.filter((p) => p.isCorrect === true);
+                                const hasResults = championPicks.some((p) => p.isCorrect != null);
+
+                                return (
+                                    <div className="space-y-4">
+                                        {/* Winners banner */}
+                                        {hasResults && winners.length > 0 && (
+                                            <div className="rounded-lg border border-green-500/30 bg-green-500/10 p-4">
+                                                <div className="mb-2 flex items-center gap-2 text-sm font-bold text-green-400">
+                                                    <Trophy className="h-4 w-4" />
+                                                    {winners.length} Winner{winners.length !== 1 && "s"} — Prize: {championPrizePool}
+                                                    {winners.length > 1 && (
+                                                        <span className="ml-1 text-xs font-normal text-green-400/70">
+                                                            (split {winners.length} ways)
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <div className="flex flex-wrap gap-2">
+                                                    {winners.map((w) => (
+                                                        <Badge key={w.ID} className="bg-green-500/20 text-green-300 border-green-500/30">
+                                                            {w.player?.avatarUrl && (
+                                                                <img src={w.player.avatarUrl} alt="" className="mr-1.5 h-4 w-4 rounded-full object-cover" />
+                                                            )}
+                                                            {w.player?.displayName ?? w.player_ID} → {w.team?.name}
+                                                        </Badge>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {hasResults && winners.length === 0 && (
+                                            <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-400">
+                                                No correct champion picks.
+                                            </div>
+                                        )}
+
+                                        {/* Picks grouped by team */}
+                                        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                                            {sorted.map(([teamId, { teamName, teamCrest, picks }]) => (
+                                                <div
+                                                    key={teamId}
+                                                    className="rounded-lg border border-border bg-surface-dark p-3"
+                                                >
+                                                    <div className="mb-2 flex items-center gap-2">
+                                                        {teamCrest && (
+                                                            <img src={teamCrest} alt="" className="h-5 w-5 object-contain" />
+                                                        )}
+                                                        <span className="text-sm font-bold text-white">{teamName}</span>
+                                                        <Badge variant="outline" className="ml-auto text-[10px]">
+                                                            {picks.length}
+                                                        </Badge>
+                                                    </div>
+                                                    <div className="space-y-1">
+                                                        {picks.map((p) => (
+                                                            <div key={p.ID} className="flex items-center gap-2 text-xs">
+                                                                {p.player?.avatarUrl && (
+                                                                    <img src={p.player.avatarUrl} alt="" className="h-4 w-4 rounded-full object-cover" />
+                                                                )}
+                                                                <span className="text-muted-foreground">{p.player?.displayName ?? p.player_ID}</span>
+                                                                {p.isCorrect === true && <CheckCircle2 className="ml-auto h-3 w-3 text-green-400" />}
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                );
+                            })()}
+                        </>
                     )}
                 </Card>
 

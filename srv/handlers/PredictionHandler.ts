@@ -65,10 +65,19 @@ export class PredictionHandler {
                 continue;
             }
 
+            if (match.bettingLocked) {
+                req.error(400, `Betting for match ${pred.matchId} is locked by admin`);
+                continue;
+            }
+
             // Only allow betting when tournament is active
             if (match.tournament_ID) {
                 const { Tournament } = cds.entities('cnma.prediction');
                 const tournament = await SELECT.one.from(Tournament).where({ ID: match.tournament_ID });
+                if (tournament && tournament.bettingLocked) {
+                    req.error(400, 'Betting for this tournament is locked by admin');
+                    continue;
+                }
                 if (tournament && tournament.status !== 'active') {
                     req.error(400, tournament.status === 'upcoming'
                         ? 'Tournament has not started yet — predictions open once the tournament is active'
@@ -130,11 +139,15 @@ export class PredictionHandler {
         const match = await SELECT.one.from(Match).where({ ID: matchId });
         if (!match) return req.error(404, 'Match not found');
         if (match.status !== 'upcoming') return req.error(400, 'Match is no longer open for bets');
+        if (match.bettingLocked) return req.error(400, 'Betting for this match is locked by admin');
 
         // Only allow betting when tournament is active
         if (match.tournament_ID) {
             const { Tournament } = cds.entities('cnma.prediction');
             const tournament = await SELECT.one.from(Tournament).where({ ID: match.tournament_ID });
+            if (tournament && tournament.bettingLocked) {
+                return req.error(400, 'Betting for this tournament is locked by admin');
+            }
             if (tournament && tournament.status !== 'active') {
                 return req.error(400, tournament.status === 'upcoming'
                     ? 'Tournament has not started yet — score bets open once the tournament is active'
@@ -196,6 +209,7 @@ export class PredictionHandler {
         const match = await SELECT.one.from(Match).where({ ID: matchId });
         if (!match) return req.error(404, 'Match not found');
         if (match.status !== 'upcoming') return req.error(400, 'Match is no longer open for predictions');
+        if (match.bettingLocked) return req.error(400, 'Betting for this match is locked by admin');
 
         const now = new Date();
         if (new Date(match.kickoff) <= now) {
@@ -206,6 +220,9 @@ export class PredictionHandler {
         if (match.tournament_ID) {
             const { Tournament } = cds.entities('cnma.prediction');
             const tournament = await SELECT.one.from(Tournament).where({ ID: match.tournament_ID });
+            if (tournament && tournament.bettingLocked) {
+                return req.error(400, 'Betting for this tournament is locked by admin');
+            }
             if (tournament && tournament.status !== 'active') {
                 return req.error(400, tournament.status === 'upcoming'
                     ? 'Tournament has not started yet — predictions open once the tournament is active'
@@ -287,6 +304,7 @@ export class PredictionHandler {
         const match = await SELECT.one.from(Match).where({ ID: matchId });
         if (!match) return req.error(404, 'Match not found');
         if (match.status !== 'upcoming') return req.error(400, 'Match is no longer open for changes');
+        if (match.bettingLocked) return req.error(400, 'Betting for this match is locked by admin');
 
         const now = new Date();
         if (new Date(match.kickoff) <= now) {
@@ -335,6 +353,10 @@ export class PredictionHandler {
 
         if (tournament.championBettingStatus !== 'open') {
             return req.error(400, `Champion predictions are ${tournament.championBettingStatus} for this tournament`);
+        }
+
+        if (tournament.bettingLocked) {
+            return req.error(400, 'Betting for this tournament is locked by admin');
         }
 
         if (tournament.status !== 'active') {
@@ -721,6 +743,36 @@ export class PredictionHandler {
             });
         }
         return results;
+    }
+
+    /**
+     * Get champion pick counts by team for a tournament.
+     * Returns how many players picked each team, with team info.
+     */
+    async getChampionPickCounts(req: Request) {
+        const { tournamentId } = req.data;
+        const { ChampionPick, Team } = cds.entities('cnma.prediction');
+
+        const picks = await SELECT.from(ChampionPick).where({ tournament_ID: tournamentId });
+
+        const countMap = new Map<string, number>();
+        for (const pick of picks) {
+            const teamId = pick.team_ID;
+            countMap.set(teamId, (countMap.get(teamId) ?? 0) + 1);
+        }
+
+        const results = [];
+        for (const [teamId, count] of countMap) {
+            const team = await SELECT.one.from(Team).where({ ID: teamId });
+            results.push({
+                teamId,
+                teamName: team?.name ?? '',
+                teamCrest: team?.crest ?? '',
+                count,
+            });
+        }
+
+        return results.sort((a, b) => b.count - a.count);
     }
 
     // ── Helpers ──────────────────────────────────────────────

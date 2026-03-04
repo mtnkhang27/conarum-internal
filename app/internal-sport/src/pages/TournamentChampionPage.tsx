@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useLocation } from "react-router-dom";
 import { toast } from "sonner";
-import { Lock } from "lucide-react";
+import { Lock, Users } from "lucide-react";
 import {
     AlertDialog,
     AlertDialogAction,
@@ -13,7 +13,7 @@ import {
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { TournamentSelector } from "@/components/TournamentSelector";
-import { playerTeamsApi, playerPredictionsApi, playerActionsApi, playerTournamentsApi } from "@/services/playerApi";
+import { playerTeamsApi, playerPredictionsApi, playerActionsApi, playerTournamentsApi, playerTournamentQueryApi } from "@/services/playerApi";
 import type { ChampionTeam } from "@/types";
 import type { TournamentInfo } from "@/types";
 
@@ -26,19 +26,22 @@ export function TournamentChampionPage() {
     const [confirmOpen, setConfirmOpen] = useState(false);
     const [pendingTeam, setPendingTeam] = useState<ChampionTeam | null>(null);
     const [submitting, setSubmitting] = useState(false);
+    const [pickCounts, setPickCounts] = useState<Map<string, number>>(new Map());
 
     const loadData = useCallback(async (tid: string) => {
         if (!tid) {
             setTeams([]);
             setTournament(null);
+            setPickCounts(new Map());
             return;
         }
         setLoading(true);
         try {
-            const [allTournaments, teamData, currentPick] = await Promise.all([
+            const [allTournaments, teamData, currentPick, counts] = await Promise.all([
                 playerTournamentsApi.getAll(),
                 playerTeamsApi.getByTournament(tid),
                 playerPredictionsApi.getChampionPick(tid),
+                playerTournamentQueryApi.getChampionPickCounts(tid),
             ]);
             const t = allTournaments.find((x) => x.ID === tid) ?? null;
             setTournament(t);
@@ -48,6 +51,12 @@ export function TournamentChampionPage() {
                     selected: team.name === currentPick,
                 }))
             );
+            // Build map of teamName -> count
+            const countMap = new Map<string, number>();
+            for (const c of counts) {
+                countMap.set(c.teamName, c.count);
+            }
+            setPickCounts(countMap);
         } catch {
             setTeams([]);
         } finally {
@@ -169,6 +178,12 @@ export function TournamentChampionPage() {
                                 <span className="mb-4 text-[10px] uppercase tracking-widest text-muted-foreground">
                                     {team.confederation}
                                 </span>
+                                {pickCounts.get(team.name) != null && pickCounts.get(team.name)! > 0 && (
+                                    <span className="mb-2 flex items-center gap-1 text-[10px] text-muted-foreground">
+                                        <Users className="h-3 w-3" />
+                                        {pickCounts.get(team.name)} pick{pickCounts.get(team.name)! !== 1 ? "s" : ""}
+                                    </span>
+                                )}
                                 <div className="mt-auto w-full">
                                     <button
                                         type="button"

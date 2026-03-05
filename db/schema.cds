@@ -234,6 +234,8 @@ entity Match : cuid, managed {
     externalId     : Integer; // football-data.org match ID for syncing
     // ── Betting Lock (admin-controlled per-match) ──
     bettingLocked  : Boolean default false; // if true, users cannot place/change bets for this match
+    // ── Featured/Hot match flag (admin configured) ──
+    isHotMatch     : Boolean default false;
 }
 
 /**

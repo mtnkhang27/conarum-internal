@@ -122,6 +122,7 @@ export function MatchDetail() {
 
   // Config tab state
   const [outcomePoints, setOutcomePoints] = useState(1);
+  const [isHotMatch, setIsHotMatch] = useState(false);
   const [sbCfg, setSbCfg] = useState(DEFAULT_SCORE_BET_CONFIG);
   const [scoreBettingEnabled, setScoreBettingEnabled] = useState(false);
 
@@ -142,6 +143,7 @@ export function MatchDetail() {
     venue: "",
     stage: "group",
     matchday: "",
+    isHotMatch: false,
   });
 
   // Enter result dialog
@@ -170,6 +172,7 @@ export function MatchDetail() {
       ]);
       setMatch(m);
       setOutcomePoints(Number(m.outcomePoints ?? 1));
+      setIsHotMatch(!!m.isHotMatch);
 
       // Fetch bracket slot if linked
       if (m.bracketSlot_ID) {
@@ -191,6 +194,7 @@ export function MatchDetail() {
         venue: m.venue || "",
         stage: m.stage,
         matchday: m.matchday != null ? String(m.matchday) : "",
+        isHotMatch: !!m.isHotMatch,
       });
 
       if (cfg) {
@@ -263,7 +267,7 @@ export function MatchDetail() {
     if (!matchId || !match) return;
     setSaving(true);
     try {
-      await matchesApi.update(matchId, { outcomePoints } as Partial<AdminMatch>);
+      await matchesApi.update(matchId, { outcomePoints, isHotMatch } as Partial<AdminMatch>);
       if (scoreBettingEnabled) {
         if (scoreBetCfgExists && scoreBetCfg) {
           await matchScoreBetConfigApi.update(scoreBetCfg.ID, sbCfg);
@@ -296,6 +300,7 @@ export function MatchDetail() {
         venue: editForm.venue || null,
         stage: editForm.stage as AdminMatch["stage"],
         matchday: editForm.matchday ? parseInt(editForm.matchday) : null,
+        isHotMatch: !!editForm.isHotMatch,
       } as Partial<AdminMatch>);
       toast.success("Match updated");
       load();
@@ -511,6 +516,30 @@ export function MatchDetail() {
               value={outcomePoints}
               onChange={(e) => setOutcomePoints(parseFloat(e.target.value) || 0)}
             />
+          </ConfigRow>
+          <ConfigRow label="Hot Match" description="Mark this match as featured in player filters">
+            <div className="flex items-center gap-4">
+              <label className="inline-flex items-center gap-2 text-sm text-white">
+                <input
+                  type="radio"
+                  name="detail-config-hot-match"
+                  checked={isHotMatch}
+                  onChange={() => setIsHotMatch(true)}
+                  className="h-4 w-4 accent-primary"
+                />
+                Hot
+              </label>
+              <label className="inline-flex items-center gap-2 text-sm text-white">
+                <input
+                  type="radio"
+                  name="detail-config-hot-match"
+                  checked={!isHotMatch}
+                  onChange={() => setIsHotMatch(false)}
+                  className="h-4 w-4 accent-primary"
+                />
+                Normal
+              </label>
+            </div>
           </ConfigRow>
           <ConfigRow label="Enable Score Betting" description="Create score bet config for this match">
             <Checkbox
@@ -765,6 +794,31 @@ export function MatchDetail() {
                   onChange={(e) => setEditForm({ ...editForm, matchday: e.target.value })}
                   placeholder="e.g. 1-38"
                 />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <label className="text-xs font-medium text-muted-foreground">Hot Match</label>
+              <div className="flex items-center gap-5 rounded-md border border-border bg-surface-dark/40 px-3 py-2">
+                <label className="inline-flex items-center gap-2 text-sm text-white">
+                  <input
+                    type="radio"
+                    name="detail-edit-hot-match"
+                    checked={editForm.isHotMatch}
+                    onChange={() => setEditForm({ ...editForm, isHotMatch: true })}
+                    className="h-4 w-4 accent-primary"
+                  />
+                  Hot
+                </label>
+                <label className="inline-flex items-center gap-2 text-sm text-white">
+                  <input
+                    type="radio"
+                    name="detail-edit-hot-match"
+                    checked={!editForm.isHotMatch}
+                    onChange={() => setEditForm({ ...editForm, isHotMatch: false })}
+                    className="h-4 w-4 accent-primary"
+                  />
+                  Normal
+                </label>
               </div>
             </div>
           </div>

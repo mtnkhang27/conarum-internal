@@ -31,11 +31,13 @@ export interface Match {
     maxBets?: number;
     /** Final result score (only present for completed matches) */
     finalScore?: { home: number; away: number };
-    /** Match kickoff ISO string (for completed table display) */
+    /** Match kickoff ISO string (for completed table display and filtering) */
     kickoffIso?: string;
     /** Match stage label */
     stage?: string;
     outcomePoints?: number; // Points earned for correct outcome prediction (home/draw/away)
+    /** Featured match flag managed by admin */
+    isHotMatch?: boolean;
 }
 
 export interface UpcomingMatch {

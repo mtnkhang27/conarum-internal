@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { MatchCard } from "@/components/MatchCard";
+import { Input } from "@/components/ui/input";
 import type { Match } from "@/types";
 
 const COLUMNS = 3;
 const ROWS_PER_PAGE = 3;
 const PAGE_SIZE = COLUMNS * ROWS_PER_PAGE;
 type PaginationItem = number | "dots-left" | "dots-right";
+type DateFilter = "all" | "today" | "tomorrow" | "future";
 
 interface MatchPredictionTableProps {
     matches: Match[];
@@ -14,13 +16,56 @@ interface MatchPredictionTableProps {
 
 export function MatchPredictionTable({ matches, onPredictionChange }: MatchPredictionTableProps) {
     const [page, setPage] = useState(1);
+    const [dateFilter, setDateFilter] = useState<DateFilter>("all");
+    const [teamSearch, setTeamSearch] = useState("");
+    const [onlyHotMatches, setOnlyHotMatches] = useState(false);
 
-    const firstMatchId = matches[0]?.id ?? "";
-    const totalPages = Math.max(1, Math.ceil(matches.length / PAGE_SIZE));
+    const filteredMatches = useMemo(() => {
+        const search = teamSearch.trim().toLowerCase();
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        const tomorrow = new Date(today);
+        tomorrow.setDate(tomorrow.getDate() + 1);
+
+        const dayAfterTomorrow = new Date(today);
+        dayAfterTomorrow.setDate(dayAfterTomorrow.getDate() + 2);
+
+        const getDayStart = (iso?: string) => {
+            if (!iso) return null;
+            const kickoff = new Date(iso);
+            if (Number.isNaN(kickoff.getTime())) return null;
+            kickoff.setHours(0, 0, 0, 0);
+            return kickoff;
+        };
+
+        return matches.filter((match) => {
+            const byTeam =
+                !search ||
+                match.home.name.toLowerCase().includes(search) ||
+                match.away.name.toLowerCase().includes(search);
+
+            if (!byTeam) return false;
+
+            if (onlyHotMatches && !match.isHotMatch) return false;
+
+            if (dateFilter === "all") return true;
+
+            const kickoffDay = getDayStart(match.kickoffIso);
+            if (!kickoffDay) return false;
+
+            if (dateFilter === "today") return kickoffDay.getTime() === today.getTime();
+            if (dateFilter === "tomorrow") return kickoffDay.getTime() === tomorrow.getTime();
+            return kickoffDay.getTime() >= dayAfterTomorrow.getTime();
+        });
+    }, [matches, dateFilter, teamSearch, onlyHotMatches]);
+
+    const firstFilteredMatchId = filteredMatches[0]?.id ?? "";
+    const totalPages = Math.max(1, Math.ceil(filteredMatches.length / PAGE_SIZE));
 
     useEffect(() => {
         setPage(1);
-    }, [matches.length, firstMatchId]);
+    }, [matches.length, firstFilteredMatchId, dateFilter, teamSearch, onlyHotMatches]);
 
     useEffect(() => {
         if (page > totalPages) setPage(totalPages);
@@ -30,16 +75,16 @@ export function MatchPredictionTable({ matches, onPredictionChange }: MatchPredi
     const endIndex = startIndex + PAGE_SIZE;
 
     const rows = useMemo(() => {
-        const visible = matches.slice(startIndex, endIndex);
+        const visible = filteredMatches.slice(startIndex, endIndex);
         const grouped: Match[][] = [];
         for (let i = 0; i < visible.length; i += COLUMNS) {
             grouped.push(visible.slice(i, i + COLUMNS));
         }
         return grouped;
-    }, [matches, startIndex, endIndex]);
+    }, [filteredMatches, startIndex, endIndex]);
 
-    const from = matches.length === 0 ? 0 : startIndex + 1;
-    const to = Math.min(endIndex, matches.length);
+    const from = filteredMatches.length === 0 ? 0 : startIndex + 1;
+    const to = Math.min(endIndex, filteredMatches.length);
     const paginationItems = useMemo<PaginationItem[]>(() => {
         if (totalPages <= 7) {
             return Array.from({ length: totalPages }, (_, idx) => idx + 1);
@@ -61,8 +106,37 @@ export function MatchPredictionTable({ matches, onPredictionChange }: MatchPredi
             <div className="border-b border-border bg-surface/55 px-4 py-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                     <p className="text-xs text-muted-foreground">
-                        Showing {from}-{to} of {matches.length} matches
+                        Showing {from}-{to} of {filteredMatches.length} matches
                     </p>
+                    <div className="flex flex-wrap items-center justify-end gap-2">
+                        <select
+                            value={dateFilter}
+                            onChange={(e) => setDateFilter(e.target.value as DateFilter)}
+                            className="h-9 min-w-[130px] rounded-md border border-border bg-surface-dark px-3 text-xs text-foreground outline-none transition-colors focus:border-primary"
+                            aria-label="Filter by date"
+                        >
+                            <option value="all">All dates</option>
+                            <option value="today">Today</option>
+                            <option value="tomorrow">Tomorrow</option>
+                            <option value="future">Future</option>
+                        </select>
+                        <Input
+                            value={teamSearch}
+                            onChange={(e) => setTeamSearch(e.target.value)}
+                            placeholder="Search team name..."
+                            className="h-9 w-[220px] text-xs"
+                            aria-label="Search by team name"
+                        />
+                        <label className="inline-flex h-9 cursor-pointer items-center gap-2 rounded-md border border-border bg-surface-dark px-3 text-xs text-foreground">
+                            <input
+                                type="checkbox"
+                                checked={onlyHotMatches}
+                                onChange={(e) => setOnlyHotMatches(e.target.checked)}
+                                className="h-4 w-4 accent-primary"
+                            />
+                            Hot match only
+                        </label>
+                    </div>
                 </div>
             </div>
 
@@ -70,7 +144,7 @@ export function MatchPredictionTable({ matches, onPredictionChange }: MatchPredi
                 <div className="min-w-[1040px]">
                     {rows.length === 0 ? (
                         <p className="py-10 text-center text-sm text-muted-foreground">
-                            No upcoming matches available for prediction.
+                            No matches found for current filters.
                         </p>
                     ) : (
                         rows.map((row, rowIdx) => (

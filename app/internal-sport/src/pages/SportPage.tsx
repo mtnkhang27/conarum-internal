@@ -180,7 +180,7 @@ export function SportPage() {
                         id={SECTION.matches}
                         color="bg-primary"
                         title="Match Predictions"
-                        subtitle="Pick the winner for each upcoming match. Use the cards below to submit your prediction."
+                        subtitle=""
                     />
 
                     {/* Available match table */}

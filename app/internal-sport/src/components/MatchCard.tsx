@@ -192,7 +192,7 @@ export function MatchCard({ match, isCompleted = false, onPredictionChange }: Ma
                             {match.home.crest
                                 ? <img src={match.home.crest} alt={match.home.name} className="mb-2 h-8 w-8 object-contain" />
                                 : <span className={`fi fi-${match.home.flag} mb-2 !w-8 rounded-sm text-2xl shadow-md`} />}
-                            <span className="text-sm font-bold text-white">{match.home.name}</span>
+                            <span className="text-sm font-bold text-white text-center">{match.home.name}</span>
                         </div>
 
                         <div className="flex flex-col items-center gap-2 px-3">
@@ -231,7 +231,7 @@ export function MatchCard({ match, isCompleted = false, onPredictionChange }: Ma
                             {match.away.crest
                                 ? <img src={match.away.crest} alt={match.away.name} className="mb-2 h-8 w-8 object-contain" />
                                 : <span className={`fi fi-${match.away.flag} mb-2 !w-8 rounded-sm text-2xl shadow-md`} />}
-                            <span className="text-sm font-bold text-white">{match.away.name}</span>
+                            <span className="text-sm font-bold text-white text-center">{match.away.name}</span>
                         </div>
                     </div>
                 </div>

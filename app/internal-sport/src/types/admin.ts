@@ -79,6 +79,8 @@ export interface AdminMatch {
     externalId: number | null; // football-data.org match ID
     // Betting lock
     bettingLocked: boolean;
+    // Featured match
+    isHotMatch: boolean;
     // Bracket
     bracketSlot_ID: string | null;
     leg: number | null;

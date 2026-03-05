@@ -85,6 +85,9 @@ export function MatchManagement() {
     const [tournaments, setTournaments] = useState<AdminTournament[]>([]);
     const [selectedTournament, setSelectedTournament] = useState<string>("all");
     const [selectedStatus, setSelectedStatus] = useState<string>("upcoming");
+    const [selectedStage, setSelectedStage] = useState<string>("all");
+    const [selectedDay, setSelectedDay] = useState<string>("");
+    const [teamSearch, setTeamSearch] = useState<string>("");
     const [loading, setLoading] = useState(true);
 
     // Dialog state
@@ -121,6 +124,7 @@ export function MatchManagement() {
         venue: "",
         stage: "group",
         matchday: "",
+        isHotMatch: false,
     });
 
     useEffect(() => {
@@ -160,6 +164,7 @@ export function MatchManagement() {
             venue: "",
             stage: "group",
             matchday: "",
+            isHotMatch: false,
         });
         setDialogOpen(true);
     }
@@ -174,6 +179,7 @@ export function MatchManagement() {
             venue: match.venue || "",
             stage: match.stage,
             matchday: match.matchday != null ? String(match.matchday) : "",
+            isHotMatch: !!match.isHotMatch,
         });
         setDialogOpen(true);
     }
@@ -204,6 +210,7 @@ export function MatchManagement() {
                 venue: form.venue || null,
                 stage: form.stage as AdminMatch["stage"],
                 matchday: form.matchday ? parseInt(form.matchday) : null,
+                isHotMatch: !!form.isHotMatch,
             };
 
             if (editing) {
@@ -297,20 +304,41 @@ export function MatchManagement() {
         }
     }
 
+    function formatLocalDateKey(value: string) {
+        const date = new Date(value);
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, "0");
+        const day = String(date.getDate()).padStart(2, "0");
+        return `${year}-${month}-${day}`;
+    }
+
+    function teamName(id?: string | null) {
+        if (!id) return "TBD";
+        return teams.find((t) => t.ID === id)?.name || id;
+    }
+
+    function resolvedTeamName(team?: AdminTeam | null, id?: string | null) {
+        return team?.name || teamName(id);
+    }
+
     // Filter matches based on selected filters
     const filteredMatches = matches.filter((match) => {
+        const homeName = resolvedTeamName(match.homeTeam, match.homeTeam_ID).toLowerCase();
+        const awayName = resolvedTeamName(match.awayTeam, match.awayTeam_ID).toLowerCase();
+        const search = teamSearch.trim().toLowerCase();
+
         const tournamentMatch = selectedTournament === "all" || match.tournament_ID === selectedTournament;
         const statusMatch = selectedStatus === "all" || match.status === selectedStatus;
-        return tournamentMatch && statusMatch;
+        const stageMatch = selectedStage === "all" || match.stage === selectedStage;
+        const dayMatch = !selectedDay || formatLocalDateKey(match.kickoff) === selectedDay;
+        const teamMatch = !search || homeName.includes(search) || awayName.includes(search);
+
+        return tournamentMatch && statusMatch && stageMatch && dayMatch && teamMatch;
     });
 
     const upcoming = filteredMatches.filter((m) => m.status === "upcoming").length;
     const live = filteredMatches.filter((m) => m.status === "live").length;
     const finished = filteredMatches.filter((m) => m.status === "finished").length;
-
-    function teamName(id: string) {
-        return teams.find((t) => t.ID === id)?.name || id;
-    }
 
     if (loading) {
         return (
@@ -330,7 +358,7 @@ export function MatchManagement() {
                         Manage all matches and schedules
                     </p>
                 </div>
-                <div className="flex items-center gap-3">
+                <div className="flex flex-wrap items-center justify-end gap-3">
                     {/* Tournament filter */}
                     <Select
                         value={selectedTournament}
@@ -363,6 +391,37 @@ export function MatchManagement() {
                             <SelectItem value="finished">Finished</SelectItem>
                         </SelectContent>
                     </Select>
+                    {/* Stage filter */}
+                    <Select
+                        value={selectedStage}
+                        onValueChange={setSelectedStage}
+                    >
+                        <SelectTrigger className="w-[180px]">
+                            <SelectValue placeholder="Filter by stage" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="all">All Stages</SelectItem>
+                            {STAGES.map((stage) => (
+                                <SelectItem key={stage.value} value={stage.value}>
+                                    {stage.label}
+                                </SelectItem>
+                            ))}
+                        </SelectContent>
+                    </Select>
+                    {/* Day filter */}
+                    <Input
+                        type="date"
+                        className="w-[170px]"
+                        value={selectedDay}
+                        onChange={(e) => setSelectedDay(e.target.value)}
+                    />
+                    {/* Team search */}
+                    <Input
+                        className="w-[220px]"
+                        placeholder="Search team name..."
+                        value={teamSearch}
+                        onChange={(e) => setTeamSearch(e.target.value)}
+                    />
                     <Button onClick={openAdd}>
                         <Plus className="mr-2 h-4 w-4" />
                         Add Match
@@ -421,8 +480,9 @@ export function MatchManagement() {
                                 <th className="px-4 py-3">Away</th>
                                 <th className="px-4 py-3">Stage</th>
                                 <th className="px-4 py-3">Date &amp; Time</th>
-                                <th className="px-4 py-3">Venue</th>
+                                <th className="px-4 py-3">Matchday</th>
                                 {/* <th className="px-4 py-3">Day</th> */}
+                                <th className="px-4 py-3">Hot</th>
                                 <th className="px-4 py-3">Result</th>
                                 <th className="px-4 py-3">Status</th>
                                 <th className="px-4 py-3">Actions</th>
@@ -438,13 +498,15 @@ export function MatchManagement() {
                                     {/* Home team */}
                                     <td className="px-4 py-3">
                                         <div className="flex items-center justify-end gap-1.5 font-medium text-white">
-                                            {m.homeTeam
+                                            {m.homeTeam?.name
                                                 ? (
                                                     <>
                                                         <span>{m.homeTeam.name}</span>
                                                         {m.homeTeam.crest
                                                             ? <img src={m.homeTeam.crest} alt="" className="h-5 w-5 flex-shrink-0 object-contain" />
-                                                            : <span className={`fi fi-${m.homeTeam.flagCode} flex-shrink-0`} />}
+                                                            : m.homeTeam.flagCode
+                                                                ? <span className={`fi fi-${m.homeTeam.flagCode} flex-shrink-0`} />
+                                                                : null}
                                                     </>
                                                 )
                                                 : <span>{teamName(m.homeTeam_ID)}</span>}
@@ -457,12 +519,14 @@ export function MatchManagement() {
                                     {/* Away team */}
                                     <td className="px-4 py-3">
                                         <div className="flex items-center gap-1.5 font-medium text-white">
-                                            {m.awayTeam
+                                            {m.awayTeam?.name
                                                 ? (
                                                     <>
                                                         {m.awayTeam.crest
                                                             ? <img src={m.awayTeam.crest} alt="" className="h-5 w-5 flex-shrink-0 object-contain" />
-                                                            : <span className={`fi fi-${m.awayTeam.flagCode} flex-shrink-0`} />}
+                                                            : m.awayTeam.flagCode
+                                                                ? <span className={`fi fi-${m.awayTeam.flagCode} flex-shrink-0`} />
+                                                                : null}
                                                         <span>{m.awayTeam.name}</span>
                                                     </>
                                                 )
@@ -472,7 +536,7 @@ export function MatchManagement() {
                                     <td className="px-4 py-3 capitalize text-muted-foreground">
                                         {m.stage}
                                     </td>
-                                    {/* <td className="px-4 py-3">
+                                    <td className="px-4 py-3">
                                         <div className="text-muted-foreground">
                                             {new Date(m.kickoff).toLocaleDateString()}
                                         </div>
@@ -482,12 +546,21 @@ export function MatchManagement() {
                                                 minute: "2-digit",
                                             })}
                                         </div>
-                                    </td> */}
-                                    <td className="px-4 py-3 text-muted-foreground">
-                                        {m.venue || "—"}
                                     </td>
+                                    {/* <td className="px-4 py-3 text-muted-foreground">
+                                        {m.venue || "—"}
+                                    </td> */}
                                     <td className="px-4 py-3 text-center font-mono text-muted-foreground">
                                         {m.matchday ?? "—"}
+                                    </td>
+                                    <td className="px-4 py-3">
+                                        {m.isHotMatch ? (
+                                            <Badge className="border-amber-500/40 bg-amber-500/10 text-amber-400" variant="outline">
+                                                Hot
+                                            </Badge>
+                                        ) : (
+                                            <span className="text-muted-foreground">No</span>
+                                        )}
                                     </td>
                                     <td className="px-4 py-3 font-mono text-white">
                                         {m.status === "finished"
@@ -572,7 +645,7 @@ export function MatchManagement() {
                             {filteredMatches.length === 0 && (
                                 <tr>
                                     <td
-                                        colSpan={8}
+                                        colSpan={10}
                                         className="px-4 py-8 text-center text-muted-foreground"
                                     >
                                         No matches found
@@ -710,6 +783,33 @@ export function MatchManagement() {
                                     onChange={(e) => setForm({ ...form, matchday: e.target.value })}
                                     placeholder="e.g. 1-38"
                                 />
+                            </div>
+                        </div>
+                        <div className="space-y-2">
+                            <label className="text-xs font-medium text-muted-foreground">
+                                Hot Match
+                            </label>
+                            <div className="flex items-center gap-5 rounded-md border border-border bg-surface-dark/40 px-3 py-2">
+                                <label className="inline-flex items-center gap-2 text-sm text-white">
+                                    <input
+                                        type="radio"
+                                        name="match-hot-flag"
+                                        checked={form.isHotMatch}
+                                        onChange={() => setForm({ ...form, isHotMatch: true })}
+                                        className="h-4 w-4 accent-primary"
+                                    />
+                                    Hot
+                                </label>
+                                <label className="inline-flex items-center gap-2 text-sm text-white">
+                                    <input
+                                        type="radio"
+                                        name="match-hot-flag"
+                                        checked={!form.isHotMatch}
+                                        onChange={() => setForm({ ...form, isHotMatch: false })}
+                                        className="h-4 w-4 accent-primary"
+                                    />
+                                    Normal
+                                </label>
                             </div>
                         </div>
                     </div>

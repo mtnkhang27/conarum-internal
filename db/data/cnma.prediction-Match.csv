@@ -1,1 +1,1 @@
-ID;tournament_ID;homeTeam_ID;awayTeam_ID;kickoff;venue;stage;status;matchNumber;matchday;leg;bracketSlot_ID;outcomePoints;homeScore;awayScore;outcome;externalId;bettingLocked
+ID;tournament_ID;homeTeam_ID;awayTeam_ID;kickoff;venue;stage;status;matchNumber;matchday;leg;bracketSlot_ID;outcomePoints;homeScore;awayScore;outcome;externalId;bettingLocked;isHotMatch

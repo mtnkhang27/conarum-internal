@@ -63,6 +63,7 @@ export interface ODataMatch {
     homeScore: number | null;
     awayScore: number | null;
     matchday: number | null;
+    isHotMatch?: boolean;
     homeTeam?: ODataTeam;
     awayTeam?: ODataTeam;
     tournament?: ODataTournament;
@@ -164,6 +165,8 @@ function toMatch(m: ODataMatch): Match {
         selectedOption: "",
         scoreBettingEnabled: false, // will be set based on MatchScoreBetConfig existence
         outcomePoints: m.outcomePoints ?? 0,
+        kickoffIso: m.kickoff,
+        isHotMatch: m.isHotMatch ?? false,
     };
 }
 

@@ -670,9 +670,10 @@ export class AdminHandler {
         const stageMap: Record<string, string> = {
             LEAGUE_STAGE: 'regular',
             GROUP_STAGE: 'group',
+            LAST_32: 'roundOf32',
             LAST_16: 'roundOf16',
-            QUARTER_FINAL: 'quarterFinal',
-            SEMI_FINAL: 'semiFinal',
+            QUARTER_FINALS: 'quarterFinal',
+            SEMI_FINALS: 'semiFinal',
             THIRD_PLACE: 'thirdPlace',
             FINAL: 'final',
             PLAY_OFF_ROUND: 'playoff',
@@ -1178,25 +1179,13 @@ export class AdminHandler {
             DRAW: 'draw',
         };
 
-        // Knockout stages where TBD placeholder matches should be skipped
-        // (they are created on-demand when teams advance via advanceWinner)
-        const knockoutStageSet = new Set(['roundOf16', 'roundOf32', 'quarterFinal', 'semiFinal', 'final', 'playoff', 'thirdPlace']);
-
         let matchesImported = 0;
-        let matchesSkipped = 0;
         let finishedMatchesImported = 0;
         try {
             for (const apiMatch of apiMatches) {
                 const homeTeamId = apiMatch.homeTeam?.id ? teamIdMap.get(apiMatch.homeTeam.id) ?? null : null;
                 const awayTeamId = apiMatch.awayTeam?.id ? teamIdMap.get(apiMatch.awayTeam.id) ?? null : null;
                 const stage = stageMap[apiMatch.stage] ?? 'group';
-
-                // Skip TBD knockout matches (both teams null) — these are created
-                // on-demand when teams advance through the bracket
-                if (!homeTeamId && !awayTeamId && knockoutStageSet.has(stage)) {
-                    matchesSkipped++;
-                    continue;
-                }
 
                 const matchStatus = statusMap[apiMatch.status] ?? 'upcoming';
                 const homeScore = apiMatch.score?.fullTime?.home ?? null;
@@ -1247,7 +1236,7 @@ export class AdminHandler {
 
         return {
             success: true,
-            message: `Tournament '${comp.name}' imported: ${teamsImported} new team(s), ${membersImported} member(s), ${matchesImported} match(es) (${finishedMatchesImported} finished, ${matchesSkipped} TBD skipped), ${bracketSlotsCreated} bracket slot(s).`,
+            message: `Tournament '${comp.name}' imported: ${teamsImported} new team(s), ${membersImported} member(s), ${matchesImported} match(es) (${finishedMatchesImported} finished), ${bracketSlotsCreated} bracket slot(s).`,
             tournamentId,
             teamsImported,
             membersImported,
@@ -1287,73 +1276,136 @@ export class AdminHandler {
             matchesByStage.get(m.stage)!.push(m);
         }
 
-        /**
-         * Pair two-leg matches into ties.
-         * A tie consists of two matches with the same two teams (home/away swapped).
-     * Ties are sorted by minimum externalId to preserve the bracket ordering
-     * from football-data.org (externalId follows bracket structure).
-     * Within each tie, leg1 is the earlier kickoff (first leg).
-     */
-        const createTiesFromMatches = (
-            matches: any[]
-        ): { leg1: any; leg2: any | null; homeTeamId: string | null; awayTeamId: string | null }[] => {
-            const ties: { leg1: any; leg2: any | null; homeTeamId: string | null; awayTeamId: string | null }[] = [];
-            const used = new Set<string>();
+        const expectedTiesPerStage: Record<string, number> = {
+            roundOf32: 16,
+            roundOf16: 8,
+            quarterFinal: 4,
+            semiFinal: 2,
+            final: 1,
+        };
 
-            // Sort by externalId (API match ID) to preserve bracket ordering
-            // The football-data.org API assigns IDs that follow the bracket structure
-            matches.sort((a: any, b: any) => (a.externalId ?? 0) - (b.externalId ?? 0));
-
-            for (let i = 0; i < matches.length; i++) {
-                if (used.has(matches[i].ID)) continue;
-                const m1 = matches[i];
-                let paired = false;
-
-                // Look for matching return leg (teams swapped)
-                for (let j = i + 1; j < matches.length; j++) {
-                    if (used.has(matches[j].ID)) continue;
-                    const m2 = matches[j];
-
-                    if (
-                        m1.homeTeam_ID && m1.awayTeam_ID &&
-                        m1.homeTeam_ID === m2.awayTeam_ID &&
-                        m1.awayTeam_ID === m2.homeTeam_ID
-                    ) {
-                        used.add(m1.ID);
-                        used.add(m2.ID);
-                        // Determine leg1 (earlier kickoff) and leg2 (later kickoff)
-                        const [leg1, leg2] = new Date(m1.kickoff).getTime() <= new Date(m2.kickoff).getTime()
-                            ? [m1, m2] : [m2, m1];
-                        ties.push({
-                            leg1,
-                            leg2,
-                            homeTeamId: leg1.homeTeam_ID,
-                            awayTeamId: leg1.awayTeam_ID,
-                        });
-                        paired = true;
-                        break;
-                    }
-                }
-
-                if (!paired) {
-                    used.add(m1.ID);
-                    ties.push({
-                        leg1: m1,
-                        leg2: null,
-                        homeTeamId: m1.homeTeam_ID ?? null,
-                        awayTeamId: m1.awayTeam_ID ?? null,
-                    });
-                }
-            }
-
-            // Sort ties by minimum externalId of their legs to preserve bracket ordering
+        type Tie = { leg1: any; leg2: any | null; homeTeamId: string | null; awayTeamId: string | null };
+        const sortTiesByExternalOrder = (ties: Tie[]): Tie[] =>
             ties.sort((a, b) => {
                 const aId = Math.min(a.leg1.externalId ?? Infinity, a.leg2?.externalId ?? Infinity);
                 const bId = Math.min(b.leg1.externalId ?? Infinity, b.leg2?.externalId ?? Infinity);
                 return aId - bId;
             });
 
-            return ties;
+        /**
+         * Pair matches into bracket ties.
+         * Preferred strategy is team-based (home/away swapped across legs).
+         * For TBD two-leg stages, infer pairings by matchday or ordered split.
+         */
+        const createTiesFromMatches = (matches: any[], stage: string): Tie[] => {
+            const orderedMatches = [...matches].sort((a: any, b: any) => (a.externalId ?? 0) - (b.externalId ?? 0));
+
+            const pairByKnownTeams = (): Tie[] => {
+                const ties: Tie[] = [];
+                const used = new Set<string>();
+
+                for (let i = 0; i < orderedMatches.length; i++) {
+                    if (used.has(orderedMatches[i].ID)) continue;
+                    const m1 = orderedMatches[i];
+                    let paired = false;
+
+                    for (let j = i + 1; j < orderedMatches.length; j++) {
+                        if (used.has(orderedMatches[j].ID)) continue;
+                        const m2 = orderedMatches[j];
+
+                        if (
+                            m1.homeTeam_ID && m1.awayTeam_ID &&
+                            m1.homeTeam_ID === m2.awayTeam_ID &&
+                            m1.awayTeam_ID === m2.homeTeam_ID
+                        ) {
+                            used.add(m1.ID);
+                            used.add(m2.ID);
+                            const [leg1, leg2] = new Date(m1.kickoff).getTime() <= new Date(m2.kickoff).getTime()
+                                ? [m1, m2]
+                                : [m2, m1];
+                            ties.push({
+                                leg1,
+                                leg2,
+                                homeTeamId: leg1.homeTeam_ID,
+                                awayTeamId: leg1.awayTeam_ID,
+                            });
+                            paired = true;
+                            break;
+                        }
+                    }
+
+                    if (!paired) {
+                        used.add(m1.ID);
+                        ties.push({
+                            leg1: m1,
+                            leg2: null,
+                            homeTeamId: m1.homeTeam_ID ?? null,
+                            awayTeamId: m1.awayTeam_ID ?? null,
+                        });
+                    }
+                }
+
+                return sortTiesByExternalOrder(ties);
+            };
+
+            const expectedTies = expectedTiesPerStage[stage] ?? 0;
+            const isLikelyTwoLegStage =
+                stage !== 'final' &&
+                expectedTies > 0 &&
+                orderedMatches.length === expectedTies * 2;
+
+            const teamPaired = pairByKnownTeams();
+            if (!isLikelyTwoLegStage || teamPaired.length === expectedTies) {
+                return teamPaired;
+            }
+
+            const byMatchday = new Map<number, any[]>();
+            for (const m of orderedMatches) {
+                if (m.matchday != null) {
+                    if (!byMatchday.has(m.matchday)) byMatchday.set(m.matchday, []);
+                    byMatchday.get(m.matchday)!.push(m);
+                }
+            }
+
+            let leg1Candidates: any[] = [];
+            let leg2Candidates: any[] = [];
+            const matchdayKeys = Array.from(byMatchday.keys()).sort((a, b) => a - b);
+            if (
+                matchdayKeys.length === 2 &&
+                (byMatchday.get(matchdayKeys[0])?.length ?? 0) === expectedTies &&
+                (byMatchday.get(matchdayKeys[1])?.length ?? 0) === expectedTies
+            ) {
+                leg1Candidates = [...(byMatchday.get(matchdayKeys[0]) ?? [])]
+                    .sort((a: any, b: any) => (a.externalId ?? 0) - (b.externalId ?? 0));
+                leg2Candidates = [...(byMatchday.get(matchdayKeys[1]) ?? [])]
+                    .sort((a: any, b: any) => (a.externalId ?? 0) - (b.externalId ?? 0));
+            } else {
+                const half = Math.floor(orderedMatches.length / 2);
+                leg1Candidates = orderedMatches.slice(0, half);
+                leg2Candidates = orderedMatches.slice(half);
+            }
+
+            const inferred: Tie[] = [];
+            for (let i = 0; i < expectedTies; i++) {
+                const legA = leg1Candidates[i];
+                const legB = leg2Candidates[i];
+                if (!legA || !legB) break;
+
+                const [leg1, leg2] = new Date(legA.kickoff).getTime() <= new Date(legB.kickoff).getTime()
+                    ? [legA, legB]
+                    : [legB, legA];
+
+                inferred.push({
+                    leg1,
+                    leg2,
+                    homeTeamId: leg1.homeTeam_ID ?? leg2.awayTeam_ID ?? null,
+                    awayTeamId: leg1.awayTeam_ID ?? leg2.homeTeam_ID ?? null,
+                });
+            }
+
+            return inferred.length === expectedTies
+                ? sortTiesByExternalOrder(inferred)
+                : teamPaired;
         };
 
         // Define stages in bracket order
@@ -1367,13 +1419,6 @@ export class AdminHandler {
             final: 'Final',
             playoff: 'PO',
         };
-        const expectedTiesPerStage: Record<string, number> = {
-            roundOf32: 16,
-            roundOf16: 8,
-            quarterFinal: 4,
-            semiFinal: 2,
-            final: 1,
-        };
 
         // Create bracket slots for each stage, keeping track of ties per stage for cross-referencing
         const bracketSlotsByStage = new Map<string, string[]>(); // stage → slot IDs
@@ -1382,7 +1427,7 @@ export class AdminHandler {
 
         for (const stage of stageOrder) {
             const stageMatches = matchesByStage.get(stage) ?? [];
-            const ties = stageMatches.length > 0 ? createTiesFromMatches(stageMatches) : [];
+            const ties = stageMatches.length > 0 ? createTiesFromMatches(stageMatches, stage) : [];
 
             // Use actual tie count or expected count, whichever is larger
             // (create placeholder slots for stages where matches don't exist yet)

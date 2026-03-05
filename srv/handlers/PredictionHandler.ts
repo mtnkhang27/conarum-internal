@@ -1,5 +1,6 @@
 import cds, { Request } from '@sap/cds';
 import { ScoringEngine } from '../lib/ScoringEngine';
+import { materializeSlotBetsForMatch } from '../lib/SlotBetMaterializer';
 
 /**
  * PredictionHandler — Handles user prediction submissions.
@@ -216,6 +217,10 @@ export class PredictionHandler {
             return req.error(400, 'Match has already kicked off');
         }
 
+        // If this match came from an unresolved bracket slot, auto-materialize
+        // previously saved slot bets first so user data stays consistent.
+        await materializeSlotBetsForMatch(matchId);
+
         // Only allow betting when tournament is active
         if (match.tournament_ID) {
             const { Tournament } = cds.entities('cnma.prediction');
@@ -293,6 +298,155 @@ export class PredictionHandler {
     }
 
     /**
+     * Submit prediction for an unresolved bracket slot.
+     * Keeps the player flow identical: pick outcome + score(s) in one action.
+     */
+    async submitSlotPrediction(req: Request) {
+        const { slotId, pick, scores } = req.data;
+        const {
+            BracketSlot,
+            Match,
+            Tournament,
+            SlotPrediction,
+            SlotScoreBet,
+        } = cds.entities('cnma.prediction');
+
+        if (!slotId) return req.error(400, 'slotId is required');
+
+        const slot = await SELECT.one.from(BracketSlot).where({ ID: slotId });
+        if (!slot) return req.error(404, 'Bracket slot not found');
+        if (slot.winner_ID) return req.error(400, 'This slot is already resolved');
+
+        const tournament = slot.tournament_ID
+            ? await SELECT.one.from(Tournament).where({ ID: slot.tournament_ID })
+            : null;
+        if (!tournament) return req.error(404, 'Tournament not found for this slot');
+        if (tournament.bettingLocked) {
+            return req.error(400, 'Betting for this tournament is locked by admin');
+        }
+        if (tournament.status !== 'active') {
+            return req.error(400, tournament.status === 'upcoming'
+                ? 'Tournament has not started yet - predictions open once the tournament is active'
+                : 'Tournament has ended - predictions are no longer accepted');
+        }
+
+        // If concrete match already exists, transparently use match flow so
+        // admin rules (lock/config/kickoff) are applied consistently.
+        if (slot.leg1_ID) {
+            const linkedMatch = await SELECT.one.from(Match).where({ ID: slot.leg1_ID });
+            if (linkedMatch) {
+                const delegatedReq = {
+                    ...req,
+                    data: { matchId: linkedMatch.ID, pick, scores },
+                } as Request;
+                return this.submitMatchPrediction(delegatedReq);
+            }
+        }
+
+        if (Array.isArray(scores) && scores.length > 0) {
+            return req.error(
+                400,
+                'Score predictions are not available for this slot until a concrete match exists and admin enables score betting'
+            );
+        }
+
+        if (!['home', 'draw', 'away'].includes(pick)) {
+            return req.error(400, `Invalid pick "${pick}". Must be: home, draw, away`);
+        }
+
+        const playerId = await this.getOrCreatePlayerId(req);
+        const nowIso = new Date().toISOString();
+
+        const existing = await SELECT.one.from(SlotPrediction).where({
+            player_ID: playerId,
+            slot_ID: slotId,
+        });
+
+        if (existing) {
+            if (existing.status === 'locked' || existing.status === 'scored') {
+                return req.error(400, 'Slot prediction is already locked');
+            }
+            await UPDATE(SlotPrediction).where({ ID: existing.ID }).set({
+                pick,
+                submittedAt: nowIso,
+                status: 'submitted',
+            });
+        } else {
+            await INSERT.into(SlotPrediction).entries({
+                player_ID: playerId,
+                slot_ID: slotId,
+                tournament_ID: tournament.ID,
+                pick,
+                status: 'submitted',
+                submittedAt: nowIso,
+            });
+        }
+
+        await DELETE.from(SlotScoreBet).where({ player_ID: playerId, slot_ID: slotId });
+
+        const validScores = Array.isArray(scores)
+            ? scores.filter(
+                (s: any) => s.homeScore >= 0 && s.awayScore >= 0 && s.homeScore <= 99 && s.awayScore <= 99
+            )
+            : [];
+        const limitedScores = validScores.slice(0, 3);
+
+        for (const s of limitedScores) {
+            await INSERT.into(SlotScoreBet).entries({
+                player_ID: playerId,
+                slot_ID: slotId,
+                tournament_ID: tournament.ID,
+                predictedHomeScore: s.homeScore,
+                predictedAwayScore: s.awayScore,
+                status: 'pending',
+                submittedAt: nowIso,
+            });
+        }
+
+        return { success: true, message: 'Prediction saved successfully' };
+    }
+
+    /**
+     * Cancel/clear slot prediction and associated slot score bets.
+     */
+    async cancelSlotPrediction(req: Request) {
+        const { slotId } = req.data;
+        const { BracketSlot, Match, Tournament, SlotPrediction, SlotScoreBet } = cds.entities('cnma.prediction');
+
+        if (!slotId) return req.error(400, 'slotId is required');
+
+        const slot = await SELECT.one.from(BracketSlot).where({ ID: slotId });
+        if (!slot) return req.error(404, 'Bracket slot not found');
+
+        const tournament = slot.tournament_ID
+            ? await SELECT.one.from(Tournament).where({ ID: slot.tournament_ID })
+            : null;
+        if (tournament?.bettingLocked) {
+            return req.error(400, 'Betting for this tournament is locked by admin');
+        }
+
+        // If concrete match already exists, use match cancellation flow so
+        // admin rules (lock/kickoff) are applied consistently.
+        if (slot.leg1_ID) {
+            const linkedMatch = await SELECT.one.from(Match).where({ ID: slot.leg1_ID });
+            if (linkedMatch) {
+                const delegatedReq = {
+                    ...req,
+                    data: { matchId: linkedMatch.ID },
+                } as Request;
+                return this.cancelMatchPrediction(delegatedReq);
+            }
+        }
+
+        const playerId = await this.getOrCreatePlayerId(req);
+
+        await DELETE.from(SlotPrediction).where({ player_ID: playerId, slot_ID: slotId });
+        await DELETE.from(SlotScoreBet).where({ player_ID: playerId, slot_ID: slotId });
+
+        return { success: true, message: 'Prediction cancelled successfully' };
+    }
+
+    /**
      * Cancel/clear a match prediction and associated score bets.
      * Removes the prediction and all score bets for the given match.
      */
@@ -310,6 +464,10 @@ export class PredictionHandler {
         if (new Date(match.kickoff) <= now) {
             return req.error(400, 'Match has already kicked off');
         }
+
+        // Ensure any legacy slot-based bets for this bracket slot are converted
+        // before cancellation logic so a single cancel clears everything.
+        await materializeSlotBetsForMatch(matchId);
 
         const playerId = await this.getOrCreatePlayerId(req);
 

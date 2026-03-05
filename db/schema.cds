@@ -205,8 +205,8 @@ entity TeamMember : cuid, managed {
  */
 entity Match : cuid, managed {
     tournament  : Association to Tournament @mandatory;
-    homeTeam    : Association to Team       @mandatory;
-    awayTeam    : Association to Team       @mandatory;
+    homeTeam    : Association to Team;
+    awayTeam    : Association to Team;
     kickoff     : DateTime                  @mandatory;
     venue       : String(200);
     stage       : MatchStage default 'group';
@@ -314,6 +314,26 @@ annotate Prediction with @assert.unique: {playerMatch: [
 ]};
 
 /**
+ * Outcome prediction for a knockout bracket slot whose actual match/teams
+ * may not be known yet (e.g., Winner SF1 vs Winner SF2).
+ * This will be materialized into Prediction once a concrete Match exists.
+ */
+entity SlotPrediction : cuid, managed {
+    player      : Association to Player      @mandatory;
+    slot        : Association to BracketSlot @mandatory;
+    tournament  : Association to Tournament  @mandatory;
+    pick        : PredictionPick             @mandatory;
+    status      : PredictionStatus default 'submitted';
+    submittedAt : DateTime;
+}
+
+// One slot prediction per player per bracket slot
+annotate SlotPrediction with @assert.unique: {playerSlot: [
+    player,
+    slot
+]};
+
+/**
  * Exact score prediction bet.
  * Belongs to a Player and a Match.
  */
@@ -326,6 +346,22 @@ entity ScoreBet : cuid, managed {
     submittedAt        : DateTime;
     isCorrect          : Boolean;
     payout             : MoneyAmount default 0; // prize × number of matching bets
+}
+
+/**
+ * Exact score bet for a knockout bracket slot that does not yet have
+ * a concrete match/team pairing. Materialized into ScoreBet later.
+ */
+entity SlotScoreBet : cuid, managed {
+    player             : Association to Player      @mandatory;
+    slot               : Association to BracketSlot @mandatory;
+    tournament         : Association to Tournament  @mandatory;
+    predictedHomeScore : Integer                    @mandatory;
+    predictedAwayScore : Integer                    @mandatory;
+    status             : BetStatus default 'pending';
+    submittedAt        : DateTime;
+    isCorrect          : Boolean;
+    payout             : MoneyAmount default 0;
 }
 
 /**

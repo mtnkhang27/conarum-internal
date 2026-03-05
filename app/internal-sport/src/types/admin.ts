@@ -58,15 +58,17 @@ export interface AdminTournamentTeam {
 
 export interface AdminMatch {
     ID: string;
+    createdAt?: string | null;
+    modifiedAt?: string | null;
     tournament_ID: string;
-    homeTeam_ID: string;
-    awayTeam_ID: string;
+    homeTeam_ID: string | null;
+    awayTeam_ID: string | null;
     homeTeam?: AdminTeam;
     awayTeam?: AdminTeam;
     tournament?: AdminTournament;
     kickoff: string;
     venue: string | null;
-    stage: "group" | "roundOf16" | "quarterFinal" | "semiFinal" | "thirdPlace" | "final" | "regular" | "playoff" | "relegation";
+    stage: "group" | "roundOf32" | "roundOf16" | "quarterFinal" | "semiFinal" | "thirdPlace" | "final" | "regular" | "playoff" | "relegation";
     status: "upcoming" | "live" | "finished" | "cancelled";
     matchNumber: number | null;
     matchday: number | null;

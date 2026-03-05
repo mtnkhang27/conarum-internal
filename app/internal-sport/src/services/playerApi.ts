@@ -53,8 +53,8 @@ export interface ODataTournament {
 
 export interface ODataMatch {
     ID: string;
-    homeTeam_ID: string;
-    awayTeam_ID: string;
+    homeTeam_ID: string | null;
+    awayTeam_ID: string | null;
     tournament_ID: string;
     kickoff: string;
     venue: string | null;
@@ -63,11 +63,33 @@ export interface ODataMatch {
     homeScore: number | null;
     awayScore: number | null;
     matchday: number | null;
+    leg?: number | null;
+    bracketSlot_ID?: string | null;
+    bettingLocked?: boolean;
     isHotMatch?: boolean;
     homeTeam?: ODataTeam;
     awayTeam?: ODataTeam;
     tournament?: ODataTournament;
+    scoreBetConfig?: { enabled?: boolean; maxBets?: number }[];
     outcomePoints?: number; // Points earned for correct outcome prediction (home/draw/away)
+}
+
+export interface ODataBracketSlot {
+    ID: string;
+    tournament_ID: string;
+    stage: string;
+    position: number;
+    label: string | null;
+    homeTeam_ID: string | null;
+    awayTeam_ID: string | null;
+    leg1_ID: string | null;
+    leg2_ID?: string | null;
+    winner_ID: string | null;
+    nextSlot_ID?: string | null;
+    nextSlotSide?: "home" | "away" | null;
+    homeTeam?: ODataTeam;
+    awayTeam?: ODataTeam;
+    tournament?: ODataTournament;
 }
 
 export interface ODataLeaderboardEntry {
@@ -106,6 +128,31 @@ export interface ODataScoreBet {
     payout: number;
     submittedAt: string | null;
     match?: ODataMatch;
+}
+
+export interface ODataSlotPrediction {
+    ID: string;
+    player_ID: string;
+    slot_ID: string;
+    tournament_ID: string;
+    pick: string;
+    status: string;
+    submittedAt: string | null;
+    slot?: ODataBracketSlot;
+}
+
+export interface ODataSlotScoreBet {
+    ID: string;
+    player_ID: string;
+    slot_ID: string;
+    tournament_ID: string;
+    predictedHomeScore: number;
+    predictedAwayScore: number;
+    status: string;
+    isCorrect: boolean | null;
+    payout: number;
+    submittedAt: string | null;
+    slot?: ODataBracketSlot;
 }
 
 export interface ODataChampionPick {
@@ -153,9 +200,145 @@ function formatKickoff(iso: string): string {
     return `${d.toLocaleDateString("en-US", { month: "short", day: "numeric" })} / ${time}`;
 }
 
+const KNOCKOUT_STAGES = new Set([
+    "roundOf32",
+    "roundOf16",
+    "quarterFinal",
+    "semiFinal",
+    "thirdPlace",
+    "final",
+    "playoff",
+]);
+
+const STAGE_ORDER: Record<string, number> = {
+    group: 0,
+    regular: 0,
+    roundOf32: 1,
+    roundOf16: 2,
+    quarterFinal: 3,
+    semiFinal: 4,
+    thirdPlace: 5,
+    final: 6,
+    playoff: 7,
+    relegation: 8,
+};
+
+const STAGE_LABEL: Record<string, string> = {
+    group: "Group Stage",
+    regular: "Regular Season",
+    roundOf32: "Round of 32",
+    roundOf16: "Round of 16",
+    quarterFinal: "Quarter Final",
+    semiFinal: "Semi Final",
+    thirdPlace: "Third Place",
+    final: "Final",
+    playoff: "Playoff",
+    relegation: "Relegation",
+};
+
+function getStageRank(stage?: string | null): number {
+    if (!stage) return 999;
+    return STAGE_ORDER[stage] ?? 999;
+}
+
+function getKickoffRank(kickoff?: string | null): number {
+    if (!kickoff) return Number.MAX_SAFE_INTEGER;
+    const ts = Date.parse(kickoff);
+    return Number.isFinite(ts) ? ts : Number.MAX_SAFE_INTEGER;
+}
+
+function formatStageLabel(stage?: string | null, leg?: number | null): string | undefined {
+    if (!stage) return undefined;
+    const base = STAGE_LABEL[stage] ?? stage;
+    if (leg && leg > 0) return `${base} - Leg ${leg}`;
+    return base;
+}
+
+function mapPickToSelectedOption(
+    pick: string | undefined,
+    homeName: string,
+    awayName: string
+): string {
+    if (!pick) return "";
+    if (pick === "home") return homeName;
+    if (pick === "away") return awayName;
+    if (pick === "draw") return "Draw";
+    return "";
+}
+
+interface SlotFeeders {
+    home?: ODataBracketSlot;
+    away?: ODataBracketSlot;
+}
+
+function resolveUnresolvedTeamName(
+    slot: ODataBracketSlot,
+    side: "home" | "away",
+    feederSlot?: ODataBracketSlot
+): string {
+    const slotTeam = side === "home" ? slot.homeTeam : slot.awayTeam;
+    if (slotTeam?.name) return slotTeam.name;
+
+    if (feederSlot?.label) {
+        return `Winner ${feederSlot.label}`;
+    }
+
+    if (slot.label) {
+        return `Winner ${slot.label}`;
+    }
+
+    return "TBD";
+}
+
+function toUnresolvedSlotMatch(
+    slot: ODataBracketSlot,
+    slotPickMap: Map<string, string>,
+    slotScoreMap: Map<string, { home: number; away: number }[]>,
+    linkedMatch?: ODataMatch,
+    feeders?: SlotFeeders
+): Match {
+    const homeName = resolveUnresolvedTeamName(slot, "home", feeders?.home);
+    const awayName = resolveUnresolvedTeamName(slot, "away", feeders?.away);
+    const rawPick = slotPickMap.get(slot.ID);
+    const linkedCfgs = linkedMatch?.scoreBetConfig ?? [];
+    const enabledCfg = linkedCfgs.find((cfg) => cfg?.enabled);
+    const scoreBettingEnabled = linkedMatch
+        ? !!enabledCfg
+        : false;
+    const maxBets = enabledCfg?.maxBets ?? 3;
+    const outcomePoints = linkedMatch?.outcomePoints ?? 1;
+    const timeLabel = linkedMatch?.kickoff
+        ? formatKickoff(linkedMatch.kickoff)
+        : "TBD / Waiting previous round";
+
+    return {
+        id: slot.ID,
+        timeLabel,
+        home: {
+            name: homeName,
+            flag: slot.homeTeam?.flagCode || "",
+            crest: slot.homeTeam?.crest ?? undefined,
+        },
+        away: {
+            name: awayName,
+            flag: slot.awayTeam?.flagCode || "",
+            crest: slot.awayTeam?.crest ?? undefined,
+        },
+        options: [homeName, "Draw", awayName],
+        selectedOption: mapPickToSelectedOption(rawPick, homeName, awayName),
+        existingScores: slotScoreMap.get(slot.ID) || [],
+        scoreBettingEnabled,
+        maxBets,
+        outcomePoints,
+        stage: formatStageLabel(slot.stage),
+        betTarget: "slot",
+        slotId: slot.ID,
+    };
+}
+
 function toMatch(m: ODataMatch): Match {
-    const home = m.homeTeam || { name: m.homeTeam_ID, flagCode: "" } as any;
-    const away = m.awayTeam || { name: m.awayTeam_ID, flagCode: "" } as any;
+    const home = m.homeTeam || { name: m.homeTeam_ID || "TBD", flagCode: "" } as any;
+    const away = m.awayTeam || { name: m.awayTeam_ID || "TBD", flagCode: "" } as any;
     return {
         id: m.ID,
         timeLabel: formatKickoff(m.kickoff),
@@ -166,13 +349,14 @@ function toMatch(m: ODataMatch): Match {
         scoreBettingEnabled: false, // will be set based on MatchScoreBetConfig existence
         outcomePoints: m.outcomePoints ?? 0,
         kickoffIso: m.kickoff,
+        stage: formatStageLabel(m.stage, m.leg),
         isHotMatch: m.isHotMatch ?? false,
     };
 }
 
 function toUpcomingMatch(m: ODataMatch): UpcomingMatch {
-    const home = m.homeTeam || { name: m.homeTeam_ID, flagCode: "" } as any;
-    const away = m.awayTeam || { name: m.awayTeam_ID, flagCode: "" } as any;
+    const home = m.homeTeam || { name: m.homeTeam_ID || "TBD", flagCode: "" } as any;
+    const away = m.awayTeam || { name: m.awayTeam_ID || "TBD", flagCode: "" } as any;
     const diff = new Date(m.kickoff).getTime() - Date.now();
     return {
         id: m.ID,
@@ -186,8 +370,8 @@ function toUpcomingMatch(m: ODataMatch): UpcomingMatch {
 }
 
 function toLiveMatch(m: ODataMatch): LiveMatch {
-    const home = (m.homeTeam?.name || m.homeTeam_ID);
-    const away = (m.awayTeam?.name || m.awayTeam_ID);
+    const home = m.homeTeam?.name || m.homeTeam_ID || "TBD";
+    const away = m.awayTeam?.name || m.awayTeam_ID || "TBD";
     return {
         match: `${home} vs ${away}`,
         minute: "LIVE",
@@ -196,8 +380,8 @@ function toLiveMatch(m: ODataMatch): LiveMatch {
 }
 
 function toExactScoreMatch(m: ODataMatch): ExactScoreMatch {
-    const home = m.homeTeam || { name: m.homeTeam_ID, flagCode: "" } as any;
-    const away = m.awayTeam || { name: m.awayTeam_ID, flagCode: "" } as any;
+    const home = m.homeTeam || { name: m.homeTeam_ID || "TBD", flagCode: "" } as any;
+    const away = m.awayTeam || { name: m.awayTeam_ID || "TBD", flagCode: "" } as any;
     return {
         id: m.ID,
         timeLabel: formatKickoff(m.kickoff),
@@ -266,30 +450,84 @@ export const playerMatchesApi = {
         let filter = "status eq 'upcoming'";
         if (tournamentId) filter += ` and tournament_ID eq '${tournamentId}'`;
 
-        const [matches, predictions, scoreBets] = await Promise.all([
+        let slotFilter = "winner_ID eq null";
+        if (tournamentId) slotFilter += ` and tournament_ID eq '${tournamentId}'`;
+        const tournamentScopedFilter = tournamentId
+            ? `?$filter=${encodeURIComponent(`tournament_ID eq '${tournamentId}'`)}`
+            : "";
+
+        const [matches, predictions, scoreBets, slots, slotPredictions, slotScoreBets] = await Promise.all([
             json<ODataMatch[]>(
                 `${BASE}/Matches?$filter=${encodeURIComponent(filter)}&$expand=homeTeam,awayTeam,scoreBetConfig&$orderby=kickoff asc`
             ),
             json<ODataPrediction[]>(`${BASE}/MyPredictions`).catch(() => [] as ODataPrediction[]),
             json<ODataScoreBet[]>(`${BASE}/MyScoreBets`).catch(() => [] as ODataScoreBet[]),
+            json<ODataBracketSlot[]>(
+                `${BASE}/BracketSlots?$filter=${encodeURIComponent(slotFilter)}&$expand=homeTeam,awayTeam&$orderby=stage asc,position asc`
+            ).catch(() => [] as ODataBracketSlot[]),
+            json<ODataSlotPrediction[]>(
+                `${BASE}/MySlotPredictions${tournamentScopedFilter}`
+            ).catch(() => [] as ODataSlotPrediction[]),
+            json<ODataSlotScoreBet[]>(
+                `${BASE}/MySlotScoreBets${tournamentScopedFilter}`
+            ).catch(() => [] as ODataSlotScoreBet[]),
         ]);
 
-        // Build map: matchId → pick value (home/draw/away)
         const pickMap = new Map<string, string>();
         for (const p of predictions) pickMap.set(p.match_ID, p.pick);
 
-        // Build map: matchId → existing score bets
         const scoreMap = new Map<string, { home: number; away: number }[]>();
         for (const sb of scoreBets) {
             if (!scoreMap.has(sb.match_ID)) scoreMap.set(sb.match_ID, []);
             scoreMap.get(sb.match_ID)!.push({ home: sb.predictedHomeScore, away: sb.predictedAwayScore });
         }
 
-        return matches.map((m) => {
-            const match = toMatch(m);
+        const slotPickMap = new Map<string, string>();
+        for (const sp of slotPredictions) slotPickMap.set(sp.slot_ID, sp.pick);
 
-            // Determine if score betting is enabled from expanded scoreBetConfig
-            const scoreBetConfigs = (m as any).scoreBetConfig;
+        const slotScoreMap = new Map<string, { home: number; away: number }[]>();
+        for (const sb of slotScoreBets) {
+            if (!slotScoreMap.has(sb.slot_ID)) slotScoreMap.set(sb.slot_ID, []);
+            slotScoreMap.get(sb.slot_ID)!.push({ home: sb.predictedHomeScore, away: sb.predictedAwayScore });
+        }
+
+        const slotFeeders = new Map<string, SlotFeeders>();
+        for (const source of slots) {
+            if (!source.nextSlot_ID) continue;
+            const existing = slotFeeders.get(source.nextSlot_ID) ?? {};
+            if (source.nextSlotSide === "home") existing.home = source;
+            if (source.nextSlotSide === "away") existing.away = source;
+            slotFeeders.set(source.nextSlot_ID, existing);
+        }
+
+        // Once a slot has a concrete match flow, saved picks/scores may already
+        // exist on match-level entities. Mirror them back to slot cards.
+        const unresolvedPickMap = new Map(slotPickMap);
+        const unresolvedScoreMap = new Map(slotScoreMap);
+        for (const slot of slots) {
+            if (!slot.leg1_ID) continue;
+
+            if (!unresolvedPickMap.has(slot.ID)) {
+                const linkedPick = pickMap.get(slot.leg1_ID);
+                if (linkedPick) unresolvedPickMap.set(slot.ID, linkedPick);
+            }
+
+            const existingSlotScores = unresolvedScoreMap.get(slot.ID) ?? [];
+            if (existingSlotScores.length === 0) {
+                const linkedScores = scoreMap.get(slot.leg1_ID) ?? [];
+                if (linkedScores.length > 0) unresolvedScoreMap.set(slot.ID, linkedScores);
+            }
+        }
+
+        const matchById = new Map(matches.map((m) => [m.ID, m]));
+
+        const realMatchItems = matches
+            .map((m) => {
+            const match = toMatch(m);
+            match.betTarget = "match";
+            match.slotId = m.bracketSlot_ID ?? undefined;
+
+            const scoreBetConfigs = m.scoreBetConfig;
             if (scoreBetConfigs && Array.isArray(scoreBetConfigs) && scoreBetConfigs.length > 0) {
                 const enabledCfg = scoreBetConfigs.find((cfg: any) => cfg.enabled);
                 match.scoreBettingEnabled = !!enabledCfg;
@@ -299,15 +537,60 @@ export const playerMatchesApi = {
             }
 
             const rawPick = pickMap.get(m.ID);
-            if (rawPick) {
-                // Map API pick (home/draw/away) → display name
-                if (rawPick === "home") match.selectedOption = match.home.name;
-                else if (rawPick === "away") match.selectedOption = match.away.name;
-                else match.selectedOption = "Draw";
+            const slotRawPick = !rawPick && match.slotId ? slotPickMap.get(match.slotId) : undefined;
+            const effectivePick = rawPick || slotRawPick;
+            if (effectivePick) {
+                match.selectedOption = mapPickToSelectedOption(effectivePick, match.home.name, match.away.name);
             }
-            match.existingScores = scoreMap.get(m.ID) || [];
-            return match;
+
+            const matchScores = scoreMap.get(m.ID) || [];
+            const slotScores = match.slotId ? slotScoreMap.get(match.slotId) || [] : [];
+            match.existingScores = matchScores.length > 0 ? matchScores : slotScores;
+            return {
+                match,
+                stageRank: getStageRank(m.stage),
+                kickoffRank: getKickoffRank(m.kickoff),
+                position: m.matchday ?? Number.MAX_SAFE_INTEGER,
+            };
         });
+
+        const unresolvedSlots = slots
+            .filter((slot) =>
+                KNOCKOUT_STAGES.has(slot.stage)
+                && !slot.winner_ID
+                && !((slot.leg1_ID && matchById.has(slot.leg1_ID)) || (slot.leg2_ID && matchById.has(slot.leg2_ID)))
+            )
+            .sort((a, b) => {
+                const sa = STAGE_ORDER[a.stage] ?? 999;
+                const sb = STAGE_ORDER[b.stage] ?? 999;
+                if (sa !== sb) return sa - sb;
+                return (a.position ?? 0) - (b.position ?? 0);
+            });
+
+        const unresolvedSlotItems = unresolvedSlots.map((slot) => {
+            const linkedMatch = slot.leg1_ID ? matchById.get(slot.leg1_ID) : undefined;
+            return {
+                match: toUnresolvedSlotMatch(
+                    slot,
+                    unresolvedPickMap,
+                    unresolvedScoreMap,
+                    linkedMatch,
+                    slotFeeders.get(slot.ID)
+                ),
+                stageRank: getStageRank(slot.stage),
+                kickoffRank: getKickoffRank(linkedMatch?.kickoff),
+                position: slot.position ?? Number.MAX_SAFE_INTEGER,
+            };
+        });
+
+        return [...realMatchItems, ...unresolvedSlotItems]
+            .sort((a, b) => {
+                if (a.stageRank !== b.stageRank) return a.stageRank - b.stageRank;
+                if (a.kickoffRank !== b.kickoffRank) return a.kickoffRank - b.kickoffRank;
+                if (a.position !== b.position) return a.position - b.position;
+                return a.match.home.name.localeCompare(b.match.home.name);
+            })
+            .map((item) => item.match);
     },
 
     /** Completed (finished) matches, optionally filtered by tournament. */
@@ -351,7 +634,7 @@ export const playerMatchesApi = {
 
     /** Upcoming kickoff list for the sidebar table, optionally filtered by tournament. */
     async getUpcoming(tournamentId?: string): Promise<UpcomingMatch[]> {
-        let filter = "status eq 'upcoming'";
+        let filter = "status eq 'upcoming' and homeTeam_ID ne null and awayTeam_ID ne null";
         if (tournamentId) filter += ` and tournament_ID eq '${tournamentId}'`;
 
         const matches = await json<ODataMatch[]>(
@@ -363,7 +646,7 @@ export const playerMatchesApi = {
     /** Matches available for exact score betting. */
     async getExactScoreMatches(): Promise<ExactScoreMatch[]> {
         const matches = await json<ODataMatch[]>(
-            `${BASE}/Matches?$filter=status eq 'upcoming'&$expand=homeTeam,awayTeam&$orderby=kickoff asc`
+            `${BASE}/Matches?$filter=${encodeURIComponent("status eq 'upcoming' and homeTeam_ID ne null and awayTeam_ID ne null")}&$expand=homeTeam,awayTeam&$orderby=kickoff asc`
         );
         return matches.map(toExactScoreMatch);
     },
@@ -511,11 +794,27 @@ export const playerActionsApi = {
         );
     },
 
+    /** Combined: submit winner pick + score bets for an unresolved bracket slot. */
+    async submitSlotPrediction(slotId: string, pick: string, scores: { homeScore: number; awayScore: number }[]) {
+        return post<{ success: boolean; message: string }>(
+            `${BASE}/submitSlotPrediction`,
+            { slotId, pick, scores }
+        );
+    },
+
     /** Cancel/clear match prediction and associated score bets. */
     async cancelMatchPrediction(matchId: string) {
         return post<{ success: boolean; message: string }>(
             `${BASE}/cancelMatchPrediction`,
             { matchId }
+        );
+    },
+
+    /** Cancel/clear unresolved slot prediction and score bets. */
+    async cancelSlotPrediction(slotId: string) {
+        return post<{ success: boolean; message: string }>(
+            `${BASE}/cancelSlotPrediction`,
+            { slotId }
         );
     },
 

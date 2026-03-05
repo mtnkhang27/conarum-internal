@@ -19,6 +19,10 @@ export interface Team {
 
 export interface Match {
     id: string;
+    /** Where this bet should be persisted. */
+    betTarget?: "match" | "slot";
+    /** Bracket slot ID when the item is tied to a knockout slot. */
+    slotId?: string;
     timeLabel: string;
     home: Team;
     away: Team;

@@ -188,8 +188,8 @@ export function MatchDetail() {
 
       // Populate edit form
       setEditForm({
-        homeTeam_ID: m.homeTeam_ID,
-        awayTeam_ID: m.awayTeam_ID,
+        homeTeam_ID: m.homeTeam_ID || "",
+        awayTeam_ID: m.awayTeam_ID || "",
         kickoff: m.kickoff?.slice(0, 16) || "",
         venue: m.venue || "",
         stage: m.stage,
@@ -294,8 +294,8 @@ export function MatchDetail() {
     setSaving(true);
     try {
       await matchesApi.update(matchId, {
-        homeTeam_ID: editForm.homeTeam_ID,
-        awayTeam_ID: editForm.awayTeam_ID,
+        homeTeam_ID: editForm.homeTeam_ID || null,
+        awayTeam_ID: editForm.awayTeam_ID || null,
         kickoff: new Date(editForm.kickoff).toISOString(),
         venue: editForm.venue || null,
         stage: editForm.stage as AdminMatch["stage"],
@@ -335,6 +335,7 @@ export function MatchDetail() {
     if (isNaN(h) || isNaN(a)) { toast.error("Please enter valid penalty scores."); return; }
     if (h === a) { toast.error("Penalty scores cannot be equal \u2014 there must be a winner."); return; }
     const winnerId = h > a ? match.homeTeam_ID : match.awayTeam_ID;
+    if (!winnerId) { toast.error("Winner team is not resolved yet."); return; }
     try {
       const res = await matchesApi.setPenaltyWinner(match.bracketSlot_ID, winnerId, h, a);
       toast.success(res.message);
@@ -372,8 +373,8 @@ export function MatchDetail() {
     );
   }
 
-  const homeTeamName = match.homeTeam?.name ?? match.homeTeam_ID;
-  const awayTeamName = match.awayTeam?.name ?? match.awayTeam_ID;
+  const homeTeamName = match.homeTeam?.name ?? match.homeTeam_ID ?? "TBD";
+  const awayTeamName = match.awayTeam?.name ?? match.awayTeam_ID ?? "TBD";
   const isFinished = match.status === "finished";
   const showPenaltyButton = computeShowPenaltyButton();
 

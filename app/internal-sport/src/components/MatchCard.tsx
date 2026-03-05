@@ -36,6 +36,8 @@ interface MatchCardProps {
 
 export function MatchCard({ match, isCompleted = false, onPredictionChange }: MatchCardProps) {
     const maxBets = match.maxBets ?? 3;
+    const isSlotBet = match.betTarget === "slot";
+    const slotId = match.slotId || match.id;
     // Track the initial state loaded from server to distinguish "has existing prediction" vs "new pick"
     const [initialOption, setInitialOption] = useState(match.selectedOption || "");
     const [selectedOption, setSelectedOption] = useState(match.selectedOption || "");
@@ -115,7 +117,9 @@ export function MatchCard({ match, isCompleted = false, onPredictionChange }: Ma
         setCancelConfirmOpen(false);
         setIsSaving(true);
         try {
-            const res = await playerActionsApi.cancelMatchPrediction(match.id);
+            const res = isSlotBet
+                ? await playerActionsApi.cancelSlotPrediction(slotId)
+                : await playerActionsApi.cancelMatchPrediction(match.id);
             toast.success("Prediction removed", {
                 description: res.message || `Prediction removed for ${match.home.name} vs ${match.away.name}.`,
             });
@@ -152,11 +156,9 @@ export function MatchCard({ match, isCompleted = false, onPredictionChange }: Ma
             const scoresToSend = match.scoreBettingEnabled
                 ? scores.map((s) => ({ homeScore: s.home, awayScore: s.away }))
                 : [];
-            const res = await playerActionsApi.submitMatchPrediction(
-                match.id,
-                apiPick,
-                scoresToSend
-            );
+            const res = isSlotBet
+                ? await playerActionsApi.submitSlotPrediction(slotId, apiPick, scoresToSend)
+                : await playerActionsApi.submitMatchPrediction(match.id, apiPick, scoresToSend);
             toast.success("Prediction saved", {
                 description: res.message || `Pick & scores saved for ${match.home.name} vs ${match.away.name}.`,
             });
@@ -179,9 +181,21 @@ export function MatchCard({ match, isCompleted = false, onPredictionChange }: Ma
             <div className="match-card rounded-xl border border-border bg-card p-5 transition-all hover:border-primary/40 hover:shadow-lg">
                 <div>
                     <div className="mb-4 flex items-center justify-between">
-                        <span className="rounded bg-success/15 px-2 py-1 text-[10px] font-bold text-success">
-                            {match.outcomePoints} pts
-                        </span>
+                        <div className="flex items-center gap-2">
+                            <span className="rounded bg-success/15 px-2 py-1 text-[10px] font-bold text-success">
+                                {match.outcomePoints} pts
+                            </span>
+                            {match.stage && (
+                                <span className="rounded border border-border bg-surface-dark px-2 py-1 text-[10px] font-bold text-foreground/80">
+                                    {match.stage}
+                                </span>
+                            )}
+                            {isSlotBet && (
+                                <span className="rounded border border-warning/40 bg-warning/15 px-2 py-1 text-[10px] font-bold text-warning">
+                                    Future Round
+                                </span>
+                            )}
+                        </div>
                         <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
                             {match.timeLabel}
                         </span>
@@ -191,8 +205,10 @@ export function MatchCard({ match, isCompleted = false, onPredictionChange }: Ma
                         <div className="flex flex-1 flex-col items-center">
                             {match.home.crest
                                 ? <img src={match.home.crest} alt={match.home.name} className="mb-2 h-8 w-8 object-contain" />
-                                : <span className={`fi fi-${match.home.flag} mb-2 !w-8 rounded-sm text-2xl shadow-md`} />}
-                            <span className="text-sm font-bold text-white text-center">{match.home.name}</span>
+                                : match.home.flag
+                                    ? <span className={`fi fi-${match.home.flag} mb-2 !w-8 rounded-sm text-2xl shadow-md`} />
+                                    : <span className="mb-2 inline-flex h-8 w-8 items-center justify-center rounded-full border border-border bg-surface-dark text-xs font-black text-muted-foreground">?</span>}
+                            <span className="text-sm font-bold text-white">{match.home.name}</span>
                         </div>
 
                         <div className="flex flex-col items-center gap-2 px-3">
@@ -230,8 +246,10 @@ export function MatchCard({ match, isCompleted = false, onPredictionChange }: Ma
                         <div className="flex flex-1 flex-col items-center">
                             {match.away.crest
                                 ? <img src={match.away.crest} alt={match.away.name} className="mb-2 h-8 w-8 object-contain" />
-                                : <span className={`fi fi-${match.away.flag} mb-2 !w-8 rounded-sm text-2xl shadow-md`} />}
-                            <span className="text-sm font-bold text-white text-center">{match.away.name}</span>
+                                : match.away.flag
+                                    ? <span className={`fi fi-${match.away.flag} mb-2 !w-8 rounded-sm text-2xl shadow-md`} />
+                                    : <span className="mb-2 inline-flex h-8 w-8 items-center justify-center rounded-full border border-border bg-surface-dark text-xs font-black text-muted-foreground">?</span>}
+                            <span className="text-sm font-bold text-white">{match.away.name}</span>
                         </div>
                     </div>
                 </div>

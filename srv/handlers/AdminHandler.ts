@@ -747,26 +747,58 @@ export class AdminHandler {
             if (ext.venue) updateData.venue = ext.venue;
             if (ext.matchday != null) updateData.matchday = ext.matchday;
 
-            // Sync teams if they were previously TBD (null) and now known
-            const extHomeCrest = ext.homeTeam?.crest;
-            const extAwayCrest = ext.awayTeam?.crest;
-            if (extHomeCrest && !ourMatch.homeTeam_ID) {
-                const resolvedHome = teamByCrest.get(extHomeCrest);
-                if (resolvedHome) updateData.homeTeam_ID = resolvedHome;
+            // Sync teams authoritatively from API:
+            // - clear local team when API still returns placeholder (TBD)
+            // - overwrite local team when API returns a resolvable crest
+            const resolvedHome = this._resolveTeamFromExternal(ext.homeTeam, teamByCrest);
+            const resolvedAway = this._resolveTeamFromExternal(ext.awayTeam, teamByCrest);
+            if (resolvedHome !== undefined && resolvedHome !== ourMatch.homeTeam_ID) {
+                updateData.homeTeam_ID = resolvedHome;
             }
-            if (extAwayCrest && !ourMatch.awayTeam_ID) {
-                const resolvedAway = teamByCrest.get(extAwayCrest);
-                if (resolvedAway) updateData.awayTeam_ID = resolvedAway;
+            if (resolvedAway !== undefined && resolvedAway !== ourMatch.awayTeam_ID) {
+                updateData.awayTeam_ID = resolvedAway;
             }
 
             if (nowFinished && homeScore !== null && awayScore !== null) {
                 updateData.homeScore = homeScore;
                 updateData.awayScore = awayScore;
                 updateData.outcome = extOutcome ?? ScoringEngine.determineOutcome(homeScore, awayScore);
+            } else {
+                // Match is not finished in API -> clear stale manual result
+                updateData.homeScore = null;
+                updateData.awayScore = null;
+                updateData.outcome = null;
             }
 
             await UPDATE(Match).where({ ID: ourMatch.ID }).set(updateData);
             synced++;
+
+            const homeTeamAfterSync = Object.prototype.hasOwnProperty.call(updateData, 'homeTeam_ID')
+                ? updateData.homeTeam_ID
+                : ourMatch.homeTeam_ID;
+            const awayTeamAfterSync = Object.prototype.hasOwnProperty.call(updateData, 'awayTeam_ID')
+                ? updateData.awayTeam_ID
+                : ourMatch.awayTeam_ID;
+
+            // If upstream tie is unresolved, clear winner/agg and propagated downstream side.
+            if (ourMatch.bracketSlot_ID && (!nowFinished || !homeTeamAfterSync || !awayTeamAfterSync)) {
+                const slot = await SELECT.one.from(BracketSlot).where({ ID: ourMatch.bracketSlot_ID });
+                if (slot) {
+                    await UPDATE(BracketSlot).where({ ID: slot.ID }).set({
+                        homeTeam_ID: homeTeamAfterSync ?? null,
+                        awayTeam_ID: awayTeamAfterSync ?? null,
+                        winner_ID: null,
+                        homeAgg: 0,
+                        awayAgg: 0,
+                        homePen: null,
+                        awayPen: null,
+                    });
+
+                    if (slot.nextSlot_ID && slot.nextSlotSide) {
+                        await this.clearBracketSide(slot.nextSlot_ID, slot.nextSlotSide);
+                    }
+                }
+            }
 
             // Auto-score if newly finished
             if (!wasFinished && nowFinished && homeScore !== null && awayScore !== null) {
@@ -793,7 +825,7 @@ export class AdminHandler {
                     try {
                         const slot = await SELECT.one.from(BracketSlot).where({ ID: ourMatch.bracketSlot_ID });
                         if (slot && !slot.winner_ID) {
-                            const winnerId = penHomeExt > penAwayExt ? ourMatch.homeTeam_ID : ourMatch.awayTeam_ID;
+                            const winnerId = penHomeExt > penAwayExt ? homeTeamAfterSync : awayTeamAfterSync;
                             if (winnerId) {
                                 await UPDATE(BracketSlot).where({ ID: slot.ID }).set({
                                     winner_ID: winnerId,
@@ -816,6 +848,85 @@ export class AdminHandler {
             synced,
             scored,
         };
+    }
+
+    /**
+     * Resolve local Team ID from football-data.org team payload.
+     * - returns string: resolved known team
+     * - returns null: placeholder/TBD team -> clear local assignment
+     * - returns undefined: not confidently resolvable -> keep current local value
+     */
+    private _resolveTeamFromExternal(
+        extTeam: any,
+        teamByCrest: Map<string, string>
+    ): string | null | undefined {
+        if (!extTeam) return null;
+
+        const crest = typeof extTeam.crest === 'string' ? extTeam.crest.trim() : '';
+        if (crest) {
+            const resolved = teamByCrest.get(crest);
+            if (resolved) return resolved;
+        }
+
+        return this._isExternalPlaceholderTeam(extTeam) ? null : undefined;
+    }
+
+    /** Detect placeholder teams such as "TBD" from external API payload. */
+    private _isExternalPlaceholderTeam(extTeam: any): boolean {
+        const raw = `${extTeam?.name ?? ''} ${extTeam?.shortName ?? ''} ${extTeam?.tla ?? ''}`
+            .toLowerCase()
+            .trim();
+
+        if (!raw && !extTeam?.id && !extTeam?.crest) return true;
+        return /\b(tbd|to be determined|winner|loser|qualifier)\b/.test(raw);
+    }
+
+    /**
+     * Clear one side of downstream slot when an upstream winner is invalidated.
+     * Recursively clears all further propagated winners.
+     */
+    private async clearBracketSide(nextSlotId: string, side: 'home' | 'away') {
+        const { BracketSlot, Match } = cds.entities('cnma.prediction');
+
+        const slot = await SELECT.one.from(BracketSlot).where({ ID: nextSlotId });
+        if (!slot) return;
+
+        const slotSideField = side === 'home' ? 'homeTeam_ID' : 'awayTeam_ID';
+        await UPDATE(BracketSlot).where({ ID: slot.ID }).set({
+            [slotSideField]: null,
+            winner_ID: null,
+            homeAgg: 0,
+            awayAgg: 0,
+            homePen: null,
+            awayPen: null,
+        });
+
+        if (slot.leg1_ID) {
+            const leg1SideField = side === 'home' ? 'homeTeam_ID' : 'awayTeam_ID';
+            await UPDATE(Match).where({ ID: slot.leg1_ID }).set({
+                [leg1SideField]: null,
+                status: 'upcoming',
+                homeScore: null,
+                awayScore: null,
+                outcome: null,
+            });
+        }
+
+        if (slot.leg2_ID) {
+            // leg2 has reversed home/away versus bracket slot sides
+            const leg2SideField = side === 'home' ? 'awayTeam_ID' : 'homeTeam_ID';
+            await UPDATE(Match).where({ ID: slot.leg2_ID }).set({
+                [leg2SideField]: null,
+                status: 'upcoming',
+                homeScore: null,
+                awayScore: null,
+                outcome: null,
+            });
+        }
+
+        if (slot.nextSlot_ID && slot.nextSlotSide) {
+            await this.clearBracketSide(slot.nextSlot_ID, slot.nextSlotSide);
+        }
     }
 
     // ── Betting Locks ─────────────────────────────────────────
@@ -931,10 +1042,10 @@ export class AdminHandler {
 
         // Check for orphaned TournamentTeam records that might cause conflicts
         const allTournamentIds = await SELECT.from(Tournament).columns('ID');
-        const tournamentIdSet = new Set(allTournamentIds.map(t => t.ID));
+        const tournamentIdSet = new Set(allTournamentIds.map((t: any) => t.ID));
         
         const allTournamentTeams = await SELECT.from(TournamentTeam);
-        const orphanedTeams = allTournamentTeams.filter(tt => !tournamentIdSet.has(tt.tournament_ID));
+        const orphanedTeams = allTournamentTeams.filter((tt: any) => !tournamentIdSet.has(tt.tournament_ID));
         
         if (orphanedTeams.length > 0) {
             console.warn(`Found ${orphanedTeams.length} orphaned TournamentTeam records that will be cleaned up.`);
@@ -1590,3 +1701,4 @@ export class AdminHandler {
         return 'cup';
     }
 }
+

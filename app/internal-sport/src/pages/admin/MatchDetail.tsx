@@ -97,6 +97,13 @@ const STAGES = [
   { value: "relegation", label: "Relegation" },
 ];
 
+const MATCH_STATUSES: { value: AdminMatch["status"]; label: string }[] = [
+  { value: "upcoming", label: "Upcoming" },
+  { value: "live", label: "Live" },
+  { value: "finished", label: "Finished" },
+  { value: "cancelled", label: "Cancelled" },
+];
+
 const DEFAULT_SCORE_BET_CONFIG: Omit<MatchScoreBetConfig, "ID" | "match_ID"> = {
   enabled: true,
   maxBets: 3,
@@ -142,6 +149,7 @@ export function MatchDetail() {
     kickoff: "",
     venue: "",
     stage: "group",
+    status: "upcoming",
     matchday: "",
     isHotMatch: false,
   });
@@ -166,11 +174,13 @@ export function MatchDetail() {
     if (!matchId) return;
     setLoading(true);
     try {
-      const [m, cfg] = await Promise.all([
+      const [m, cfg, t] = await Promise.all([
         matchesApi.get(matchId),
         matchScoreBetConfigApi.getByMatch(matchId),
+        teamsApi.list(),
       ]);
       setMatch(m);
+      setAllTeams(t);
       setOutcomePoints(Number(m.outcomePoints ?? 1));
       setIsHotMatch(!!m.isHotMatch);
 
@@ -193,6 +203,7 @@ export function MatchDetail() {
         kickoff: m.kickoff?.slice(0, 16) || "",
         venue: m.venue || "",
         stage: m.stage,
+        status: m.status,
         matchday: m.matchday != null ? String(m.matchday) : "",
         isHotMatch: !!m.isHotMatch,
       });
@@ -293,15 +304,22 @@ export function MatchDetail() {
     if (!matchId) return;
     setSaving(true);
     try {
-      await matchesApi.update(matchId, {
+      const nextStatus = editForm.status as AdminMatch["status"];
+      const updatePayload: Partial<AdminMatch> = {
         homeTeam_ID: editForm.homeTeam_ID || null,
         awayTeam_ID: editForm.awayTeam_ID || null,
         kickoff: new Date(editForm.kickoff).toISOString(),
         venue: editForm.venue || null,
         stage: editForm.stage as AdminMatch["stage"],
+        status: nextStatus,
         matchday: editForm.matchday ? parseInt(editForm.matchday) : null,
         isHotMatch: !!editForm.isHotMatch,
-      } as Partial<AdminMatch>);
+      };
+      if (nextStatus === "live" && (match?.homeScore == null || match?.awayScore == null)) {
+        updatePayload.homeScore = 0;
+        updatePayload.awayScore = 0;
+      }
+      await matchesApi.update(matchId, updatePayload);
       toast.success("Match updated");
       load();
     } catch (e: any) {
@@ -373,9 +391,14 @@ export function MatchDetail() {
     );
   }
 
-  const homeTeamName = match.homeTeam?.name ?? match.homeTeam_ID ?? "TBD";
-  const awayTeamName = match.awayTeam?.name ?? match.awayTeam_ID ?? "TBD";
+  const homeTeamId = match.homeTeam_ID ?? bracketSlot?.homeTeam_ID ?? null;
+  const awayTeamId = match.awayTeam_ID ?? bracketSlot?.awayTeam_ID ?? null;
+  const homeTeamResolved = match.homeTeam ?? allTeams.find((t) => t.ID === homeTeamId);
+  const awayTeamResolved = match.awayTeam ?? allTeams.find((t) => t.ID === awayTeamId);
+  const homeTeamName = homeTeamResolved?.name ?? "TBD";
+  const awayTeamName = awayTeamResolved?.name ?? "TBD";
   const isFinished = match.status === "finished";
+  const canEnterResult = match.status === "upcoming" || match.status === "live";
   const showPenaltyButton = computeShowPenaltyButton();
 
   // Prediction stats
@@ -403,19 +426,19 @@ export function MatchDetail() {
           </Button>
           <div>
             <h1 className="text-2xl font-bold text-white">
-              {match.homeTeam &&
-                (match.homeTeam.crest ? (
-                  <img src={match.homeTeam.crest} alt="" className="mr-2 inline h-6 w-6 object-contain align-middle" />
+              {homeTeamResolved &&
+                (homeTeamResolved.crest ? (
+                  <img src={homeTeamResolved.crest} alt="" className="mr-2 inline h-6 w-6 object-contain align-middle" />
                 ) : (
-                  <span className={`fi fi-${match.homeTeam.flagCode} mr-2`} />
+                  <span className={`fi fi-${homeTeamResolved.flagCode} mr-2`} />
                 ))}
               {homeTeamName}
               <span className="mx-3 text-muted-foreground">vs</span>
-              {match.awayTeam &&
-                (match.awayTeam.crest ? (
-                  <img src={match.awayTeam.crest} alt="" className="mr-2 inline h-6 w-6 object-contain align-middle" />
+              {awayTeamResolved &&
+                (awayTeamResolved.crest ? (
+                  <img src={awayTeamResolved.crest} alt="" className="mr-2 inline h-6 w-6 object-contain align-middle" />
                 ) : (
-                  <span className={`fi fi-${match.awayTeam.flagCode} mr-2`} />
+                  <span className={`fi fi-${awayTeamResolved.flagCode} mr-2`} />
                 ))}
               {awayTeamName}
             </h1>
@@ -442,7 +465,7 @@ export function MatchDetail() {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          {!isFinished && (
+          {canEnterResult && (
             <Button variant="outline" onClick={() => { setIsCorrection(false); setResultHome(""); setResultAway(""); setResultDialogOpen(true); }}>
               <Target className="mr-2 h-4 w-4" />
               Enter Result
@@ -796,6 +819,17 @@ export function MatchDetail() {
                   placeholder="e.g. 1-38"
                 />
               </div>
+            </div>
+            <div className="space-y-2">
+              <label className="text-xs font-medium text-muted-foreground">Status</label>
+              <Select value={editForm.status} onValueChange={(v) => setEditForm({ ...editForm, status: v })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {MATCH_STATUSES.map((statusOption) => (
+                    <SelectItem key={statusOption.value} value={statusOption.value}>{statusOption.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-2">
               <label className="text-xs font-medium text-muted-foreground">Hot Match</label>

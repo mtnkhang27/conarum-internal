@@ -55,9 +55,13 @@ export interface UpcomingMatch {
 }
 
 export interface LiveMatch {
+    id?: string;
     match: string;
     minute: string;
     score: string;
+    home?: Team;
+    away?: Team;
+    pick?: string;
 }
 
 // === Exact Score Types ===

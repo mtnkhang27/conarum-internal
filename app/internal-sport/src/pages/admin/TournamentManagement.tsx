@@ -77,7 +77,7 @@ export function TournamentManagement() {
 
     // ── Import competition dialog ────────────────────────────
     const [importOpen, setImportOpen]               = useState(false);
-    const [importApiKey, setImportApiKey]           = useState("");
+    const [importApiKey]                            = useState("");
     const [competitions, setCompetitions]           = useState<CompetitionItem[]>([]);
     const [compLoading, setCompLoading]             = useState(false);
     const [compFilter, setCompFilter]               = useState("");
@@ -169,6 +169,7 @@ export function TournamentManagement() {
     }
 
     function handleSelectComp(c: CompetitionItem) {
+        if (importing) return;
         if (c.alreadyImported) {
             toast.info(`${c.name} is already imported. Navigate to it from the list.`);
             return;
@@ -314,6 +315,7 @@ export function TournamentManagement() {
                                 value={compFilter}
                                 onChange={(e) => setCompFilter(e.target.value)}
                                 className="pl-9"
+                                disabled={importing}
                             />
                         </div>
                         {/* <Input
@@ -325,7 +327,7 @@ export function TournamentManagement() {
                         <Button variant="outline" size="icon"
                             title="Refresh competition list"
                             onClick={() => fetchCompetitions(importApiKey)}
-                            disabled={compLoading}>
+                            disabled={compLoading || importing}>
                             <RefreshCw className={`h-4 w-4 ${compLoading ? "animate-spin" : ""}`} />
                         </Button>
                     </div>
@@ -347,7 +349,7 @@ export function TournamentManagement() {
                                     <button
                                         key={c.code}
                                         onClick={() => handleSelectComp(c)}
-                                        disabled={c.alreadyImported}
+                                        disabled={c.alreadyImported || importing}
                                         className={`flex items-center gap-3 rounded-lg border p-3 text-left transition-colors
                                             ${c.alreadyImported
                                                 ? "border-border/40 bg-muted/20 opacity-50 cursor-not-allowed"
@@ -400,8 +402,17 @@ export function TournamentManagement() {
                     </div>
 
                     <DialogFooter className="pt-2 border-t border-border">
-                        <Button variant="outline" onClick={() => setImportOpen(false)}>Close</Button>
+                        <Button variant="outline" onClick={() => setImportOpen(false)} disabled={importing}>Close</Button>
                     </DialogFooter>
+
+                    {importing && (
+                        <div className="absolute inset-0 z-50 flex items-center justify-center rounded-lg bg-black/60 backdrop-blur-[1px]">
+                            <div className="flex items-center gap-2 rounded-md border border-border bg-card/95 px-4 py-3 text-sm text-white shadow-lg">
+                                <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                                Importing tournament…
+                            </div>
+                        </div>
+                    )}
                 </DialogContent>
             </Dialog>
 

@@ -254,15 +254,9 @@ function formatStageLabel(stage?: string | null, leg?: number | null): string | 
     return base;
 }
 
-function mapPickToSelectedOption(
-    pick: string | undefined,
-    homeName: string,
-    awayName: string
-): string {
+function mapPickToSelectedOption(pick: string | undefined): string {
     if (!pick) return "";
-    if (pick === "home") return homeName;
-    if (pick === "away") return awayName;
-    if (pick === "draw") return "Draw";
+    if (pick === "home" || pick === "away" || pick === "draw") return pick;
     return "";
 }
 
@@ -325,7 +319,7 @@ function toUnresolvedSlotMatch(
             crest: slot.awayTeam?.crest ?? undefined,
         },
         options: [homeName, "Draw", awayName],
-        selectedOption: mapPickToSelectedOption(rawPick, homeName, awayName),
+        selectedOption: mapPickToSelectedOption(rawPick),
         existingScores: slotScoreMap.get(slot.ID) || [],
         scoreBettingEnabled,
         maxBets,
@@ -369,13 +363,25 @@ function toUpcomingMatch(m: ODataMatch): UpcomingMatch {
     };
 }
 
-function toLiveMatch(m: ODataMatch): LiveMatch {
-    const home = m.homeTeam?.name || m.homeTeam_ID || "TBD";
-    const away = m.awayTeam?.name || m.awayTeam_ID || "TBD";
+function toLiveMatch(m: ODataMatch, rawPick?: string): LiveMatch {
+    const homeName = m.homeTeam?.name || m.homeTeam_ID || "TBD";
+    const awayName = m.awayTeam?.name || m.awayTeam_ID || "TBD";
     return {
-        match: `${home} vs ${away}`,
+        id: m.ID,
+        match: `${homeName} vs ${awayName}`,
         minute: "LIVE",
         score: `${m.homeScore ?? 0} - ${m.awayScore ?? 0}`,
+        home: {
+            name: homeName,
+            flag: m.homeTeam?.flagCode || "",
+            crest: m.homeTeam?.crest ?? undefined,
+        },
+        away: {
+            name: awayName,
+            flag: m.awayTeam?.flagCode || "",
+            crest: m.awayTeam?.crest ?? undefined,
+        },
+        pick: mapPickToSelectedOption(rawPick),
     };
 }
 
@@ -540,7 +546,7 @@ export const playerMatchesApi = {
             const slotRawPick = !rawPick && match.slotId ? slotPickMap.get(match.slotId) : undefined;
             const effectivePick = rawPick || slotRawPick;
             if (effectivePick) {
-                match.selectedOption = mapPickToSelectedOption(effectivePick, match.home.name, match.away.name);
+                match.selectedOption = mapPickToSelectedOption(effectivePick);
             }
 
             const matchScores = scoreMap.get(m.ID) || [];
@@ -626,10 +632,27 @@ export const playerMatchesApi = {
 
     /** Live matches. */
     async getLive(): Promise<LiveMatch[]> {
-        const matches = await json<ODataMatch[]>(
-            `${BASE}/Matches?$filter=status eq 'live'&$expand=homeTeam,awayTeam`
-        );
-        return matches.map(toLiveMatch);
+        const [matches, predictions, slotPredictions] = await Promise.all([
+            json<ODataMatch[]>(
+                `${BASE}/Matches?$filter=status eq 'live'&$expand=homeTeam,awayTeam`
+            ),
+            json<ODataPrediction[]>(`${BASE}/MyPredictions`).catch(() => [] as ODataPrediction[]),
+            json<ODataSlotPrediction[]>(`${BASE}/MySlotPredictions`).catch(() => [] as ODataSlotPrediction[]),
+        ]);
+
+        const pickMap = new Map<string, string>();
+        for (const p of predictions) pickMap.set(p.match_ID, p.pick);
+
+        const slotPickMap = new Map<string, string>();
+        for (const sp of slotPredictions) slotPickMap.set(sp.slot_ID, sp.pick);
+
+        return matches.map((m) => {
+            const rawPick = pickMap.get(m.ID);
+            const slotRawPick = !rawPick && m.bracketSlot_ID
+                ? slotPickMap.get(m.bracketSlot_ID)
+                : undefined;
+            return toLiveMatch(m, rawPick || slotRawPick);
+        });
     },
 
     /** Upcoming kickoff list for the sidebar table, optionally filtered by tournament. */

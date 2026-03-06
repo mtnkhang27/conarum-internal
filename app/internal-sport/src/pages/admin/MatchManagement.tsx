@@ -79,6 +79,13 @@ const STAGE_ORDER: Record<string, number> = {
     relegation: 8,
 };
 
+const MATCH_STATUSES: { value: AdminMatch["status"]; label: string }[] = [
+    { value: "upcoming", label: "Upcoming" },
+    { value: "live", label: "Live" },
+    { value: "finished", label: "Finished" },
+    { value: "cancelled", label: "Cancelled" },
+];
+
 function statusVariant(status: string) {
     switch (status) {
         case "upcoming":
@@ -124,6 +131,7 @@ export function MatchManagement() {
     const [selectedTournament, setSelectedTournament] = useState<string>("all");
     const [selectedStatus, setSelectedStatus] = useState<string>("upcoming");
     const [selectedStage, setSelectedStage] = useState<string>("all");
+    const [selectedHotMatch, setSelectedHotMatch] = useState<string>("all");
     const [selectedDay, setSelectedDay] = useState<string>("");
     const [teamSearch, setTeamSearch] = useState<string>("");
     const [loading, setLoading] = useState(true);
@@ -152,6 +160,7 @@ export function MatchManagement() {
 
     // Per-match lock state
     const [lockingMatchId, setLockingMatchId] = useState<string | null>(null);
+    const [updatingStatusMatchId, setUpdatingStatusMatchId] = useState<string | null>(null);
 
     // Form state
     const [form, setForm] = useState({
@@ -161,6 +170,7 @@ export function MatchManagement() {
         kickoff: "",
         venue: "",
         stage: "group",
+        status: "upcoming",
         matchday: "",
         isHotMatch: false,
     });
@@ -203,6 +213,7 @@ export function MatchManagement() {
             kickoff: "",
             venue: "",
             stage: "group",
+            status: "upcoming",
             matchday: "",
             isHotMatch: false,
         });
@@ -218,6 +229,7 @@ export function MatchManagement() {
             kickoff: match.kickoff?.slice(0, 16) || "",
             venue: match.venue || "",
             stage: match.stage,
+            status: match.status,
             matchday: match.matchday != null ? String(match.matchday) : "",
             isHotMatch: !!match.isHotMatch,
         });
@@ -242,6 +254,7 @@ export function MatchManagement() {
 
     async function handleSave() {
         try {
+            const nextStatus = form.status as AdminMatch["status"];
             const data: Record<string, any> = {
                 homeTeam_ID: form.homeTeam_ID || null,
                 awayTeam_ID: form.awayTeam_ID || null,
@@ -249,9 +262,15 @@ export function MatchManagement() {
                 kickoff: new Date(form.kickoff).toISOString(),
                 venue: form.venue || null,
                 stage: form.stage as AdminMatch["stage"],
+                status: nextStatus,
                 matchday: form.matchday ? parseInt(form.matchday) : null,
                 isHotMatch: !!form.isHotMatch,
             };
+
+            if (nextStatus === "live" && (editing?.homeScore == null || editing?.awayScore == null)) {
+                data.homeScore = 0;
+                data.awayScore = 0;
+            }
 
             if (editing) {
                 await matchesApi.update(editing.ID, data);
@@ -345,6 +364,25 @@ export function MatchManagement() {
         }
     }
 
+    async function handleUpdateMatchStatus(match: AdminMatch, status: AdminMatch["status"]) {
+        if (match.status === status) return;
+        setUpdatingStatusMatchId(match.ID);
+        try {
+            const updatePayload: Partial<AdminMatch> = { status };
+            if (status === "live" && (match.homeScore == null || match.awayScore == null)) {
+                updatePayload.homeScore = 0;
+                updatePayload.awayScore = 0;
+            }
+            await matchesApi.update(match.ID, updatePayload);
+            toast.success(`Match status updated to ${status}`);
+            load();
+        } catch (e: any) {
+            toast.error(e.message);
+        } finally {
+            setUpdatingStatusMatchId(null);
+        }
+    }
+
     function formatLocalDateKey(value: string) {
         const date = new Date(value);
         const year = date.getFullYear();
@@ -357,6 +395,14 @@ export function MatchManagement() {
         if (!id) return "TBD";
         return teams.find((t) => t.ID === id)?.name || id;
     }
+
+    const bracketSlotById = useMemo(() => {
+        const map = new Map<string, AdminBracketSlot>();
+        for (const slot of bracketSlots) {
+            map.set(slot.ID, slot);
+        }
+        return map;
+    }, [bracketSlots]);
 
     const sourceSlotByNext = useMemo(() => {
         const map = new Map<string, { home?: string; away?: string }>();
@@ -377,6 +423,10 @@ export function MatchManagement() {
         }
 
         if (match.bracketSlot_ID) {
+            const ownSlot = bracketSlotById.get(match.bracketSlot_ID);
+            const slottedTeamId = side === "home" ? ownSlot?.homeTeam_ID : ownSlot?.awayTeam_ID;
+            if (slottedTeamId) return teamName(slottedTeamId);
+
             const source = sourceSlotByNext.get(match.bracketSlot_ID);
             if (side === "home" && source?.home) return source.home;
             if (side === "away" && source?.away) return source.away;
@@ -396,10 +446,13 @@ export function MatchManagement() {
             const tournamentMatch = selectedTournament === "all" || match.tournament_ID === selectedTournament;
             const statusMatch = selectedStatus === "all" || match.status === selectedStatus;
             const stageMatch = selectedStage === "all" || match.stage === selectedStage;
+            const hotMatch =
+                selectedHotMatch === "all"
+                || (selectedHotMatch === "hot" ? !!match.isHotMatch : !match.isHotMatch);
             const dayMatch = !selectedDay || formatLocalDateKey(match.kickoff) === selectedDay;
             const teamMatch = !search || homeName.includes(search) || awayName.includes(search);
 
-            return tournamentMatch && statusMatch && stageMatch && dayMatch && teamMatch;
+            return tournamentMatch && statusMatch && stageMatch && hotMatch && dayMatch && teamMatch;
         })
         .sort((a, b) => {
             if (selectedStatus === "finished") {
@@ -440,14 +493,21 @@ export function MatchManagement() {
     return (
         <div className="space-y-6 p-6">
             {/* Header */}
-            <div className="flex items-center justify-between">
-                <div>
+            <div className="flex flex-col items-start justify-between gap-4">
+                <div className="flex w-full justify-between ">
+                    <div className="flex flex-col">
+
                     <h1 className="text-2xl font-bold text-white">Match Management</h1>
                     <p className="text-sm text-muted-foreground">
                         Manage all matches and schedules
                     </p>
+                    </div>
+                    <Button onClick={openAdd} className="">
+                        <Plus className="mr-2 h-4 w-4" />
+                        Add Match
+                    </Button>
                 </div>
-                <div className="flex flex-wrap items-center justify-end gap-3">
+                <div className="flex flex-wrap items-center justify-start gap-3">
                     {/* Tournament filter */}
                     <Select
                         value={selectedTournament}
@@ -478,6 +538,7 @@ export function MatchManagement() {
                             <SelectItem value="upcoming">Upcoming</SelectItem>
                             <SelectItem value="live">Live</SelectItem>
                             <SelectItem value="finished">Finished</SelectItem>
+                            <SelectItem value="cancelled">Cancelled</SelectItem>
                         </SelectContent>
                     </Select>
                     {/* Stage filter */}
@@ -497,10 +558,24 @@ export function MatchManagement() {
                             ))}
                         </SelectContent>
                     </Select>
+                    {/* Hot filter */}
+                    <Select
+                        value={selectedHotMatch}
+                        onValueChange={setSelectedHotMatch}
+                    >
+                        <SelectTrigger className="w-[140px]">
+                            <SelectValue placeholder="Hot match" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="all">All Matches</SelectItem>
+                            <SelectItem value="hot">Hot Only</SelectItem>
+                            <SelectItem value="normal">Normal Only</SelectItem>
+                        </SelectContent>
+                    </Select>
                     {/* Day filter */}
                     <Input
                         type="date"
-                        className="w-[170px]"
+                        className="w-[170px] [color-scheme:dark] [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:invert"
                         value={selectedDay}
                         onChange={(e) => setSelectedDay(e.target.value)}
                     />
@@ -511,10 +586,7 @@ export function MatchManagement() {
                         value={teamSearch}
                         onChange={(e) => setTeamSearch(e.target.value)}
                     />
-                    <Button onClick={openAdd}>
-                        <Plus className="mr-2 h-4 w-4" />
-                        Add Match
-                    </Button>
+                    
                     {selectedTournament !== "all" && (
                         <Button
                             variant="outline"
@@ -696,8 +768,13 @@ export function MatchManagement() {
                                                     <Settings className="mr-2 h-4 w-4" />
                                                     Configure
                                                 </DropdownMenuItem>
+                                                <DropdownMenuSeparator />
+                                                
                                                 {m.status !== "finished" && (
-                                                    <DropdownMenuItem onClick={() => handleToggleMatchLock(m)}>
+                                                    <DropdownMenuItem
+                                                        disabled={lockingMatchId === m.ID}
+                                                        onClick={() => handleToggleMatchLock(m)}
+                                                    >
                                                         {m.bettingLocked ? (
                                                             <>
                                                                 <Unlock className="mr-2 h-4 w-4" />
@@ -869,6 +946,26 @@ export function MatchManagement() {
                                 </Select>
                             </div>
                         </div>
+                        <div className="space-y-2">
+                            <label className="text-xs font-medium text-muted-foreground">
+                                Status
+                            </label>
+                            <Select
+                                value={form.status}
+                                onValueChange={(v) => setForm({ ...form, status: v })}
+                            >
+                                <SelectTrigger>
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {MATCH_STATUSES.map((statusOption) => (
+                                        <SelectItem key={statusOption.value} value={statusOption.value}>
+                                            {statusOption.label}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
                         <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-2">
                                 <label className="text-xs font-medium text-muted-foreground">
@@ -942,40 +1039,41 @@ export function MatchManagement() {
                     {resultMatch && (
                         <div className="space-y-4 py-4">
                             <p className="text-center text-sm text-muted-foreground">
-                                {resultMatch.homeTeam?.name || teamName(resultMatch.homeTeam_ID)}{" "}
+                                {resultMatch.homeTeam?.name || unresolvedTeamName(resultMatch, "home")}{" "}
                                 vs{" "}
-                                {resultMatch.awayTeam?.name || teamName(resultMatch.awayTeam_ID)}
+                                {resultMatch.awayTeam?.name || unresolvedTeamName(resultMatch, "away")}
                             </p>
                             {isCorrection && (
                                 <p className="text-center text-xs text-amber-400">
-                                    ⚠ Predictions and score bets will be re-scored, and the leaderboard will be recalculated.
+                                    Predictions and score bets will be re-scored, and the leaderboard will be recalculated.
                                 </p>
                             )}
                             <div className="flex items-center justify-center gap-4">
-                                <div className="space-y-1 text-center">
-                                    <label className="text-xs text-muted-foreground">Home</label>
+                                <div className="flex items-center gap-2 text-center">
+                                    <label className=" text-muted-foreground">Home</label>
                                     <Input
                                         type="number"
                                         min="0"
                                         max="99"
-                                        className="w-20 text-center text-lg"
+                                        className="w-20 text-center text-lg border-white"
                                         value={resultHome}
                                         onChange={(e) => setResultHome(e.target.value)}
                                     />
                                 </div>
-                                <span className="mt-5 text-lg font-bold text-muted-foreground">
-                                    –
+                                <span className=" text-lg font-bold text-muted-foreground">
+                                    -
                                 </span>
-                                <div className="space-y-1 text-center">
-                                    <label className="text-xs text-muted-foreground">Away</label>
+                                <div className="flex items-center gap-2 text-center">
                                     <Input
                                         type="number"
                                         min="0"
                                         max="99"
-                                        className="w-20 text-center text-lg"
+                                        className="w-20 text-center text-lg border-white"
                                         value={resultAway}
                                         onChange={(e) => setResultAway(e.target.value)}
                                     />
+                                    <label className="text-muted-foreground">Away</label>
+
                                 </div>
                             </div>
                         </div>
@@ -1010,7 +1108,7 @@ export function MatchManagement() {
                             </p>
                             <div className="flex items-end justify-center gap-3">
                                 <div className="space-y-1 text-center">
-                                    <label className="text-xs text-muted-foreground">{penaltyMatch.homeTeam?.name || teamName(penaltyMatch.homeTeam_ID)}</label>
+                                    <label className="text-xs text-muted-foreground">{penaltyMatch.homeTeam?.name || unresolvedTeamName(penaltyMatch, "home")}</label>
                                     <input
                                         type="number" min="0" max="99"
                                         className="w-20 rounded border border-border bg-card text-center text-lg text-white"
@@ -1021,7 +1119,7 @@ export function MatchManagement() {
                                 </div>
                                 <span className="mb-2 text-sm text-muted-foreground">–</span>
                                 <div className="space-y-1 text-center">
-                                    <label className="text-xs text-muted-foreground">{penaltyMatch.awayTeam?.name || teamName(penaltyMatch.awayTeam_ID)}</label>
+                                    <label className="text-xs text-muted-foreground">{penaltyMatch.awayTeam?.name || unresolvedTeamName(penaltyMatch, "away")}</label>
                                     <input
                                         type="number" min="0" max="99"
                                         className="w-20 rounded border border-border bg-card text-center text-lg text-white"

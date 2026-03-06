@@ -124,6 +124,7 @@ export function MatchManagement() {
     const [selectedTournament, setSelectedTournament] = useState<string>("all");
     const [selectedStatus, setSelectedStatus] = useState<string>("upcoming");
     const [selectedStage, setSelectedStage] = useState<string>("all");
+    const [selectedHotMatch, setSelectedHotMatch] = useState<string>("all");
     const [selectedDay, setSelectedDay] = useState<string>("");
     const [teamSearch, setTeamSearch] = useState<string>("");
     const [loading, setLoading] = useState(true);
@@ -358,6 +359,14 @@ export function MatchManagement() {
         return teams.find((t) => t.ID === id)?.name || id;
     }
 
+    const bracketSlotById = useMemo(() => {
+        const map = new Map<string, AdminBracketSlot>();
+        for (const slot of bracketSlots) {
+            map.set(slot.ID, slot);
+        }
+        return map;
+    }, [bracketSlots]);
+
     const sourceSlotByNext = useMemo(() => {
         const map = new Map<string, { home?: string; away?: string }>();
         for (const slot of bracketSlots) {
@@ -377,6 +386,10 @@ export function MatchManagement() {
         }
 
         if (match.bracketSlot_ID) {
+            const ownSlot = bracketSlotById.get(match.bracketSlot_ID);
+            const slottedTeamId = side === "home" ? ownSlot?.homeTeam_ID : ownSlot?.awayTeam_ID;
+            if (slottedTeamId) return teamName(slottedTeamId);
+
             const source = sourceSlotByNext.get(match.bracketSlot_ID);
             if (side === "home" && source?.home) return source.home;
             if (side === "away" && source?.away) return source.away;
@@ -396,10 +409,13 @@ export function MatchManagement() {
             const tournamentMatch = selectedTournament === "all" || match.tournament_ID === selectedTournament;
             const statusMatch = selectedStatus === "all" || match.status === selectedStatus;
             const stageMatch = selectedStage === "all" || match.stage === selectedStage;
+            const hotMatch =
+                selectedHotMatch === "all"
+                || (selectedHotMatch === "hot" ? !!match.isHotMatch : !match.isHotMatch);
             const dayMatch = !selectedDay || formatLocalDateKey(match.kickoff) === selectedDay;
             const teamMatch = !search || homeName.includes(search) || awayName.includes(search);
 
-            return tournamentMatch && statusMatch && stageMatch && dayMatch && teamMatch;
+            return tournamentMatch && statusMatch && stageMatch && hotMatch && dayMatch && teamMatch;
         })
         .sort((a, b) => {
             if (selectedStatus === "finished") {
@@ -440,14 +456,21 @@ export function MatchManagement() {
     return (
         <div className="space-y-6 p-6">
             {/* Header */}
-            <div className="flex items-center justify-between">
-                <div>
+            <div className="flex flex-col items-start justify-between gap-4">
+                <div className="flex w-full justify-between ">
+                    <div className="flex flex-col">
+
                     <h1 className="text-2xl font-bold text-white">Match Management</h1>
                     <p className="text-sm text-muted-foreground">
                         Manage all matches and schedules
                     </p>
+                    </div>
+                    <Button onClick={openAdd} className="">
+                        <Plus className="mr-2 h-4 w-4" />
+                        Add Match
+                    </Button>
                 </div>
-                <div className="flex flex-wrap items-center justify-end gap-3">
+                <div className="flex flex-wrap items-center justify-start gap-3">
                     {/* Tournament filter */}
                     <Select
                         value={selectedTournament}
@@ -497,10 +520,24 @@ export function MatchManagement() {
                             ))}
                         </SelectContent>
                     </Select>
+                    {/* Hot filter */}
+                    <Select
+                        value={selectedHotMatch}
+                        onValueChange={setSelectedHotMatch}
+                    >
+                        <SelectTrigger className="w-[140px]">
+                            <SelectValue placeholder="Hot match" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="all">All Matches</SelectItem>
+                            <SelectItem value="hot">Hot Only</SelectItem>
+                            <SelectItem value="normal">Normal Only</SelectItem>
+                        </SelectContent>
+                    </Select>
                     {/* Day filter */}
                     <Input
                         type="date"
-                        className="w-[170px]"
+                        className="w-[170px] [color-scheme:dark] [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:invert"
                         value={selectedDay}
                         onChange={(e) => setSelectedDay(e.target.value)}
                     />
@@ -511,10 +548,7 @@ export function MatchManagement() {
                         value={teamSearch}
                         onChange={(e) => setTeamSearch(e.target.value)}
                     />
-                    <Button onClick={openAdd}>
-                        <Plus className="mr-2 h-4 w-4" />
-                        Add Match
-                    </Button>
+                    
                     {selectedTournament !== "all" && (
                         <Button
                             variant="outline"
@@ -942,9 +976,9 @@ export function MatchManagement() {
                     {resultMatch && (
                         <div className="space-y-4 py-4">
                             <p className="text-center text-sm text-muted-foreground">
-                                {resultMatch.homeTeam?.name || teamName(resultMatch.homeTeam_ID)}{" "}
+                                {resultMatch.homeTeam?.name || unresolvedTeamName(resultMatch, "home")}{" "}
                                 vs{" "}
-                                {resultMatch.awayTeam?.name || teamName(resultMatch.awayTeam_ID)}
+                                {resultMatch.awayTeam?.name || unresolvedTeamName(resultMatch, "away")}
                             </p>
                             {isCorrection && (
                                 <p className="text-center text-xs text-amber-400">
@@ -1010,7 +1044,7 @@ export function MatchManagement() {
                             </p>
                             <div className="flex items-end justify-center gap-3">
                                 <div className="space-y-1 text-center">
-                                    <label className="text-xs text-muted-foreground">{penaltyMatch.homeTeam?.name || teamName(penaltyMatch.homeTeam_ID)}</label>
+                                    <label className="text-xs text-muted-foreground">{penaltyMatch.homeTeam?.name || unresolvedTeamName(penaltyMatch, "home")}</label>
                                     <input
                                         type="number" min="0" max="99"
                                         className="w-20 rounded border border-border bg-card text-center text-lg text-white"
@@ -1021,7 +1055,7 @@ export function MatchManagement() {
                                 </div>
                                 <span className="mb-2 text-sm text-muted-foreground">–</span>
                                 <div className="space-y-1 text-center">
-                                    <label className="text-xs text-muted-foreground">{penaltyMatch.awayTeam?.name || teamName(penaltyMatch.awayTeam_ID)}</label>
+                                    <label className="text-xs text-muted-foreground">{penaltyMatch.awayTeam?.name || unresolvedTeamName(penaltyMatch, "away")}</label>
                                     <input
                                         type="number" min="0" max="99"
                                         className="w-20 rounded border border-border bg-card text-center text-lg text-white"

@@ -166,11 +166,13 @@ export function MatchDetail() {
     if (!matchId) return;
     setLoading(true);
     try {
-      const [m, cfg] = await Promise.all([
+      const [m, cfg, t] = await Promise.all([
         matchesApi.get(matchId),
         matchScoreBetConfigApi.getByMatch(matchId),
+        teamsApi.list(),
       ]);
       setMatch(m);
+      setAllTeams(t);
       setOutcomePoints(Number(m.outcomePoints ?? 1));
       setIsHotMatch(!!m.isHotMatch);
 
@@ -373,8 +375,12 @@ export function MatchDetail() {
     );
   }
 
-  const homeTeamName = match.homeTeam?.name ?? match.homeTeam_ID ?? "TBD";
-  const awayTeamName = match.awayTeam?.name ?? match.awayTeam_ID ?? "TBD";
+  const homeTeamId = match.homeTeam_ID ?? bracketSlot?.homeTeam_ID ?? null;
+  const awayTeamId = match.awayTeam_ID ?? bracketSlot?.awayTeam_ID ?? null;
+  const homeTeamResolved = match.homeTeam ?? allTeams.find((t) => t.ID === homeTeamId);
+  const awayTeamResolved = match.awayTeam ?? allTeams.find((t) => t.ID === awayTeamId);
+  const homeTeamName = homeTeamResolved?.name ?? "TBD";
+  const awayTeamName = awayTeamResolved?.name ?? "TBD";
   const isFinished = match.status === "finished";
   const showPenaltyButton = computeShowPenaltyButton();
 
@@ -403,19 +409,19 @@ export function MatchDetail() {
           </Button>
           <div>
             <h1 className="text-2xl font-bold text-white">
-              {match.homeTeam &&
-                (match.homeTeam.crest ? (
-                  <img src={match.homeTeam.crest} alt="" className="mr-2 inline h-6 w-6 object-contain align-middle" />
+              {homeTeamResolved &&
+                (homeTeamResolved.crest ? (
+                  <img src={homeTeamResolved.crest} alt="" className="mr-2 inline h-6 w-6 object-contain align-middle" />
                 ) : (
-                  <span className={`fi fi-${match.homeTeam.flagCode} mr-2`} />
+                  <span className={`fi fi-${homeTeamResolved.flagCode} mr-2`} />
                 ))}
               {homeTeamName}
               <span className="mx-3 text-muted-foreground">vs</span>
-              {match.awayTeam &&
-                (match.awayTeam.crest ? (
-                  <img src={match.awayTeam.crest} alt="" className="mr-2 inline h-6 w-6 object-contain align-middle" />
+              {awayTeamResolved &&
+                (awayTeamResolved.crest ? (
+                  <img src={awayTeamResolved.crest} alt="" className="mr-2 inline h-6 w-6 object-contain align-middle" />
                 ) : (
-                  <span className={`fi fi-${match.awayTeam.flagCode} mr-2`} />
+                  <span className={`fi fi-${awayTeamResolved.flagCode} mr-2`} />
                 ))}
               {awayTeamName}
             </h1>

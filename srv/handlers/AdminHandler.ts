@@ -551,84 +551,88 @@ export class AdminHandler {
                 [field]: winnerId,
             });
 
-            // Check if both teams in next slot are now known
             const nextSlot = await SELECT.one.from(BracketSlot).where({ ID: slot.nextSlot_ID });
+            if (!nextSlot) return;
 
-            if (nextSlot.homeTeam_ID && nextSlot.awayTeam_ID) {
-                let leg1IdForMaterialize: string | null = nextSlot.leg1_ID ?? null;
-                const { Tournament } = cds.entities('cnma.prediction');
-                const tournament = await SELECT.one.from(Tournament).where({ ID: slot.tournament_ID });
-                const shouldCreateLeg2 =
-                    nextSlot.stage !== 'final'
-                    && (tournament?.hasLegs === true || tournament?.format === 'knockout');
+            let leg1IdForMaterialize: string | null = nextSlot.leg1_ID ?? null;
+            const { Tournament } = cds.entities('cnma.prediction');
+            const tournament = await SELECT.one.from(Tournament).where({ ID: slot.tournament_ID });
+            const shouldCreateLeg2 =
+                nextSlot.stage !== 'final'
+                && (tournament?.hasLegs === true || tournament?.format === 'knockout');
+            const hasKnownTeam = !!(nextSlot.homeTeam_ID || nextSlot.awayTeam_ID);
 
-                // If pre-created matches exist (leg1_ID is set), UPDATE them with the teams
-                if (nextSlot.leg1_ID) {
-                    await UPDATE(Match).where({ ID: nextSlot.leg1_ID }).set({
-                        homeTeam_ID: nextSlot.homeTeam_ID,
-                        awayTeam_ID: nextSlot.awayTeam_ID,
-                    });
+            // Keep next-stage match teams in sync as soon as one side is known.
+            if (nextSlot.leg1_ID) {
+                const leg1Patch: Record<string, any> = {};
+                if (nextSlot.homeTeam_ID) leg1Patch.homeTeam_ID = nextSlot.homeTeam_ID;
+                if (nextSlot.awayTeam_ID) leg1Patch.awayTeam_ID = nextSlot.awayTeam_ID;
+                if (Object.keys(leg1Patch).length > 0) {
+                    await UPDATE(Match).where({ ID: nextSlot.leg1_ID }).set(leg1Patch);
+                }
 
-                    // Also update leg2 if it exists (reversed home/away for second leg)
-                    if (nextSlot.leg2_ID) {
-                        await UPDATE(Match).where({ ID: nextSlot.leg2_ID }).set({
-                            homeTeam_ID: nextSlot.awayTeam_ID,
-                            awayTeam_ID: nextSlot.homeTeam_ID,
-                        });
-                    } else if (shouldCreateLeg2) {
-                        // Backfill missing second leg for two-leg knockout rounds.
-                        const leg2Id = cds.utils.uuid();
-                        await INSERT.into(Match).entries({
-                            ID: leg2Id,
-                            tournament_ID: slot.tournament_ID,
-                            homeTeam_ID: nextSlot.awayTeam_ID,
-                            awayTeam_ID: nextSlot.homeTeam_ID,
-                            kickoff: new Date().toISOString(),
-                            stage: nextSlot.stage,
-                            status: 'upcoming',
-                            leg: 2,
-                            bracketSlot_ID: nextSlot.ID,
-                        });
-                        await UPDATE(BracketSlot).where({ ID: nextSlot.ID }).set({ leg2_ID: leg2Id });
+                // Leg 2 has reversed home/away versus bracket slot sides.
+                if (nextSlot.leg2_ID) {
+                    const leg2Patch: Record<string, any> = {};
+                    if (nextSlot.homeTeam_ID) leg2Patch.awayTeam_ID = nextSlot.homeTeam_ID;
+                    if (nextSlot.awayTeam_ID) leg2Patch.homeTeam_ID = nextSlot.awayTeam_ID;
+                    if (Object.keys(leg2Patch).length > 0) {
+                        await UPDATE(Match).where({ ID: nextSlot.leg2_ID }).set(leg2Patch);
                     }
-                } else {
-                    // No pre-created matches → create them (original behavior)
-                    const matchId = cds.utils.uuid();
+                } else if (shouldCreateLeg2 && hasKnownTeam) {
+                    // Backfill missing second leg for two-leg knockout rounds.
+                    const leg2Id = cds.utils.uuid();
                     await INSERT.into(Match).entries({
-                        ID: matchId,
+                        ID: leg2Id,
                         tournament_ID: slot.tournament_ID,
-                        homeTeam_ID: nextSlot.homeTeam_ID,
-                        awayTeam_ID: nextSlot.awayTeam_ID,
+                        homeTeam_ID: nextSlot.awayTeam_ID ?? null,
+                        awayTeam_ID: nextSlot.homeTeam_ID ?? null,
                         kickoff: new Date().toISOString(),
                         stage: nextSlot.stage,
                         status: 'upcoming',
-                        leg: 1,
+                        leg: 2,
                         bracketSlot_ID: nextSlot.ID,
                     });
-                    await UPDATE(BracketSlot).where({ ID: nextSlot.ID }).set({ leg1_ID: matchId });
-                    leg1IdForMaterialize = matchId;
-                    if (shouldCreateLeg2) {
-                        const leg2Id = cds.utils.uuid();
-                        await INSERT.into(Match).entries({
-                            ID: leg2Id,
-                            tournament_ID: slot.tournament_ID,
-                            homeTeam_ID: nextSlot.awayTeam_ID,
-                            awayTeam_ID: nextSlot.homeTeam_ID,
-                            kickoff: new Date().toISOString(),
-                            stage: nextSlot.stage,
-                            status: 'upcoming',
-                            leg: 2,
-                            bracketSlot_ID: nextSlot.ID,
-                        });
-                        await UPDATE(BracketSlot).where({ ID: nextSlot.ID }).set({ leg2_ID: leg2Id });
-                    }
+                    await UPDATE(BracketSlot).where({ ID: nextSlot.ID }).set({ leg2_ID: leg2Id });
                 }
+            } else if (hasKnownTeam) {
+                // No pre-created leg1 yet → create it now, even if only one side is known.
+                const leg1MatchId = cds.utils.uuid();
+                await INSERT.into(Match).entries({
+                    ID: leg1MatchId,
+                    tournament_ID: slot.tournament_ID,
+                    homeTeam_ID: nextSlot.homeTeam_ID ?? null,
+                    awayTeam_ID: nextSlot.awayTeam_ID ?? null,
+                    kickoff: new Date().toISOString(),
+                    stage: nextSlot.stage,
+                    status: 'upcoming',
+                    leg: 1,
+                    bracketSlot_ID: nextSlot.ID,
+                });
+                await UPDATE(BracketSlot).where({ ID: nextSlot.ID }).set({ leg1_ID: leg1MatchId });
+                leg1IdForMaterialize = leg1MatchId;
 
-                // Ensure unresolved slot-based predictions become visible in
-                // regular match prediction views as soon as the slot is concrete.
-                if (leg1IdForMaterialize) {
-                    await materializeSlotBetsForMatch(leg1IdForMaterialize);
+                if (shouldCreateLeg2) {
+                    const leg2Id = cds.utils.uuid();
+                    await INSERT.into(Match).entries({
+                        ID: leg2Id,
+                        tournament_ID: slot.tournament_ID,
+                        homeTeam_ID: nextSlot.awayTeam_ID ?? null,
+                        awayTeam_ID: nextSlot.homeTeam_ID ?? null,
+                        kickoff: new Date().toISOString(),
+                        stage: nextSlot.stage,
+                        status: 'upcoming',
+                        leg: 2,
+                        bracketSlot_ID: nextSlot.ID,
+                    });
+                    await UPDATE(BracketSlot).where({ ID: nextSlot.ID }).set({ leg2_ID: leg2Id });
                 }
+            }
+
+            // Ensure unresolved slot-based predictions become visible in
+            // regular match prediction views as soon as the slot is concrete.
+            if (nextSlot.homeTeam_ID && nextSlot.awayTeam_ID && leg1IdForMaterialize) {
+                await materializeSlotBetsForMatch(leg1IdForMaterialize);
             }
         }
     }

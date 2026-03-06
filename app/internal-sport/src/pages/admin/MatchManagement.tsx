@@ -254,6 +254,7 @@ export function MatchManagement() {
 
     async function handleSave() {
         try {
+            const nextStatus = form.status as AdminMatch["status"];
             const data: Record<string, any> = {
                 homeTeam_ID: form.homeTeam_ID || null,
                 awayTeam_ID: form.awayTeam_ID || null,
@@ -261,10 +262,15 @@ export function MatchManagement() {
                 kickoff: new Date(form.kickoff).toISOString(),
                 venue: form.venue || null,
                 stage: form.stage as AdminMatch["stage"],
-                status: form.status as AdminMatch["status"],
+                status: nextStatus,
                 matchday: form.matchday ? parseInt(form.matchday) : null,
                 isHotMatch: !!form.isHotMatch,
             };
+
+            if (nextStatus === "live" && (editing?.homeScore == null || editing?.awayScore == null)) {
+                data.homeScore = 0;
+                data.awayScore = 0;
+            }
 
             if (editing) {
                 await matchesApi.update(editing.ID, data);
@@ -362,7 +368,12 @@ export function MatchManagement() {
         if (match.status === status) return;
         setUpdatingStatusMatchId(match.ID);
         try {
-            await matchesApi.update(match.ID, { status });
+            const updatePayload: Partial<AdminMatch> = { status };
+            if (status === "live" && (match.homeScore == null || match.awayScore == null)) {
+                updatePayload.homeScore = 0;
+                updatePayload.awayScore = 0;
+            }
+            await matchesApi.update(match.ID, updatePayload);
             toast.success(`Match status updated to ${status}`);
             load();
         } catch (e: any) {

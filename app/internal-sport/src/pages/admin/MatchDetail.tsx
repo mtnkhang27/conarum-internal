@@ -304,16 +304,22 @@ export function MatchDetail() {
     if (!matchId) return;
     setSaving(true);
     try {
-      await matchesApi.update(matchId, {
+      const nextStatus = editForm.status as AdminMatch["status"];
+      const updatePayload: Partial<AdminMatch> = {
         homeTeam_ID: editForm.homeTeam_ID || null,
         awayTeam_ID: editForm.awayTeam_ID || null,
         kickoff: new Date(editForm.kickoff).toISOString(),
         venue: editForm.venue || null,
         stage: editForm.stage as AdminMatch["stage"],
-        status: editForm.status as AdminMatch["status"],
+        status: nextStatus,
         matchday: editForm.matchday ? parseInt(editForm.matchday) : null,
         isHotMatch: !!editForm.isHotMatch,
-      } as Partial<AdminMatch>);
+      };
+      if (nextStatus === "live" && (match?.homeScore == null || match?.awayScore == null)) {
+        updatePayload.homeScore = 0;
+        updatePayload.awayScore = 0;
+      }
+      await matchesApi.update(matchId, updatePayload);
       toast.success("Match updated");
       load();
     } catch (e: any) {

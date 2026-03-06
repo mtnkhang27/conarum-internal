@@ -13,6 +13,8 @@ import {
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
+type PickKey = "" | "home" | "draw" | "away";
+
 function clampScore(value: string) {
     if (value === "") return 0;
     const parsed = parseInt(value, 10);
@@ -20,8 +22,24 @@ function clampScore(value: string) {
     return Math.min(9, Math.max(0, parsed));
 }
 
-function getTeamButtonClass(option: string, selected: string, isCompleted: boolean, isSaving: boolean) {
-    if (selected === option) {
+function normalizePick(option: string | undefined, homeName: string, awayName: string): PickKey {
+    if (!option) return "";
+    if (option === "home" || option === "away" || option === "draw") return option;
+    if (option === "Draw") return "draw";
+    if (option === homeName) return "home";
+    if (option === awayName) return "away";
+    return "";
+}
+
+function optionKeyAt(index: number): PickKey {
+    if (index === 0) return "home";
+    if (index === 1) return "draw";
+    if (index === 2) return "away";
+    return "";
+}
+
+function getTeamButtonClass(optionKey: PickKey, selected: PickKey, isCompleted: boolean, isSaving: boolean) {
+    if (selected === optionKey) {
         return "rounded-lg border border-primary bg-primary py-2 text-xs font-bold text-white shadow-lg transition-all glow-purple";
     }
     return `rounded-lg border border-border bg-surface-dark py-2 text-xs font-bold text-muted-foreground transition-all hover:border-primary hover:text-primary ${isCompleted || isSaving ? "pointer-events-none opacity-70" : ""
@@ -39,8 +57,12 @@ export function MatchCard({ match, isCompleted = false, onPredictionChange }: Ma
     const isSlotBet = match.betTarget === "slot";
     const slotId = match.slotId || match.id;
     // Track the initial state loaded from server to distinguish "has existing prediction" vs "new pick"
-    const [initialOption, setInitialOption] = useState(match.selectedOption || "");
-    const [selectedOption, setSelectedOption] = useState(match.selectedOption || "");
+    const [initialOption, setInitialOption] = useState<PickKey>(
+        normalizePick(match.selectedOption, match.home.name, match.away.name)
+    );
+    const [selectedOption, setSelectedOption] = useState<PickKey>(
+        normalizePick(match.selectedOption, match.home.name, match.away.name)
+    );
     const [scores, setScores] = useState<{ home: number; away: number }[]>(() => {
         const existing = match.existingScores || [];
         return Array.from({ length: maxBets }, (_, i) => existing[i] || { home: 0, away: 0 });
@@ -55,9 +77,10 @@ export function MatchCard({ match, isCompleted = false, onPredictionChange }: Ma
     const [justCancelled, setJustCancelled] = useState(false);
 
     useEffect(() => {
-        setSelectedOption(match.selectedOption || "");
-        setInitialOption(match.selectedOption || "");
-    }, [match.selectedOption]);
+        const normalized = normalizePick(match.selectedOption, match.home.name, match.away.name);
+        setSelectedOption(normalized);
+        setInitialOption(normalized);
+    }, [match.selectedOption, match.home.name, match.away.name]);
 
     useEffect(() => {
         const existing = match.existingScores || [];
@@ -82,7 +105,7 @@ export function MatchCard({ match, isCompleted = false, onPredictionChange }: Ma
     const cancelDisabled = isSaving || isIdle;
     const submitDisabled = isSaving || (!hasCurrentSelection && !justCancelled);
 
-    const onPickOption = (option: string) => {
+    const onPickOption = (option: PickKey) => {
         if (isCompleted || isSaving) return;
         setSelectedOption((prev) => (prev === option ? "" : option));
         // Once user picks after cancel, clear the justCancelled flag
@@ -147,10 +170,7 @@ export function MatchCard({ match, isCompleted = false, onPredictionChange }: Ma
         if (isCompleted || isSaving || !hasCurrentSelection) return;
 
         setIsSaving(true);
-
-        let apiPick = "draw";
-        if (selectedOption === match.home.name) apiPick = "home";
-        else if (selectedOption === match.away.name) apiPick = "away";
+        const apiPick = selectedOption;
 
         try {
             const scoresToSend = match.scoreBettingEnabled
@@ -268,17 +288,20 @@ export function MatchCard({ match, isCompleted = false, onPredictionChange }: Ma
                         )}
                     </div>
                     <div className="grid grid-cols-3 gap-2">
-                        {match.options.map((option) => (
-                            <button
-                                type="button"
-                                key={option}
-                                onClick={() => onPickOption(option)}
-                                disabled={isSaving || isCompleted}
-                                className={getTeamButtonClass(option, selectedOption, isCompleted, isSaving)}
-                            >
-                                {option}
-                            </button>
-                        ))}
+                        {match.options.map((option, idx) => {
+                            const optionKey = optionKeyAt(idx);
+                            return (
+                                <button
+                                    type="button"
+                                    key={`${option}-${idx}`}
+                                    onClick={() => onPickOption(optionKey)}
+                                    disabled={isSaving || isCompleted || !optionKey}
+                                    className={getTeamButtonClass(optionKey, selectedOption, isCompleted, isSaving)}
+                                >
+                                    {option}
+                                </button>
+                            );
+                        })}
                     </div>
                     {!isCompleted && (
                         <div className="grid grid-cols-2 gap-4 mt-4">

@@ -254,15 +254,9 @@ function formatStageLabel(stage?: string | null, leg?: number | null): string | 
     return base;
 }
 
-function mapPickToSelectedOption(
-    pick: string | undefined,
-    homeName: string,
-    awayName: string
-): string {
+function mapPickToSelectedOption(pick: string | undefined): string {
     if (!pick) return "";
-    if (pick === "home") return homeName;
-    if (pick === "away") return awayName;
-    if (pick === "draw") return "Draw";
+    if (pick === "home" || pick === "away" || pick === "draw") return pick;
     return "";
 }
 
@@ -325,7 +319,7 @@ function toUnresolvedSlotMatch(
             crest: slot.awayTeam?.crest ?? undefined,
         },
         options: [homeName, "Draw", awayName],
-        selectedOption: mapPickToSelectedOption(rawPick, homeName, awayName),
+        selectedOption: mapPickToSelectedOption(rawPick),
         existingScores: slotScoreMap.get(slot.ID) || [],
         scoreBettingEnabled,
         maxBets,
@@ -540,7 +534,7 @@ export const playerMatchesApi = {
             const slotRawPick = !rawPick && match.slotId ? slotPickMap.get(match.slotId) : undefined;
             const effectivePick = rawPick || slotRawPick;
             if (effectivePick) {
-                match.selectedOption = mapPickToSelectedOption(effectivePick, match.home.name, match.away.name);
+                match.selectedOption = mapPickToSelectedOption(effectivePick);
             }
 
             const matchScores = scoreMap.get(m.ID) || [];

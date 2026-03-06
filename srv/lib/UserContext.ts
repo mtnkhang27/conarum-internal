@@ -21,7 +21,9 @@ export type ResolvedUserContext = {
     identityOrigin: string | null;
 };
 
-const APP_ROLES = ['authenticated-user', 'admin'];
+const CAP_ROLE_USER = 'PredictionUser';
+const CAP_ROLE_ADMIN = 'PredictionAdmin';
+const APP_ROLES = [CAP_ROLE_USER, CAP_ROLE_ADMIN, 'authenticated-user', 'admin'];
 const STATIC_ADMIN_EMAILS = new Set([
     'nam.vu@conarum.com',
     'trung.tranthanh@conarum.com',
@@ -84,9 +86,21 @@ const isDevelopmentRuntime = (): boolean => {
 
 const rolesFromEmail = (email: string): string[] => {
     return uniqueSorted([
+        CAP_ROLE_USER,
         'authenticated-user',
-        ...(STATIC_ADMIN_EMAILS.has(email) ? ['admin'] : []),
+        ...(STATIC_ADMIN_EMAILS.has(email) ? [CAP_ROLE_ADMIN, 'admin'] : []),
     ]);
+};
+
+const expandRoleAliases = (roles: string[]): string[] => {
+    const expanded = [...roles];
+    if (roles.includes(CAP_ROLE_USER)) {
+        expanded.push('authenticated-user');
+    }
+    if (roles.includes(CAP_ROLE_ADMIN)) {
+        expanded.push('admin', CAP_ROLE_USER, 'authenticated-user');
+    }
+    return expanded;
 };
 
 const loadLocalLoginConfig = (): LocalLoginConfig | null => {
@@ -266,12 +280,12 @@ export const resolveUserContext = (req: Request): ResolvedUserContext => {
         ...toStringArray(claims.scopes),
     ]);
 
-    const roles = uniqueSorted([
+    const roles = uniqueSorted(expandRoleAliases([
         ...collectRolesFromUser(req),
         ...toStringArray(getAttr(req, 'roles')),
         ...scopes.map(normalizeScopeToRole),
-        ...(normalizedEmail && STATIC_ADMIN_EMAILS.has(normalizedEmail) ? ['admin'] : []),
-    ]);
+        ...(normalizedEmail && STATIC_ADMIN_EMAILS.has(normalizedEmail) ? [CAP_ROLE_ADMIN, 'admin'] : []),
+    ]));
 
     const identityOrigin = pickFirst(
         asTrimmedString(claims.origin),

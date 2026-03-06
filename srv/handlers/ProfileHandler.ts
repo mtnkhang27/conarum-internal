@@ -18,7 +18,7 @@ type PlayerRow = {
     favoriteTeam_ID?: string | null;
 };
 
-const MAX_AVATAR_BYTES = 2 * 1024 * 1024;
+const MAX_AVATAR_BYTES = 10 * 1024 * 1024;
 const DATA_IMAGE_REGEX = /^data:image\/(png|jpe?g|webp|gif);base64,/i;
 
 const asString = (value: unknown): string | null => {
@@ -151,8 +151,8 @@ export class ProfileHandler {
         if (DATA_IMAGE_REGEX.test(trimmed)) {
             const bytes = estimatedBytesFromDataUrl(trimmed);
             if (bytes > MAX_AVATAR_BYTES) {
-                req.error(400, 'Avatar exceeds 2MB limit');
-                throw new Error('Avatar exceeds 2MB limit');
+                req.error(400, 'Avatar exceeds 10MB limit');
+                throw new Error('Avatar exceeds 10MB limit');
             }
             return trimmed;
         }
@@ -215,7 +215,7 @@ export class ProfileHandler {
         }
 
         const roles = context.roles.length > 0 ? context.roles : this.parseStoredRoles(player.roles);
-        const isAdmin = roles.includes('admin');
+        const isAdmin = roles.includes('admin') || roles.includes('PredictionAdmin');
 
         return {
             avatarUrl: player.avatarUrl || '',
@@ -235,3 +235,4 @@ export class ProfileHandler {
         };
     }
 }
+

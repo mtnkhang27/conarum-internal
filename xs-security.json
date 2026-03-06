@@ -1,9 +1,34 @@
 {
   "xsappname": "conarum-prediction",
   "tenant-mode": "dedicated",
-  "scopes": [],
+  "scopes": [
+    {
+      "name": "$XSAPPNAME.PredictionUser",
+      "description": "Access player APIs"
+    },
+    {
+      "name": "$XSAPPNAME.PredictionAdmin",
+      "description": "Access admin APIs"
+    }
+  ],
   "attributes": [],
-  "role-templates": [],
+  "role-templates": [
+    {
+      "name": "PredictionUser",
+      "description": "Player role for prediction features",
+      "scope-references": [
+        "$XSAPPNAME.PredictionUser"
+      ]
+    },
+    {
+      "name": "PredictionAdmin",
+      "description": "Admin role for managing tournaments, matches and players",
+      "scope-references": [
+        "$XSAPPNAME.PredictionUser",
+        "$XSAPPNAME.PredictionAdmin"
+      ]
+    }
+  ],
   "oauth2-configuration": {
     "redirect-uris": [
       "https://*.cfapps.eu10-004.hana.ondemand.com/**",

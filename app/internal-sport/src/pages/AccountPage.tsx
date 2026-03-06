@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { User } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -13,10 +13,11 @@ import {
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { defaultProfile } from "@/data/mockData";
+import { playerProfileApi, playerTeamsApi } from "@/services/playerApi";
 import type { UserProfile } from "@/types";
 
-function inputClass(isEditing: boolean) {
-    if (isEditing) {
+function inputClass(isEditable: boolean) {
+    if (isEditable) {
         return "w-full rounded border border-border bg-surface-dark px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground outline-none transition-colors focus:border-primary";
     }
     return "w-full rounded border border-border bg-background px-3 py-2 text-sm text-muted-foreground outline-none";
@@ -28,9 +29,11 @@ interface InfoFieldProps {
     value: string;
     onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
     isEditing: boolean;
+    forceReadOnly?: boolean;
 }
 
-function InfoField({ label, name, value, onChange, isEditing }: InfoFieldProps) {
+function InfoField({ label, name, value, onChange, isEditing, forceReadOnly = false }: InfoFieldProps) {
+    const isEditable = isEditing && !forceReadOnly;
     return (
         <label className="flex flex-col gap-1">
             <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">{label}</span>
@@ -38,27 +41,69 @@ function InfoField({ label, name, value, onChange, isEditing }: InfoFieldProps) 
                 name={name}
                 value={value}
                 onChange={onChange}
-                readOnly={!isEditing}
-                className={inputClass(isEditing)}
+                readOnly={!isEditable}
+                className={inputClass(isEditable)}
             />
         </label>
     );
 }
 
+type ConfirmConfig = {
+    title: string;
+    message: string;
+    confirmText: string;
+    variant: "primary" | "danger";
+    onConfirm: () => void | Promise<void>;
+};
+
 export function AccountPage() {
     const [profile, setProfile] = useState<UserProfile>(defaultProfile);
     const [draft, setDraft] = useState<UserProfile>(defaultProfile);
     const [isEditing, setIsEditing] = useState(false);
+    const [isLoading, setIsLoading] = useState(true);
+    const [isSaving, setIsSaving] = useState(false);
+    const [favoriteTeamOptions, setFavoriteTeamOptions] = useState<string[]>([]);
     const [avatarError, setAvatarError] = useState("");
     const avatarInputRef = useRef<HTMLInputElement>(null);
     const [confirmOpen, setConfirmOpen] = useState(false);
-    const [confirmConfig, setConfirmConfig] = useState({
+    const [confirmConfig, setConfirmConfig] = useState<ConfirmConfig>({
         title: "",
         message: "",
         confirmText: "Confirm",
-        variant: "primary" as "primary" | "danger",
+        variant: "primary",
         onConfirm: () => { },
     });
+
+    useEffect(() => {
+        let active = true;
+
+        const loadProfile = async () => {
+            try {
+                const [loaded, teams] = await Promise.all([
+                    playerProfileApi.getMyProfile(),
+                    playerTeamsApi.getAll().catch(() => []),
+                ]);
+                if (!active) return;
+                setProfile(loaded);
+                setDraft(loaded);
+                const teamNames = [...new Set(teams.map((team) => team.name).filter(Boolean))].sort((a, b) =>
+                    a.localeCompare(b)
+                );
+                setFavoriteTeamOptions(teamNames);
+            } catch (error) {
+                if (!active) return;
+                const message = error instanceof Error ? error.message : "Failed to load account profile.";
+                toast.error("Cannot load profile", { description: message });
+            } finally {
+                if (active) setIsLoading(false);
+            }
+        };
+
+        void loadProfile();
+        return () => {
+            active = false;
+        };
+    }, []);
 
     const onFieldChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
         const { name, value } = e.target;
@@ -106,11 +151,22 @@ export function AccountPage() {
             message: "Apply these updates to your account profile?",
             confirmText: "Save",
             variant: "primary",
-            onConfirm: () => {
-                setProfile(draft);
-                setAvatarError("");
-                setIsEditing(false);
-                toast.success("Profile updated", { description: "Your account information has been saved." });
+            onConfirm: async () => {
+                setIsSaving(true);
+                setConfirmOpen(false);
+                try {
+                    const saved = await playerProfileApi.updateMyProfile(draft);
+                    setProfile(saved);
+                    setDraft(saved);
+                    setAvatarError("");
+                    setIsEditing(false);
+                    toast.success("Profile updated", { description: "Your account information has been saved." });
+                } catch (error) {
+                    const message = error instanceof Error ? error.message : "Failed to update profile.";
+                    toast.error("Save failed", { description: message });
+                } finally {
+                    setIsSaving(false);
+                }
             },
         });
     };
@@ -120,6 +176,7 @@ export function AccountPage() {
             toast.warning("Edit mode required", { description: "Click Edit Profile before uploading an avatar." });
             return;
         }
+        if (isSaving) return;
         avatarInputRef.current?.click();
     };
 
@@ -156,6 +213,7 @@ export function AccountPage() {
             toast.warning("Edit mode required", { description: "Click Edit Profile before removing avatar." });
             return;
         }
+        if (isSaving) return;
         if (!draft.avatarUrl) {
             toast.info("No avatar to remove", { description: "Default avatar is already in use." });
             return;
@@ -166,6 +224,21 @@ export function AccountPage() {
     };
 
     const currentAvatarUrl = isEditing ? draft.avatarUrl : profile.avatarUrl;
+    const currentDisplayName = isEditing ? draft.displayName : profile.displayName;
+    const currentEmail = isEditing ? draft.email : profile.email;
+    const handleConfirmAction = () => {
+        void Promise.resolve(confirmConfig.onConfirm());
+    };
+
+    if (isLoading) {
+        return (
+            <div className="p-4 pb-20 xl:pb-4">
+                <div className="rounded-xl border border-border bg-card p-6 text-sm text-muted-foreground">
+                    Loading profile...
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="p-4 pb-20 xl:pb-4">
@@ -195,8 +268,8 @@ export function AccountPage() {
                             </span>
                         )}
                         <div>
-                            <p className="text-lg font-extrabold text-white">{profile.displayName}</p>
-                            <p className="text-sm text-muted-foreground">{profile.email}</p>
+                            <p className="text-lg font-extrabold text-white">{currentDisplayName}</p>
+                            <p className="text-sm text-muted-foreground">{currentEmail}</p>
                         </div>
                     </div>
 
@@ -205,7 +278,7 @@ export function AccountPage() {
                         <Button
                             size="sm"
                             onClick={onOpenAvatarPicker}
-                            disabled={!isEditing}
+                            disabled={!isEditing || isSaving}
                             className={`text-[11px] font-bold uppercase tracking-wide ${isEditing ? "bg-primary text-white hover:bg-primary/80" : "cursor-not-allowed bg-surface text-muted-foreground"
                                 }`}
                         >
@@ -215,7 +288,7 @@ export function AccountPage() {
                             size="sm"
                             variant="outline"
                             onClick={onRemoveAvatar}
-                            disabled={!isEditing}
+                            disabled={!isEditing || isSaving}
                             className={`text-[11px] font-bold uppercase tracking-wide ${!isEditing ? "cursor-not-allowed" : ""
                                 }`}
                         >
@@ -265,6 +338,7 @@ export function AccountPage() {
                                     variant="outline"
                                     size="sm"
                                     onClick={onCancelEdit}
+                                    disabled={isSaving}
                                     className="text-xs font-bold uppercase tracking-wide"
                                 >
                                     Cancel
@@ -272,25 +346,27 @@ export function AccountPage() {
                                 <Button
                                     size="sm"
                                     onClick={onSaveProfile}
+                                    disabled={isSaving}
                                     className="bg-primary text-xs font-bold uppercase tracking-wide text-white hover:bg-primary/80"
                                 >
-                                    Save Changes
+                                    {isSaving ? "Saving..." : "Save Changes"}
                                 </Button>
                             </div>
                         ) : (
-                            <Button
-                                size="sm"
-                                onClick={onStartEdit}
-                                className="bg-primary text-xs font-bold uppercase tracking-wide text-white hover:bg-primary/80"
-                            >
-                                Edit Profile
+                                <Button
+                                    size="sm"
+                                    onClick={onStartEdit}
+                                    disabled={isSaving}
+                                    className="bg-primary text-xs font-bold uppercase tracking-wide text-white hover:bg-primary/80"
+                                >
+                                    Edit Profile
                             </Button>
                         )}
                     </div>
 
                     <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                         <InfoField label="Display Name" name="displayName" value={draft.displayName} onChange={onFieldChange} isEditing={isEditing} />
-                        <InfoField label="Email" name="email" value={draft.email} onChange={onFieldChange} isEditing={isEditing} />
+                        <InfoField label="Email" name="email" value={draft.email} onChange={onFieldChange} isEditing={isEditing} forceReadOnly />
                         <InfoField label="First Name" name="firstName" value={draft.firstName} onChange={onFieldChange} isEditing={isEditing} />
                         <InfoField label="Last Name" name="lastName" value={draft.lastName} onChange={onFieldChange} isEditing={isEditing} />
                         <InfoField label="Phone" name="phone" value={draft.phone} onChange={onFieldChange} isEditing={isEditing} />
@@ -298,7 +374,22 @@ export function AccountPage() {
                         <InfoField label="City" name="city" value={draft.city} onChange={onFieldChange} isEditing={isEditing} />
                         <InfoField label="Timezone" name="timezone" value={draft.timezone} onChange={onFieldChange} isEditing={isEditing} />
                         <div className="md:col-span-2">
-                            <InfoField label="Favorite Team" name="favoriteTeam" value={draft.favoriteTeam} onChange={onFieldChange} isEditing={isEditing} />
+                            <label className="flex flex-col gap-1">
+                                <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Favorite Team</span>
+                                <input
+                                    name="favoriteTeam"
+                                    value={draft.favoriteTeam}
+                                    onChange={(e) => onFieldChange(e)}
+                                    readOnly={!isEditing}
+                                    list="favorite-team-options"
+                                    className={inputClass(isEditing)}
+                                />
+                                <datalist id="favorite-team-options">
+                                    {favoriteTeamOptions.map((teamName) => (
+                                        <option key={teamName} value={teamName} />
+                                    ))}
+                                </datalist>
+                            </label>
                         </div>
                         <label className="flex flex-col gap-1 md:col-span-2">
                             <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Bio</span>
@@ -326,7 +417,7 @@ export function AccountPage() {
                             Cancel
                         </AlertDialogCancel>
                         <AlertDialogAction
-                            onClick={confirmConfig.onConfirm}
+                            onClick={handleConfirmAction}
                             className={`text-white ${confirmConfig.variant === "danger" ? "bg-destructive hover:bg-destructive/80" : "bg-primary hover:bg-primary/80"}`}
                         >
                             {confirmConfig.confirmText}

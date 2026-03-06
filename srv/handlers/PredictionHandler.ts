@@ -1,6 +1,7 @@
 import cds, { Request } from '@sap/cds';
 import { ScoringEngine } from '../lib/ScoringEngine';
 import { materializeSlotBetsForMatch } from '../lib/SlotBetMaterializer';
+import { resolveUserContext, syncAuthenticatedUser } from '../lib/UserContext';
 
 /**
  * PredictionHandler — Handles user prediction submissions.
@@ -942,10 +943,16 @@ export class PredictionHandler {
      */
     private async getCurrentPlayerId(req: Request): Promise<string | null> {
         const { Player } = cds.entities('cnma.prediction');
-        const userEmail = req.user?.id;
-        if (!userEmail) return null;
+        const context = resolveUserContext(req);
+        if (!context.userUUID && !context.email) return null;
 
-        const player = await SELECT.one.from(Player).where({ email: userEmail });
+        let player = null;
+        if (context.userUUID) {
+            player = await SELECT.one.from(Player).where({ userUUID: context.userUUID });
+        }
+        if (!player && context.email) {
+            player = await SELECT.one.from(Player).where({ email: context.email });
+        }
         return player?.ID ?? null;
     }
 
@@ -954,19 +961,35 @@ export class PredictionHandler {
      */
     private async getOrCreatePlayerId(req: Request): Promise<string> {
         const { Player } = cds.entities('cnma.prediction');
-        const userEmail = req.user?.id;
-        const userName = req.user?.attr?.name || userEmail || 'Unknown';
+        const context = await syncAuthenticatedUser(req);
+        const userEmail = context.email;
+        const userName = context.displayName || userEmail || context.loginName || 'Unknown';
 
         if (!userEmail) {
-            req.error(401, 'User not authenticated');
-            throw new Error('User not authenticated');
+            req.error(401, 'Authenticated user is missing email claim. Please map email from IAS/XSUAA token.');
+            throw new Error('Authenticated user is missing email claim');
         }
 
-        let player = await SELECT.one.from(Player).where({ email: userEmail });
+        let player = null;
+        if (context.userUUID) {
+            player = await SELECT.one.from(Player).where({ userUUID: context.userUUID });
+        }
         if (!player) {
-            const result = await INSERT.into(Player).entries({
+            player = await SELECT.one.from(Player).where({ email: userEmail });
+        }
+
+        if (!player) {
+            await INSERT.into(Player).entries({
                 email: userEmail,
-                displayName: userName
+                displayName: userName,
+                userUUID: context.userUUID,
+                loginName: context.loginName,
+                givenName: context.givenName,
+                familyName: context.familyName,
+                roles: JSON.stringify(context.roles),
+                scopes: JSON.stringify(context.scopes),
+                identityOrigin: context.identityOrigin,
+                lastLoginAt: new Date().toISOString(),
             });
             player = await SELECT.one.from(Player).where({ email: userEmail });
         }

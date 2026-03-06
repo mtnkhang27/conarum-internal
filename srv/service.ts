@@ -1,6 +1,8 @@
 import cds from '@sap/cds';
 import { PredictionHandler } from './handlers/PredictionHandler';
 import { AdminHandler } from './handlers/AdminHandler';
+import { syncAuthenticatedUser } from './lib/UserContext';
+import { ProfileHandler } from './handlers/ProfileHandler';
 
 /**
  * PlayerService — Authenticated employee-facing OData service.
@@ -8,9 +10,14 @@ import { AdminHandler } from './handlers/AdminHandler';
  */
 export class PlayerService extends cds.ApplicationService {
     private predictionHandler!: PredictionHandler;
+    private profileHandler!: ProfileHandler;
 
     async init() {
         this.predictionHandler = new PredictionHandler(this);
+        this.profileHandler = new ProfileHandler(this);
+        this.before('*', async (req) => {
+            await syncAuthenticatedUser(req);
+        });
 
         // ── Actions ──────────────────────────────────────────
         this.on('submitPredictions', this.predictionHandler.submitPredictions.bind(this.predictionHandler));
@@ -20,6 +27,8 @@ export class PlayerService extends cds.ApplicationService {
         this.on('submitSlotPrediction', this.predictionHandler.submitSlotPrediction.bind(this.predictionHandler));
         this.on('cancelSlotPrediction', this.predictionHandler.cancelSlotPrediction.bind(this.predictionHandler));
         this.on('pickChampion', this.predictionHandler.pickChampion.bind(this.predictionHandler));
+        this.on('getMyProfile', this.profileHandler.getMyProfile.bind(this.profileHandler));
+        this.on('updateMyProfile', this.profileHandler.updateMyProfile.bind(this.profileHandler));
 
         // ── Functions (read-only queries) ────────────────────
         this.on('getLatestResults', this.predictionHandler.getLatestResults.bind(this.predictionHandler));
@@ -50,6 +59,9 @@ export class AdminService extends cds.ApplicationService {
 
     async init() {
         this.adminHandler = new AdminHandler(this);
+        this.before('*', async (req) => {
+            await syncAuthenticatedUser(req);
+        });
 
         // ── Actions ──────────────────────────────────────────
         this.on('enterMatchResult', this.adminHandler.enterMatchResult.bind(this.adminHandler));

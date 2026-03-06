@@ -244,6 +244,38 @@ service PlayerService {
     /** Pick tournament champion (UC3). */
     action pickChampion(teamId: UUID, tournamentId: UUID)                          returns ActionResult;
 
+    /** Current authenticated user's editable profile. */
+    type UserProfile {
+        avatarUrl      : LargeString;
+        displayName    : String(100);
+        firstName      : String(100);
+        lastName       : String(100);
+        email          : String(255);
+        phone          : String(50);
+        country        : String(10);
+        city           : String(120);
+        timezone       : String(80);
+        favoriteTeamId : UUID;
+        favoriteTeam   : String(120);
+        bio            : String(2000);
+    }
+
+    function getMyProfile() returns UserProfile;
+
+    action updateMyProfile(
+        avatarUrl      : LargeString,
+        displayName    : String(100),
+        firstName      : String(100),
+        lastName       : String(100),
+        phone          : String(50),
+        country        : String(10),
+        city           : String(120),
+        timezone       : String(80),
+        favoriteTeamId : UUID,
+        favoriteTeam   : String(120),
+        bio            : String(2000)
+    ) returns UserProfile;
+
     // ── Functions (Read-Only Queries) ────────────────────────
 
     /** Latest match results for a tournament. */

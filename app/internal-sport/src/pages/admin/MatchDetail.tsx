@@ -97,6 +97,13 @@ const STAGES = [
   { value: "relegation", label: "Relegation" },
 ];
 
+const MATCH_STATUSES: { value: AdminMatch["status"]; label: string }[] = [
+  { value: "upcoming", label: "Upcoming" },
+  { value: "live", label: "Live" },
+  { value: "finished", label: "Finished" },
+  { value: "cancelled", label: "Cancelled" },
+];
+
 const DEFAULT_SCORE_BET_CONFIG: Omit<MatchScoreBetConfig, "ID" | "match_ID"> = {
   enabled: true,
   maxBets: 3,
@@ -142,6 +149,7 @@ export function MatchDetail() {
     kickoff: "",
     venue: "",
     stage: "group",
+    status: "upcoming",
     matchday: "",
     isHotMatch: false,
   });
@@ -195,6 +203,7 @@ export function MatchDetail() {
         kickoff: m.kickoff?.slice(0, 16) || "",
         venue: m.venue || "",
         stage: m.stage,
+        status: m.status,
         matchday: m.matchday != null ? String(m.matchday) : "",
         isHotMatch: !!m.isHotMatch,
       });
@@ -301,6 +310,7 @@ export function MatchDetail() {
         kickoff: new Date(editForm.kickoff).toISOString(),
         venue: editForm.venue || null,
         stage: editForm.stage as AdminMatch["stage"],
+        status: editForm.status as AdminMatch["status"],
         matchday: editForm.matchday ? parseInt(editForm.matchday) : null,
         isHotMatch: !!editForm.isHotMatch,
       } as Partial<AdminMatch>);
@@ -382,6 +392,7 @@ export function MatchDetail() {
   const homeTeamName = homeTeamResolved?.name ?? "TBD";
   const awayTeamName = awayTeamResolved?.name ?? "TBD";
   const isFinished = match.status === "finished";
+  const canEnterResult = match.status === "upcoming" || match.status === "live";
   const showPenaltyButton = computeShowPenaltyButton();
 
   // Prediction stats
@@ -448,7 +459,7 @@ export function MatchDetail() {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          {!isFinished && (
+          {canEnterResult && (
             <Button variant="outline" onClick={() => { setIsCorrection(false); setResultHome(""); setResultAway(""); setResultDialogOpen(true); }}>
               <Target className="mr-2 h-4 w-4" />
               Enter Result
@@ -802,6 +813,17 @@ export function MatchDetail() {
                   placeholder="e.g. 1-38"
                 />
               </div>
+            </div>
+            <div className="space-y-2">
+              <label className="text-xs font-medium text-muted-foreground">Status</label>
+              <Select value={editForm.status} onValueChange={(v) => setEditForm({ ...editForm, status: v })}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {MATCH_STATUSES.map((statusOption) => (
+                    <SelectItem key={statusOption.value} value={statusOption.value}>{statusOption.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-2">
               <label className="text-xs font-medium text-muted-foreground">Hot Match</label>

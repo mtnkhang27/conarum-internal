@@ -289,7 +289,7 @@ export function RecentPredictionsSection({ predictions, loading }: RecentPredict
                                                                 className={`fi fi-${item.homeFlag} rounded-sm`}
                                                             />
                                                         )}
-                                                        {item.homeTeam}
+                                                        {item.homeTeam ? item.homeTeam : "TBD"}
                                                     </span>
                                                     {item.homeScore !== null &&
                                                     item.awayScore !== null ? (
@@ -309,7 +309,7 @@ export function RecentPredictionsSection({ predictions, loading }: RecentPredict
                                                                 className={`fi fi-${item.awayFlag} rounded-sm`}
                                                             />
                                                         )}
-                                                        {item.awayTeam}
+                                                        {item.awayTeam ? item.awayTeam : "TBD"}
                                                     </span>
                                                 </div>
                                                 <p className="mt-1 text-[10px] text-muted-foreground">

@@ -40,7 +40,7 @@ export function LiveMatchesTable({ items }: LiveMatchesTableProps) {
                                         <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-destructive" />
                                         Live
                                     </span>
-                                    <span className="text-[10px] text-muted-foreground">{item.minute}</span>
+                                    {/* <span className="text-[10px] text-muted-foreground">{item.minute}</span> */}
                                 </div>
                             </div>
 

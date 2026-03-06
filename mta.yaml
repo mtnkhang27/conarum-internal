@@ -10,6 +10,7 @@ build-parameters:
       commands:
         - npm ci
         - npx cds build --production
+        - npx tsc
 
 modules:
   # ──────────────── CAP Backend ────────────────

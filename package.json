@@ -30,6 +30,9 @@
   },
   "private": true,
   "cds": {
+    "build": {
+      "typescript": true
+    },
     "requires": {
       "auth": {
         "[production]": {

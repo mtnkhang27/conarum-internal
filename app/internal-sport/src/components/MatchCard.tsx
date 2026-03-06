@@ -222,13 +222,13 @@ export function MatchCard({ match, isCompleted = false, onPredictionChange }: Ma
                     </div>
 
                     <div className="mb-4 flex items-center justify-between border-y border-border/50 py-4">
-                        <div className="flex flex-1 flex-col items-center">
+                        <div className="flex flex-1 flex-col items-center justify-start h-full">
                             {match.home.crest
                                 ? <img src={match.home.crest} alt={match.home.name} className="mb-2 h-8 w-8 object-contain" />
                                 : match.home.flag
                                     ? <span className={`fi fi-${match.home.flag} mb-2 !w-8 rounded-sm text-2xl shadow-md`} />
                                     : <span className="mb-2 inline-flex h-8 w-8 items-center justify-center rounded-full border border-border bg-surface-dark text-xs font-black text-muted-foreground">?</span>}
-                            <span className="text-sm font-bold text-white">{match.home.name}</span>
+                            <span className="text-sm font-bold text-white text-center">{match.home.name}</span>
                         </div>
 
                         <div className="flex flex-col items-center gap-2 px-3">
@@ -263,13 +263,13 @@ export function MatchCard({ match, isCompleted = false, onPredictionChange }: Ma
                             )}
                         </div>
 
-                        <div className="flex flex-1 flex-col items-center">
+                        <div className="flex flex-1 flex-col items-center justify-start h-full">
                             {match.away.crest
                                 ? <img src={match.away.crest} alt={match.away.name} className="mb-2 h-8 w-8 object-contain" />
                                 : match.away.flag
                                     ? <span className={`fi fi-${match.away.flag} mb-2 !w-8 rounded-sm text-2xl shadow-md`} />
                                     : <span className="mb-2 inline-flex h-8 w-8 items-center justify-center rounded-full border border-border bg-surface-dark text-xs font-black text-muted-foreground">?</span>}
-                            <span className="text-sm font-bold text-white">{match.away.name}</span>
+                            <span className="text-sm font-bold text-white text-center">{match.away.name}</span>
                         </div>
                     </div>
                 </div>

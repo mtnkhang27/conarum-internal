@@ -1,4 +1,3 @@
-import { toast } from "sonner";
 import type { LiveMatch } from "@/types";
 
 interface LiveMatchesTableProps {
@@ -6,10 +5,23 @@ interface LiveMatchesTableProps {
 }
 
 export function LiveMatchesTable({ items }: LiveMatchesTableProps) {
-    const onSelectLiveMatch = (match: string) => {
-        toast.warning("Realtime disabled", {
-            description: `Live actions for ${match} are disabled in manual mode.`,
-        });
+    const getFallbackNames = (matchLabel: string): { home: string; away: string } => {
+        const [home = "Home", away = "Away"] = matchLabel.split(/\s+vs\s+/i);
+        return { home, away };
+    };
+
+    const getTeamName = (item: LiveMatch, side: "home" | "away"): string => {
+        const team = side === "home" ? item.home : item.away;
+        if (team?.name) return team.name;
+        const fallback = getFallbackNames(item.match);
+        return side === "home" ? fallback.home : fallback.away;
+    };
+
+    const pickLabel = (item: LiveMatch): string => {
+        if (item.pick === "home") return `${getTeamName(item, "home")} Win`;
+        if (item.pick === "away") return `${getTeamName(item, "away")} Win`;
+        if (item.pick === "draw") return "Draw";
+        return "No pick";
     };
 
     return (
@@ -30,11 +42,33 @@ export function LiveMatchesTable({ items }: LiveMatchesTableProps) {
                 <div className="divide-y divide-border">
                     {items.map((item) => (
                         <div
-                            key={item.match}
+                            key={item.id || item.match}
                             className="grid grid-cols-12 items-center gap-2 px-4 py-4 transition-colors hover:bg-surface"
                         >
                             <div className="col-span-6 flex flex-col">
-                                <span className="truncate text-sm font-bold text-foreground">{item.match}</span>
+                                <div className="flex flex-wrap items-center gap-1.5">
+                                    <span className="flex items-center gap-1 text-sm font-bold text-white">
+                                        {item.home?.crest ? (
+                                            <img src={item.home.crest} alt={getTeamName(item, "home")} className="h-4 w-4 object-contain" />
+                                        ) : item.home?.flag ? (
+                                            <span className={`fi fi-${item.home.flag} rounded-sm`} />
+                                        ) : (
+                                            <span className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-border bg-surface-dark text-[9px] font-black text-muted-foreground">?</span>
+                                        )}
+                                        {getTeamName(item, "home")}
+                                    </span>
+                                    <span className="text-[10px] font-black text-muted-foreground">VS</span>
+                                    <span className="flex items-center gap-1 text-sm font-bold text-white">
+                                        {item.away?.crest ? (
+                                            <img src={item.away.crest} alt={getTeamName(item, "away")} className="h-4 w-4 object-contain" />
+                                        ) : item.away?.flag ? (
+                                            <span className={`fi fi-${item.away.flag} rounded-sm`} />
+                                        ) : (
+                                            <span className="inline-flex h-4 w-4 items-center justify-center rounded-full border border-border bg-surface-dark text-[9px] font-black text-muted-foreground">?</span>
+                                        )}
+                                        {getTeamName(item, "away")}
+                                    </span>
+                                </div>
                                 <div className="mt-1 flex items-center gap-2">
                                     <span className="flex items-center gap-1 text-[10px] font-bold text-destructive">
                                         <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-destructive" />
@@ -55,13 +89,15 @@ export function LiveMatchesTable({ items }: LiveMatchesTableProps) {
                             </div>
 
                             <div className="col-span-2 text-center">
-                                <button
-                                    type="button"
-                                    onClick={() => onSelectLiveMatch(item.match)}
-                                    className="rounded border border-border px-2 py-1 text-[10px] font-bold text-muted-foreground transition-colors hover:border-primary hover:text-primary"
+                                <span
+                                    className={`inline-flex rounded border px-2 py-1 text-[10px] font-bold ${
+                                        item.pick
+                                            ? "border-primary/40 bg-primary/15 text-primary"
+                                            : "border-border bg-surface text-muted-foreground"
+                                    }`}
                                 >
-                                    Select
-                                </button>
+                                    {pickLabel(item)}
+                                </span>
                             </div>
                         </div>
                     ))}

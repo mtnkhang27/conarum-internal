@@ -947,13 +947,7 @@ export class PredictionHandler {
         const { Player } = cds.entities('cnma.prediction');
         const { email: userEmail } = this.resolveCurrentUser(req);
 
-        let player = null;
-        if (context.userUUID) {
-            player = await SELECT.one.from(Player).where({ userUUID: context.userUUID });
-        }
-        if (!player && context.email) {
-            player = await SELECT.one.from(Player).where({ email: context.email });
-        }
+        const player = await SELECT.one.from(Player).where({ email: userEmail });
         return player?.ID ?? null;
     }
 
@@ -964,22 +958,11 @@ export class PredictionHandler {
         const { Player } = cds.entities('cnma.prediction');
         const { email: userEmail, displayName: userName } = this.resolveCurrentUser(req);
 
-        let player = null;
-        if (context.userUUID) {
-            player = await SELECT.one.from(Player).where({ userUUID: context.userUUID });
-        }
+        let player = await SELECT.one.from(Player).where({ email: userEmail });
         if (!player) {
             await INSERT.into(Player).entries({
                 email: userEmail,
-                displayName: userName,
-                userUUID: context.userUUID,
-                loginName: context.loginName,
-                givenName: context.givenName,
-                familyName: context.familyName,
-                roles: JSON.stringify(context.roles),
-                scopes: JSON.stringify(context.scopes),
-                identityOrigin: context.identityOrigin,
-                lastLoginAt: new Date().toISOString(),
+                displayName: userName
             });
             player = await SELECT.one.from(Player).where({ email: userEmail });
         }

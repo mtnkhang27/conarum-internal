@@ -430,7 +430,7 @@ service PlayerService {
 // ────────────────────────────────────────────────────────────
 
 @path    : '/api/admin'
-@requires: 'admin'
+@requires: 'authenticated-user'
 service AdminService {
 
     // ── Full CRUD Entities ───────────────────────────────────

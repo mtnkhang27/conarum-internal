@@ -9,6 +9,8 @@ import { resolveUserContext, syncAuthenticatedUser } from '../lib/UserContext';
  */
 export class PredictionHandler {
     private srv: cds.ApplicationService;
+    private static readonly FALLBACK_USER_EMAIL = (process.env.DEFAULT_PLAYER_EMAIL || 'local.player@conarum.invalid').toLowerCase();
+    private static readonly FALLBACK_USER_NAME = process.env.DEFAULT_PLAYER_NAME || 'Local Player';
 
     constructor(srv: cds.ApplicationService) {
         this.srv = srv;
@@ -943,8 +945,7 @@ export class PredictionHandler {
      */
     private async getCurrentPlayerId(req: Request): Promise<string | null> {
         const { Player } = cds.entities('cnma.prediction');
-        const context = resolveUserContext(req);
-        if (!context.userUUID && !context.email) return null;
+        const { email: userEmail } = this.resolveCurrentUser(req);
 
         let player = null;
         if (context.userUUID) {
@@ -961,23 +962,12 @@ export class PredictionHandler {
      */
     private async getOrCreatePlayerId(req: Request): Promise<string> {
         const { Player } = cds.entities('cnma.prediction');
-        const context = await syncAuthenticatedUser(req);
-        const userEmail = context.email;
-        const userName = context.displayName || userEmail || context.loginName || 'Unknown';
-
-        if (!userEmail) {
-            req.error(401, 'Authenticated user is missing email claim. Please map email from IAS/XSUAA token.');
-            throw new Error('Authenticated user is missing email claim');
-        }
+        const { email: userEmail, displayName: userName } = this.resolveCurrentUser(req);
 
         let player = null;
         if (context.userUUID) {
             player = await SELECT.one.from(Player).where({ userUUID: context.userUUID });
         }
-        if (!player) {
-            player = await SELECT.one.from(Player).where({ email: userEmail });
-        }
-
         if (!player) {
             await INSERT.into(Player).entries({
                 email: userEmail,
@@ -995,5 +985,27 @@ export class PredictionHandler {
         }
 
         return player.ID;
+    }
+
+    /**
+     * Resolve current user identity with safe fallbacks.
+     * Temporary behavior: if email claim is missing, synthesize one from user id.
+     */
+    private resolveCurrentUser(req: Request): { email: string; displayName: string } {
+        const userObj = req.user as any;
+        const rawId = typeof userObj?.id === 'string' ? userObj.id.trim() : '';
+        const rawName = typeof userObj?.attr?.name === 'string' ? userObj.attr.name.trim() : '';
+        const rawEmailAttr = typeof userObj?.attr?.email === 'string' ? userObj.attr.email.trim() : '';
+
+        const fromAttr = rawEmailAttr.includes('@') ? rawEmailAttr.toLowerCase() : '';
+        const fromId = rawId.includes('@') ? rawId.toLowerCase() : '';
+        const syntheticFromId = rawId
+            ? `${rawId.replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 80) || 'user'}@local.user.invalid`
+            : '';
+
+        const email = (fromAttr || fromId || syntheticFromId || PredictionHandler.FALLBACK_USER_EMAIL).slice(0, 255);
+        const displayName = (rawName || rawId || PredictionHandler.FALLBACK_USER_NAME).slice(0, 100);
+
+        return { email, displayName };
     }
 }

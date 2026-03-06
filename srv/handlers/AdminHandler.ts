@@ -468,7 +468,7 @@ export class AdminHandler {
                 const awayAgg = leg1.awayScore ?? 0;
                 const winnerId = homeAgg > awayAgg ? slot.homeTeam_ID
                     : homeAgg < awayAgg ? slot.awayTeam_ID
-                    : null; // draw → admin decides (penalties)
+                        : null; // draw → admin decides (penalties)
 
                 await UPDATE(BracketSlot).where({ ID: slotId }).set({
                     homeAgg, awayAgg, winner_ID: winnerId
@@ -1077,10 +1077,10 @@ export class AdminHandler {
         // Check for orphaned TournamentTeam records that might cause conflicts
         const allTournamentIds = await SELECT.from(Tournament).columns('ID');
         const tournamentIdSet = new Set(allTournamentIds.map((t: any) => t.ID));
-        
+
         const allTournamentTeams = await SELECT.from(TournamentTeam);
         const orphanedTeams = allTournamentTeams.filter((tt: any) => !tournamentIdSet.has(tt.tournament_ID));
-        
+
         if (orphanedTeams.length > 0) {
             console.warn(`Found ${orphanedTeams.length} orphaned TournamentTeam records that will be cleaned up.`);
             for (const orphan of orphanedTeams) {
@@ -1174,7 +1174,7 @@ export class AdminHandler {
 
         const allTeams = await SELECT.from(Team).columns('ID', 'name', 'shortName', 'crest', 'tla');
         const teamByCrest = new Map<string, string>(allTeams.filter((t: any) => t.crest).map((t: any) => [t.crest, t.ID]));
-        const teamByTla   = new Map<string, string>(allTeams.filter((t: any) => t.tla).map((t: any) => [t.tla,   t.ID]));
+        const teamByTla = new Map<string, string>(allTeams.filter((t: any) => t.tla).map((t: any) => [t.tla, t.ID]));
 
         // Pre-detect ambiguous TLAs in this import batch to avoid collisions
         // (e.g., FCB is used by both FC Barcelona and FC Bayern München)
@@ -1219,8 +1219,8 @@ export class AdminHandler {
                         flagCode: areaCode,
                     });
                     internalId = newTeamId;
-                    if (apiTeam.crest)  teamByCrest.set(apiTeam.crest, internalId!);
-                    if (apiTeam.tla)    teamByTla.set(apiTeam.tla, internalId!);
+                    if (apiTeam.crest) teamByCrest.set(apiTeam.crest, internalId!);
+                    if (apiTeam.tla) teamByTla.set(apiTeam.tla, internalId!);
                     teamsImported++;
                 }
 
@@ -1285,32 +1285,32 @@ export class AdminHandler {
         // 8. Fetch & create matches
         const stageMap: Record<string, string> = {
             LEAGUE_STAGE: 'regular',
-            GROUP_STAGE:  'group',
-            LAST_16:       'roundOf16',
-            LAST_32:       'roundOf32',
+            GROUP_STAGE: 'group',
+            LAST_16: 'roundOf16',
+            LAST_32: 'roundOf32',
             QUARTER_FINALS: 'quarterFinal',
-            SEMI_FINALS:    'semiFinal',
-            THIRD_PLACE:   'thirdPlace',
-            FINAL:         'final',
-            PLAY_OFF_ROUND:'playoff',
-            REGULAR:       'regular',
-            PLAYOFF:       'playoff',
-            RELEGATION:    'relegation',
+            SEMI_FINALS: 'semiFinal',
+            THIRD_PLACE: 'thirdPlace',
+            FINAL: 'final',
+            PLAY_OFF_ROUND: 'playoff',
+            REGULAR: 'regular',
+            PLAYOFF: 'playoff',
+            RELEGATION: 'relegation',
         };
         const statusMap: Record<string, string> = {
-            SCHEDULED:         'upcoming',
-            TIMED:             'upcoming',
-            IN_PLAY:           'live',
-            PAUSED:            'live',
-            HALFTIME:          'live',
-            EXTRA_TIME:        'live',
-            PENALTY_SHOOTOUT:  'live',
-            FINISHED:          'finished',
-            AWARDED:           'finished',
-            INTERRUPTED:       'live',
-            SUSPENDED:         'cancelled',
-            POSTPONED:         'cancelled',
-            CANCELLED:         'cancelled',
+            SCHEDULED: 'upcoming',
+            TIMED: 'upcoming',
+            IN_PLAY: 'live',
+            PAUSED: 'live',
+            HALFTIME: 'live',
+            EXTRA_TIME: 'live',
+            PENALTY_SHOOTOUT: 'live',
+            FINISHED: 'finished',
+            AWARDED: 'finished',
+            INTERRUPTED: 'live',
+            SUSPENDED: 'cancelled',
+            POSTPONED: 'cancelled',
+            CANCELLED: 'cancelled',
         };
 
         let apiMatches: any[] = [];
@@ -1344,14 +1344,14 @@ export class AdminHandler {
 
                 await INSERT.into(Match).entries({
                     tournament_ID: tournamentId,
-                    homeTeam_ID:   homeTeamId,
-                    awayTeam_ID:   awayTeamId,
-                    kickoff:       apiMatch.utcDate ?? startDate,
-                    venue:         apiMatch.venue ?? null,
+                    homeTeam_ID: homeTeamId,
+                    awayTeam_ID: awayTeamId,
+                    kickoff: apiMatch.utcDate ?? startDate,
+                    venue: apiMatch.venue ?? null,
                     stage,
-                    status:        matchStatus,
-                    matchday:      apiMatch.matchday ?? null,
-                    externalId:    apiMatch.id,
+                    status: matchStatus,
+                    matchday: apiMatch.matchday ?? null,
+                    externalId: apiMatch.id,
                     homeScore,
                     awayScore,
                     outcome,

@@ -1,0 +1,11 @@
+{
+    "name": "conarum-prediction-approuter",
+    "version": "1.0.0",
+    "description": "Standalone Approuter",
+    "dependencies": {
+        "@sap/approuter": "^16"
+    },
+    "scripts": {
+        "start": "node node_modules/@sap/approuter/approuter.js"
+    }
+}

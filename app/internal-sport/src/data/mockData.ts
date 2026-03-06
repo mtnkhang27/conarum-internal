@@ -206,6 +206,7 @@ export const defaultProfile: UserProfile = {
     country: "Vietnam",
     city: "Ho Chi Minh City",
     timezone: "UTC+07:00",
+    favoriteTeamId: null,
     favoriteTeam: "Argentina",
     bio: "Football fan, data-driven predictor, and always ready for knockout drama.",
 };

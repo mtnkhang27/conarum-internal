@@ -180,6 +180,7 @@ import type {
     TournamentLeaderboardItem,
     StandingItem,
     RecentPredictionItem,
+    UserProfile,
 } from "@/types";
 
 // ─── Transform helpers ──────────────────────────────────────
@@ -409,6 +410,38 @@ function toLeaderboardEntry(p: ODataLeaderboardEntry, idx: number): LeaderboardE
         accuracy: total > 0 ? Math.round((correct / total) * 100) : 0,
         points: Number(p.totalPoints) || 0,
         streak: Number(p.currentStreak) || 0,
+    };
+}
+
+type ODataUserProfile = {
+    avatarUrl?: string | null;
+    displayName?: string | null;
+    firstName?: string | null;
+    lastName?: string | null;
+    email?: string | null;
+    phone?: string | null;
+    country?: string | null;
+    city?: string | null;
+    timezone?: string | null;
+    favoriteTeamId?: string | null;
+    favoriteTeam?: string | null;
+    bio?: string | null;
+};
+
+function toUserProfile(raw: ODataUserProfile): UserProfile {
+    return {
+        avatarUrl: raw.avatarUrl ?? "",
+        displayName: raw.displayName ?? "",
+        firstName: raw.firstName ?? "",
+        lastName: raw.lastName ?? "",
+        email: raw.email ?? "",
+        phone: raw.phone ?? "",
+        country: raw.country ?? "",
+        city: raw.city ?? "",
+        timezone: raw.timezone ?? "",
+        favoriteTeamId: raw.favoriteTeamId ?? null,
+        favoriteTeam: raw.favoriteTeam ?? "",
+        bio: raw.bio ?? "",
     };
 }
 
@@ -789,6 +822,30 @@ export const playerPredictionsApi = {
         if (tournamentId) url += `&$filter=tournament_ID eq '${tournamentId}'`;
         const picks = await json<ODataChampionPick[]>(url);
         return picks.length > 0 ? picks[0].team?.name || null : null;
+    },
+};
+
+export const playerProfileApi = {
+    async getMyProfile(): Promise<UserProfile> {
+        const profile = await json<ODataUserProfile>(`${BASE}/getMyProfile()`);
+        return toUserProfile(profile);
+    },
+
+    async updateMyProfile(profile: UserProfile): Promise<UserProfile> {
+        const saved = await post<ODataUserProfile>(`${BASE}/updateMyProfile`, {
+            avatarUrl: profile.avatarUrl,
+            displayName: profile.displayName,
+            firstName: profile.firstName,
+            lastName: profile.lastName,
+            phone: profile.phone,
+            country: profile.country,
+            city: profile.city,
+            timezone: profile.timezone,
+            favoriteTeamId: profile.favoriteTeamId || null,
+            favoriteTeam: profile.favoriteTeam,
+            bio: profile.bio,
+        });
+        return toUserProfile(saved);
     },
 };
 

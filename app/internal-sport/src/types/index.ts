@@ -194,6 +194,7 @@ export interface UserProfile {
     country: string;
     city: string;
     timezone: string;
+    favoriteTeamId?: string | null;
     favoriteTeam: string;
     bio: string;
 }

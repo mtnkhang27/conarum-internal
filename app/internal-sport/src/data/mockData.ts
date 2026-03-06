@@ -202,6 +202,8 @@ export const defaultProfile: UserProfile = {
     firstName: "Nguyen",
     lastName: "Hien",
     email: "thien@wc-predictor.app",
+    roles: [],
+    isAdmin: false,
     phone: "+84 912 345 678",
     country: "Vietnam",
     city: "Ho Chi Minh City",

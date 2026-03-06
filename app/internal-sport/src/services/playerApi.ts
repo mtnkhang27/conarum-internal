@@ -419,6 +419,8 @@ type ODataUserProfile = {
     firstName?: string | null;
     lastName?: string | null;
     email?: string | null;
+    roles?: string[] | null;
+    isAdmin?: boolean | null;
     phone?: string | null;
     country?: string | null;
     city?: string | null;
@@ -435,6 +437,8 @@ function toUserProfile(raw: ODataUserProfile): UserProfile {
         firstName: raw.firstName ?? "",
         lastName: raw.lastName ?? "",
         email: raw.email ?? "",
+        roles: Array.isArray(raw.roles) ? raw.roles.filter((r): r is string => typeof r === "string") : [],
+        isAdmin: raw.isAdmin === true,
         phone: raw.phone ?? "",
         country: raw.country ?? "",
         city: raw.city ?? "",
@@ -444,6 +448,89 @@ function toUserProfile(raw: ODataUserProfile): UserProfile {
         bio: raw.bio ?? "",
     };
 }
+
+type UserProfileCachePayload = {
+    profile: UserProfile;
+    expiresAt: number;
+};
+
+const PROFILE_CACHE_KEY = "conarum.playerProfile";
+const PROFILE_CACHE_TTL_MS = 5 * 60 * 1000;
+let profileCache: UserProfileCachePayload | null = null;
+let profileInFlight: Promise<UserProfile> | null = null;
+
+const hasValidProfileCache = (cache: UserProfileCachePayload | null): cache is UserProfileCachePayload => {
+    return !!cache && cache.expiresAt > Date.now();
+};
+
+const readProfileCache = (): UserProfileCachePayload | null => {
+    if (hasValidProfileCache(profileCache)) return profileCache;
+    if (typeof window === "undefined") return null;
+
+    try {
+        const raw = window.sessionStorage.getItem(PROFILE_CACHE_KEY);
+        if (!raw) return null;
+        const parsed = JSON.parse(raw) as UserProfileCachePayload;
+        if (!hasValidProfileCache(parsed)) {
+            window.sessionStorage.removeItem(PROFILE_CACHE_KEY);
+            return null;
+        }
+        profileCache = parsed;
+        return parsed;
+    } catch {
+        return null;
+    }
+};
+
+const writeProfileCache = (profile: UserProfile): UserProfile => {
+    const payload: UserProfileCachePayload = {
+        profile,
+        expiresAt: Date.now() + PROFILE_CACHE_TTL_MS,
+    };
+    profileCache = payload;
+    if (typeof window !== "undefined") {
+        try {
+            window.sessionStorage.setItem(PROFILE_CACHE_KEY, JSON.stringify(payload));
+        } catch {
+            // Best-effort cache only.
+        }
+    }
+    return profile;
+};
+
+const clearProfileCache = (): void => {
+    profileCache = null;
+    if (typeof window !== "undefined") {
+        try {
+            window.sessionStorage.removeItem(PROFILE_CACHE_KEY);
+        } catch {
+            // Ignore cache cleanup errors.
+        }
+    }
+};
+
+const getCachedProfile = (): UserProfile | null => {
+    return readProfileCache()?.profile ?? null;
+};
+
+const fetchProfile = async (forceRefresh: boolean): Promise<UserProfile> => {
+    const cached = getCachedProfile();
+    if (!forceRefresh && cached) return cached;
+
+    if (profileInFlight) return profileInFlight;
+
+    profileInFlight = json<ODataUserProfile>(`${BASE}/getMyProfile()`)
+        .then((profile) => writeProfileCache(toUserProfile(profile)))
+        .catch((err) => {
+            if (forceRefresh) clearProfileCache();
+            throw err;
+        })
+        .finally(() => {
+            profileInFlight = null;
+        });
+
+    return profileInFlight;
+};
 
 // ─── Public API ──────────────────────────────────────────────
 
@@ -826,9 +913,20 @@ export const playerPredictionsApi = {
 };
 
 export const playerProfileApi = {
+    getCachedProfile(): UserProfile | null {
+        return getCachedProfile();
+    },
+
+    clearCachedProfile(): void {
+        clearProfileCache();
+    },
+
     async getMyProfile(): Promise<UserProfile> {
-        const profile = await json<ODataUserProfile>(`${BASE}/getMyProfile()`);
-        return toUserProfile(profile);
+        return fetchProfile(false);
+    },
+
+    async refreshMyProfile(): Promise<UserProfile> {
+        return fetchProfile(true);
     },
 
     async updateMyProfile(profile: UserProfile): Promise<UserProfile> {
@@ -845,7 +943,7 @@ export const playerProfileApi = {
             favoriteTeam: profile.favoriteTeam,
             bio: profile.bio,
         });
-        return toUserProfile(saved);
+        return writeProfileCache(toUserProfile(saved));
     },
 };
 

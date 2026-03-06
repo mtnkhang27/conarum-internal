@@ -251,6 +251,8 @@ service PlayerService {
         firstName      : String(100);
         lastName       : String(100);
         email          : String(255);
+        roles          : array of String;
+        isAdmin        : Boolean;
         phone          : String(50);
         country        : String(10);
         city           : String(120);

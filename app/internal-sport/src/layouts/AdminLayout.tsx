@@ -1,6 +1,8 @@
-import { NavLink, Outlet, useLocation } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { Navigate, NavLink, Outlet, useLocation } from "react-router-dom";
 import { Header } from "@/components/Header";
 import { MobileBottomNav } from "@/components/MobileBottomNav";
+import { playerProfileApi } from "@/services/playerApi";
 import {
     Calendar,
     Shield,
@@ -17,6 +19,39 @@ const adminNavItems = [
 
 export function AdminLayout() {
     const { pathname } = useLocation();
+    const [isAdmin, setIsAdmin] = useState<boolean | null>(() => {
+        const cached = playerProfileApi.getCachedProfile();
+        return cached ? cached.isAdmin : null;
+    });
+
+    useEffect(() => {
+        let active = true;
+
+        playerProfileApi
+            .refreshMyProfile()
+            .then((profile) => {
+                if (active) setIsAdmin(profile.isAdmin);
+            })
+            .catch(() => {
+                if (active) setIsAdmin(false);
+            });
+
+        return () => {
+            active = false;
+        };
+    }, []);
+
+    if (isAdmin === null) {
+        return (
+            <div className="flex h-screen items-center justify-center text-sm text-muted-foreground">
+                Checking admin access...
+            </div>
+        );
+    }
+
+    if (!isAdmin) {
+        return <Navigate to="/" replace />;
+    }
 
     return (
         <div className="flex h-screen flex-col">
@@ -54,15 +89,15 @@ export function AdminLayout() {
 
                     <div className="border-t border-border p-4">
                         <NavLink
-                            to="/available"
+                            to="/"
                             className="text-xs text-muted-foreground transition-colors hover:text-primary"
                         >
-                            ← Back to Player View
+                            Back to Player View
                         </NavLink>
                     </div>
                 </aside>
 
-                {/* Main content — full width */}
+                {/* Main content - full width */}
                 <main className="min-w-0 flex-1 overflow-y-auto bg-background">
                     <Outlet />
                 </main>

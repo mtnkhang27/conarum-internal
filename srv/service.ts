@@ -60,7 +60,10 @@ export class AdminService extends cds.ApplicationService {
     async init() {
         this.adminHandler = new AdminHandler(this);
         this.before('*', async (req) => {
-            await syncAuthenticatedUser(req);
+            const context = await syncAuthenticatedUser(req);
+            if (!context.roles.includes('admin')) {
+                return req.reject(403, 'Admin role is required');
+            }
         });
 
         // ── Actions ──────────────────────────────────────────

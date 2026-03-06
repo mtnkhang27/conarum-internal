@@ -5,6 +5,7 @@ type PlayerRow = {
     ID: string;
     displayName?: string | null;
     email?: string | null;
+    roles?: string | null;
     givenName?: string | null;
     familyName?: string | null;
     phone?: string | null;
@@ -52,12 +53,12 @@ export class ProfileHandler {
     async getMyProfile(req: Request) {
         const entities = cds.entities('cnma.prediction') as Record<string, any>;
         const { Team } = entities;
-        const { player } = await this.getCurrentPlayer(req);
+        const { player, context } = await this.getCurrentPlayer(req);
         if (!player) {
             req.error(404, 'Player profile not found for current user');
             return null;
         }
-        return this.toUserProfile(player, Team);
+        return this.toUserProfile(player, Team, context);
     }
 
     async updateMyProfile(req: Request) {
@@ -118,7 +119,7 @@ export class ProfileHandler {
             req.error(500, 'Failed to reload updated profile');
             return null;
         }
-        return this.toUserProfile(updated as PlayerRow, Team);
+        return this.toUserProfile(updated as PlayerRow, Team, context);
     }
 
     private toNullable(next: string | undefined, current: string | null | undefined): string | null {
@@ -195,12 +196,26 @@ export class ProfileHandler {
         return team.ID;
     }
 
-    private async toUserProfile(player: PlayerRow, Team: any) {
+    private parseStoredRoles(raw: string | null | undefined): string[] {
+        if (!raw) return [];
+        try {
+            const parsed = JSON.parse(raw);
+            if (!Array.isArray(parsed)) return [];
+            return parsed.filter((item): item is string => typeof item === 'string' && item.trim().length > 0);
+        } catch {
+            return [];
+        }
+    }
+
+    private async toUserProfile(player: PlayerRow, Team: any, context: ResolvedUserContext) {
         let favoriteTeam = '';
         if (player.favoriteTeam_ID) {
             const team = await SELECT.one.from(Team).columns('name').where({ ID: player.favoriteTeam_ID });
             favoriteTeam = (team?.name as string) || '';
         }
+
+        const roles = context.roles.length > 0 ? context.roles : this.parseStoredRoles(player.roles);
+        const isAdmin = roles.includes('admin');
 
         return {
             avatarUrl: player.avatarUrl || '',
@@ -208,6 +223,8 @@ export class ProfileHandler {
             firstName: player.givenName || '',
             lastName: player.familyName || '',
             email: player.email || '',
+            roles,
+            isAdmin,
             phone: player.phone || '',
             country: player.country || player.country_code || '',
             city: player.city || '',

@@ -1,5 +1,6 @@
 import cds, { Request } from '@sap/cds';
 import { ScoringEngine } from '../lib/ScoringEngine';
+import { materializeSlotBetsForMatch } from '../lib/SlotBetMaterializer';
 
 /** Default football-data.org API token — used when no apiKey is provided. */
 const FOOTBALL_DATA_API_TOKEN = 'f96dc87cc7b54da08321475e744a52f2';
@@ -47,6 +48,9 @@ export class AdminHandler {
         // Determine outcome
         const outcome = ScoringEngine.determineOutcome(homeScore, awayScore);
         const tournamentId = match.tournament_ID;
+
+        // Convert any unresolved slot bets into concrete match bets before scoring.
+        await materializeSlotBetsForMatch(matchId);
 
         // Update match with result
         await UPDATE(Match).where({ ID: matchId }).set({
@@ -551,6 +555,13 @@ export class AdminHandler {
             const nextSlot = await SELECT.one.from(BracketSlot).where({ ID: slot.nextSlot_ID });
 
             if (nextSlot.homeTeam_ID && nextSlot.awayTeam_ID) {
+                let leg1IdForMaterialize: string | null = nextSlot.leg1_ID ?? null;
+                const { Tournament } = cds.entities('cnma.prediction');
+                const tournament = await SELECT.one.from(Tournament).where({ ID: slot.tournament_ID });
+                const shouldCreateLeg2 =
+                    nextSlot.stage !== 'final'
+                    && (tournament?.hasLegs === true || tournament?.format === 'knockout');
+
                 // If pre-created matches exist (leg1_ID is set), UPDATE them with the teams
                 if (nextSlot.leg1_ID) {
                     await UPDATE(Match).where({ ID: nextSlot.leg1_ID }).set({
@@ -564,6 +575,21 @@ export class AdminHandler {
                             homeTeam_ID: nextSlot.awayTeam_ID,
                             awayTeam_ID: nextSlot.homeTeam_ID,
                         });
+                    } else if (shouldCreateLeg2) {
+                        // Backfill missing second leg for two-leg knockout rounds.
+                        const leg2Id = cds.utils.uuid();
+                        await INSERT.into(Match).entries({
+                            ID: leg2Id,
+                            tournament_ID: slot.tournament_ID,
+                            homeTeam_ID: nextSlot.awayTeam_ID,
+                            awayTeam_ID: nextSlot.homeTeam_ID,
+                            kickoff: new Date().toISOString(),
+                            stage: nextSlot.stage,
+                            status: 'upcoming',
+                            leg: 2,
+                            bracketSlot_ID: nextSlot.ID,
+                        });
+                        await UPDATE(BracketSlot).where({ ID: nextSlot.ID }).set({ leg2_ID: leg2Id });
                     }
                 } else {
                     // No pre-created matches → create them (original behavior)
@@ -580,10 +606,8 @@ export class AdminHandler {
                         bracketSlot_ID: nextSlot.ID,
                     });
                     await UPDATE(BracketSlot).where({ ID: nextSlot.ID }).set({ leg1_ID: matchId });
-
-                    const { Tournament } = cds.entities('cnma.prediction');
-                    const tournament = await SELECT.one.from(Tournament).where({ ID: slot.tournament_ID });
-                    if (tournament?.hasLegs && nextSlot.stage !== 'final') {
+                    leg1IdForMaterialize = matchId;
+                    if (shouldCreateLeg2) {
                         const leg2Id = cds.utils.uuid();
                         await INSERT.into(Match).entries({
                             ID: leg2Id,
@@ -598,6 +622,12 @@ export class AdminHandler {
                         });
                         await UPDATE(BracketSlot).where({ ID: nextSlot.ID }).set({ leg2_ID: leg2Id });
                     }
+                }
+
+                // Ensure unresolved slot-based predictions become visible in
+                // regular match prediction views as soon as the slot is concrete.
+                if (leg1IdForMaterialize) {
+                    await materializeSlotBetsForMatch(leg1IdForMaterialize);
                 }
             }
         }
@@ -1082,6 +1112,7 @@ export class AdminHandler {
         // 3. Determine format
         const format = this._determineFormat(comp.type, externalCode);
         const hasGroupStage = format === 'groupKnockout';
+        const hasLegs = format === 'knockout';
 
         // 4. Create Tournament — pre-generate UUID for reliable ID access
         const tournamentId: string = cds.utils.uuid();
@@ -1094,6 +1125,7 @@ export class AdminHandler {
                 status: 'upcoming',
                 format,
                 hasGroupStage,
+                hasLegs,
                 externalCode,
                 season: seasonLabel,
             });

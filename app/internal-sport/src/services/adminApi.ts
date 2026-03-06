@@ -89,6 +89,12 @@ export const matchesApi = {
 // ── Bracket Slots (admin fetch) ──────────────────────────────────────
 
 export const bracketSlotsApi = {
+    list: (tournamentId?: string) => {
+        const query = tournamentId
+            ? `?$filter=${encodeURIComponent(`tournament_ID eq '${tournamentId}'`)}&$orderby=stage asc,position asc`
+            : "?$orderby=tournament_ID asc,stage asc,position asc";
+        return odataList<AdminBracketSlot>(`/BracketSlots${query}`);
+    },
     get: (id: string) =>
         odata<AdminBracketSlot>(`/BracketSlots('${id}')`),
 };

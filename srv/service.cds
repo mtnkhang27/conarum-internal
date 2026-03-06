@@ -163,6 +163,32 @@ service PlayerService {
             modifiedBy
         };
 
+    /** Current user's slot outcome predictions (for unresolved knockout slots). */
+    entity MySlotPredictions        as
+        projection on db.SlotPrediction {
+            *,
+            slot       : redirected to BracketSlots,
+            player     : redirected to Leaderboard,
+            tournament : redirected to Tournaments
+        }
+        excluding {
+            createdBy,
+            modifiedBy
+        };
+
+    /** Current user's slot score bets (for unresolved knockout slots). */
+    entity MySlotScoreBets          as
+        projection on db.SlotScoreBet {
+            *,
+            slot       : redirected to BracketSlots,
+            player     : redirected to Leaderboard,
+            tournament : redirected to Tournaments
+        }
+        excluding {
+            createdBy,
+            modifiedBy
+        };
+
     /** Current user's champion prediction. */
     entity MyChampionPick           as
         projection on db.ChampionPick {
@@ -208,6 +234,12 @@ service PlayerService {
 
     /** Cancel/clear match prediction and score bets. */
     action cancelMatchPrediction(matchId: UUID)                                        returns ActionResult;
+
+    /** Submit prediction for an unresolved bracket slot (teams/match not fixed yet). */
+    action submitSlotPrediction(slotId: UUID, pick: String, scores: many ScoreInput)  returns ActionResult;
+
+    /** Cancel/clear prediction for an unresolved bracket slot. */
+    action cancelSlotPrediction(slotId: UUID)                                           returns ActionResult;
 
     /** Pick tournament champion (UC3). */
     action pickChampion(teamId: UUID, tournamentId: UUID)                          returns ActionResult;

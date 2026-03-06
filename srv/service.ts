@@ -17,6 +17,8 @@ export class PlayerService extends cds.ApplicationService {
         this.on('submitScoreBet', this.predictionHandler.submitScoreBet.bind(this.predictionHandler));
         this.on('submitMatchPrediction', this.predictionHandler.submitMatchPrediction.bind(this.predictionHandler));
         this.on('cancelMatchPrediction', this.predictionHandler.cancelMatchPrediction.bind(this.predictionHandler));
+        this.on('submitSlotPrediction', this.predictionHandler.submitSlotPrediction.bind(this.predictionHandler));
+        this.on('cancelSlotPrediction', this.predictionHandler.cancelSlotPrediction.bind(this.predictionHandler));
         this.on('pickChampion', this.predictionHandler.pickChampion.bind(this.predictionHandler));
 
         // ── Functions (read-only queries) ────────────────────
@@ -31,6 +33,8 @@ export class PlayerService extends cds.ApplicationService {
         // ── Auto-filter MyPredictions / MyScoreBets / MyChampionPick to current user ──
         this.before('READ', 'MyPredictions', this.predictionHandler.filterByCurrentUser.bind(this.predictionHandler));
         this.before('READ', 'MyScoreBets', this.predictionHandler.filterByCurrentUser.bind(this.predictionHandler));
+        this.before('READ', 'MySlotPredictions', this.predictionHandler.filterByCurrentUser.bind(this.predictionHandler));
+        this.before('READ', 'MySlotScoreBets', this.predictionHandler.filterByCurrentUser.bind(this.predictionHandler));
         this.before('READ', 'MyChampionPick', this.predictionHandler.filterByCurrentUser.bind(this.predictionHandler));
 
         return super.init();

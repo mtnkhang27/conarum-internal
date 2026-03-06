@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import {
     Calendar,
@@ -50,11 +50,12 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
-import { matchesApi, teamsApi, tournamentsApi, tournamentActionsApi } from "@/services/adminApi";
-import type { AdminMatch, AdminTeam, AdminTournament } from "@/types/admin";
+import { bracketSlotsApi, matchesApi, teamsApi, tournamentsApi, tournamentActionsApi } from "@/services/adminApi";
+import type { AdminBracketSlot, AdminMatch, AdminTeam, AdminTournament } from "@/types/admin";
 
 const STAGES = [
     { value: "group", label: "Group Stage" },
+    { value: "roundOf32", label: "Round of 32" },
     { value: "roundOf16", label: "Round of 16" },
     { value: "quarterFinal", label: "Quarter Final" },
     { value: "semiFinal", label: "Semi Final" },
@@ -64,6 +65,19 @@ const STAGES = [
     { value: "playoff", label: "Playoff" },
     { value: "relegation", label: "Relegation" },
 ];
+
+const STAGE_ORDER: Record<string, number> = {
+    group: 0,
+    regular: 0,
+    roundOf32: 1,
+    roundOf16: 2,
+    quarterFinal: 3,
+    semiFinal: 4,
+    thirdPlace: 5,
+    final: 6,
+    playoff: 7,
+    relegation: 8,
+};
 
 function statusVariant(status: string) {
     switch (status) {
@@ -78,11 +92,35 @@ function statusVariant(status: string) {
     }
 }
 
+function formatKickoff(kickoff?: string | null) {
+    if (!kickoff) {
+        return { date: "TBD", time: "Kickoff pending" };
+    }
+    const kickoffDate = new Date(kickoff);
+    if (Number.isNaN(kickoffDate.getTime())) {
+        return { date: "TBD", time: "Kickoff pending" };
+    }
+    return {
+        date: kickoffDate.toLocaleDateString(undefined, {
+            day: "2-digit",
+            month: "short",
+            year: "numeric",
+        }),
+        time: kickoffDate.toLocaleTimeString(undefined, {
+            hour: "2-digit",
+            minute: "2-digit",
+            hour12: false,
+            timeZoneName: "short",
+        }),
+    };
+}
+
 export function MatchManagement() {
     const navigate = useNavigate();
     const [matches, setMatches] = useState<AdminMatch[]>([]);
     const [teams, setTeams] = useState<AdminTeam[]>([]);
     const [tournaments, setTournaments] = useState<AdminTournament[]>([]);
+    const [bracketSlots, setBracketSlots] = useState<AdminBracketSlot[]>([]);
     const [selectedTournament, setSelectedTournament] = useState<string>("all");
     const [selectedStatus, setSelectedStatus] = useState<string>("upcoming");
     const [selectedStage, setSelectedStage] = useState<string>("all");
@@ -134,14 +172,16 @@ export function MatchManagement() {
     async function load() {
         setLoading(true);
         try {
-            const [m, t, tr] = await Promise.all([
+            const [m, t, tr, bs] = await Promise.all([
                 matchesApi.list(),
                 teamsApi.list(),
                 tournamentsApi.list(),
+                bracketSlotsApi.list(),
             ]);
             setMatches(m);
             setTeams(t);
             setTournaments(tr);
+            setBracketSlots(bs);
             // Auto-select active tournament if available
             const active = tr.find((tournament) => tournament.status === "active");
             if (active) {
@@ -172,8 +212,8 @@ export function MatchManagement() {
     function openEdit(match: AdminMatch) {
         setEditing(match);
         setForm({
-            homeTeam_ID: match.homeTeam_ID,
-            awayTeam_ID: match.awayTeam_ID,
+            homeTeam_ID: match.homeTeam_ID || "",
+            awayTeam_ID: match.awayTeam_ID || "",
             tournament_ID: match.tournament_ID,
             kickoff: match.kickoff?.slice(0, 16) || "",
             venue: match.venue || "",
@@ -203,8 +243,8 @@ export function MatchManagement() {
     async function handleSave() {
         try {
             const data: Record<string, any> = {
-                homeTeam_ID: form.homeTeam_ID,
-                awayTeam_ID: form.awayTeam_ID,
+                homeTeam_ID: form.homeTeam_ID || null,
+                awayTeam_ID: form.awayTeam_ID || null,
                 tournament_ID: form.tournament_ID,
                 kickoff: new Date(form.kickoff).toISOString(),
                 venue: form.venue || null,
@@ -260,6 +300,7 @@ export function MatchManagement() {
         if (isNaN(h) || isNaN(a)) { toast.error("Please enter valid penalty scores."); return; }
         if (h === a) { toast.error("Penalty scores cannot be equal \u2014 there must be a winner."); return; }
         const winnerId = h > a ? penaltyMatch.homeTeam_ID : penaltyMatch.awayTeam_ID;
+        if (!winnerId) { toast.error("Winner team is not resolved yet."); return; }
         try {
             const res = await matchesApi.setPenaltyWinner(penaltyMatch.bracketSlot_ID, winnerId, h, a);
             toast.success(res.message);
@@ -317,24 +358,72 @@ export function MatchManagement() {
         return teams.find((t) => t.ID === id)?.name || id;
     }
 
-    function resolvedTeamName(team?: AdminTeam | null, id?: string | null) {
-        return team?.name || teamName(id);
+    const sourceSlotByNext = useMemo(() => {
+        const map = new Map<string, { home?: string; away?: string }>();
+        for (const slot of bracketSlots) {
+            if (!slot.nextSlot_ID || !slot.label) continue;
+            const current = map.get(slot.nextSlot_ID) ?? {};
+            if (slot.nextSlotSide === "home") current.home = `Winner ${slot.label}`;
+            if (slot.nextSlotSide === "away") current.away = `Winner ${slot.label}`;
+            map.set(slot.nextSlot_ID, current);
+        }
+        return map;
+    }, [bracketSlots]);
+
+    function unresolvedTeamName(match: AdminMatch, side: "home" | "away") {
+        const directTeamId = side === "home" ? match.homeTeam_ID : match.awayTeam_ID;
+        if (directTeamId) {
+            return teamName(directTeamId);
+        }
+
+        if (match.bracketSlot_ID) {
+            const source = sourceSlotByNext.get(match.bracketSlot_ID);
+            if (side === "home" && source?.home) return source.home;
+            if (side === "away" && source?.away) return source.away;
+        }
+
+        return "TBD";
     }
 
-    // Filter matches based on selected filters
-    const filteredMatches = matches.filter((match) => {
-        const homeName = resolvedTeamName(match.homeTeam, match.homeTeam_ID).toLowerCase();
-        const awayName = resolvedTeamName(match.awayTeam, match.awayTeam_ID).toLowerCase();
-        const search = teamSearch.trim().toLowerCase();
+    // Filter and sort matches.
+    // For "finished" filter, show most recently updated/finished first.
+    const filteredMatches = matches
+        .filter((match) => {
+            const homeName = unresolvedTeamName(match, "home").toLowerCase();
+            const awayName = unresolvedTeamName(match, "away").toLowerCase();
+            const search = teamSearch.trim().toLowerCase();
 
-        const tournamentMatch = selectedTournament === "all" || match.tournament_ID === selectedTournament;
-        const statusMatch = selectedStatus === "all" || match.status === selectedStatus;
-        const stageMatch = selectedStage === "all" || match.stage === selectedStage;
-        const dayMatch = !selectedDay || formatLocalDateKey(match.kickoff) === selectedDay;
-        const teamMatch = !search || homeName.includes(search) || awayName.includes(search);
+            const tournamentMatch = selectedTournament === "all" || match.tournament_ID === selectedTournament;
+            const statusMatch = selectedStatus === "all" || match.status === selectedStatus;
+            const stageMatch = selectedStage === "all" || match.stage === selectedStage;
+            const dayMatch = !selectedDay || formatLocalDateKey(match.kickoff) === selectedDay;
+            const teamMatch = !search || homeName.includes(search) || awayName.includes(search);
 
-        return tournamentMatch && statusMatch && stageMatch && dayMatch && teamMatch;
-    });
+            return tournamentMatch && statusMatch && stageMatch && dayMatch && teamMatch;
+        })
+        .sort((a, b) => {
+            if (selectedStatus === "finished") {
+                const updatedA = Date.parse(a.modifiedAt ?? "");
+                const updatedB = Date.parse(b.modifiedAt ?? "");
+                if (Number.isFinite(updatedA) && Number.isFinite(updatedB) && updatedA !== updatedB) {
+                    return updatedB - updatedA;
+                }
+
+                const kickA = Date.parse(a.kickoff);
+                const kickB = Date.parse(b.kickoff);
+                if (Number.isFinite(kickA) && Number.isFinite(kickB) && kickA !== kickB) {
+                    return kickB - kickA;
+                }
+            }
+
+            const stageDiff = (STAGE_ORDER[a.stage] ?? 999) - (STAGE_ORDER[b.stage] ?? 999);
+            if (stageDiff !== 0) return stageDiff;
+            const kickA = new Date(a.kickoff).getTime();
+            const kickB = new Date(b.kickoff).getTime();
+            if (Number.isFinite(kickA) && Number.isFinite(kickB) && kickA !== kickB) return kickA - kickB;
+            if (a.matchday != null && b.matchday != null && a.matchday !== b.matchday) return a.matchday - b.matchday;
+            return (a.homeTeam?.name || "").localeCompare(b.homeTeam?.name || "");
+        });
 
     const upcoming = filteredMatches.filter((m) => m.status === "upcoming").length;
     const live = filteredMatches.filter((m) => m.status === "live").length;
@@ -489,7 +578,11 @@ export function MatchManagement() {
                             </tr>
                         </thead>
                         <tbody>
-                            {filteredMatches.map((m) => (
+                            {filteredMatches.map((m) => {
+                                const kickoff = formatKickoff(m.kickoff);
+                                const homeFallbackName = unresolvedTeamName(m, "home");
+                                const awayFallbackName = unresolvedTeamName(m, "away");
+                                return (
                                 <tr
                                     key={m.ID}
                                     className="border-b border-border/50 cursor-pointer transition-colors hover:bg-surface"
@@ -509,7 +602,16 @@ export function MatchManagement() {
                                                                 : null}
                                                     </>
                                                 )
-                                                : <span>{teamName(m.homeTeam_ID)}</span>}
+                                                : (
+                                                    <div className="text-right">
+                                                        <div>{homeFallbackName}</div>
+                                                        {homeFallbackName.startsWith("Winner ") && (
+                                                            <div className="text-[10px] font-normal text-muted-foreground">
+                                                                TBD
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                )}
                                         </div>
                                     </td>
                                     {/* vs */}
@@ -530,21 +632,27 @@ export function MatchManagement() {
                                                         <span>{m.awayTeam.name}</span>
                                                     </>
                                                 )
-                                                : <span>{teamName(m.awayTeam_ID)}</span>}
+                                                : (
+                                                    <div>
+                                                        <div>{awayFallbackName}</div>
+                                                        {awayFallbackName.startsWith("Winner ") && (
+                                                            <div className="text-[10px] font-normal text-muted-foreground">
+                                                                TBD
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                )}
                                         </div>
                                     </td>
                                     <td className="px-4 py-3 capitalize text-muted-foreground">
                                         {m.stage}
                                     </td>
                                     <td className="px-4 py-3">
-                                        <div className="text-muted-foreground">
-                                            {new Date(m.kickoff).toLocaleDateString()}
+                                        <div className="font-medium text-white">
+                                            {kickoff.date}
                                         </div>
-                                        <div className="text-xs text-muted-foreground/60">
-                                            {new Date(m.kickoff).toLocaleTimeString([], {
-                                                hour: "2-digit",
-                                                minute: "2-digit",
-                                            })}
+                                        <div className="text-xs text-muted-foreground">
+                                            {kickoff.time}
                                         </div>
                                     </td>
                                     {/* <td className="px-4 py-3 text-muted-foreground">
@@ -641,7 +749,8 @@ export function MatchManagement() {
                                         </DropdownMenu>
                                     </td>
                                 </tr>
-                            ))}
+                                );
+                            })}
                             {filteredMatches.length === 0 && (
                                 <tr>
                                     <td

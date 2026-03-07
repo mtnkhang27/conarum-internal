@@ -12,9 +12,25 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { defaultProfile } from "@/data/mockData";
 import { playerProfileApi, playerTeamsApi } from "@/services/playerApi";
 import type { UserProfile } from "@/types";
+
+const EMPTY_PROFILE: UserProfile = {
+    avatarUrl: "",
+    displayName: "",
+    firstName: "",
+    lastName: "",
+    email: "",
+    roles: [],
+    isAdmin: false,
+    phone: "",
+    country: "",
+    city: "",
+    timezone: "",
+    favoriteTeamId: null,
+    favoriteTeam: "",
+    bio: "",
+};
 
 function inputClass(isEditable: boolean) {
     if (isEditable) {
@@ -124,9 +140,17 @@ const toCountryLabel = (value: string): string => {
     return COUNTRY_LABEL_BY_CODE.get(toCountryCode(value)) || value;
 };
 
+const composeDisplayName = (firstName: string, lastName: string, fallback = ""): string => {
+    const parts = [firstName, lastName]
+        .map((value) => value.trim())
+        .filter((value) => value.length > 0);
+    if (parts.length > 0) return parts.join(" ").slice(0, 100);
+    return fallback.trim().slice(0, 100);
+};
+
 export function AccountPage() {
-    const [profile, setProfile] = useState<UserProfile>(defaultProfile);
-    const [draft, setDraft] = useState<UserProfile>(defaultProfile);
+    const [profile, setProfile] = useState<UserProfile>(EMPTY_PROFILE);
+    const [draft, setDraft] = useState<UserProfile>(EMPTY_PROFILE);
     const [isEditing, setIsEditing] = useState(false);
     const [isLoading, setIsLoading] = useState(true);
     const [isSaving, setIsSaving] = useState(false);
@@ -155,6 +179,7 @@ export function AccountPage() {
                 const normalizedProfile: UserProfile = {
                     ...loaded,
                     country: toCountryCode(loaded.country || ""),
+                    displayName: composeDisplayName(loaded.firstName || "", loaded.lastName || "", loaded.displayName || ""),
                 };
                 setProfile(normalizedProfile);
                 setDraft(normalizedProfile);
@@ -179,7 +204,15 @@ export function AccountPage() {
 
     const onFieldChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
         const { name, value } = e.target;
-        setDraft((prev) => ({ ...prev, [name]: value }));
+        setDraft((prev) => {
+            const next: UserProfile = { ...prev, [name]: value };
+            if (name === "firstName" || name === "lastName") {
+                const nextFirstName = name === "firstName" ? value : prev.firstName;
+                const nextLastName = name === "lastName" ? value : prev.lastName;
+                next.displayName = composeDisplayName(nextFirstName, nextLastName, prev.displayName);
+            }
+            return next;
+        });
     };
 
     const showConfirm = (cfg: typeof confirmConfig) => {
@@ -230,11 +263,13 @@ export function AccountPage() {
                     const payload: UserProfile = {
                         ...draft,
                         country: toCountryCode(draft.country || ""),
+                        displayName: composeDisplayName(draft.firstName, draft.lastName, draft.displayName),
                     };
                     const saved = await playerProfileApi.updateMyProfile(payload);
                     const normalizedSaved: UserProfile = {
                         ...saved,
                         country: toCountryCode(saved.country || ""),
+                        displayName: composeDisplayName(saved.firstName || "", saved.lastName || "", saved.displayName || ""),
                     };
                     setProfile(normalizedSaved);
                     setDraft(normalizedSaved);
@@ -304,7 +339,11 @@ export function AccountPage() {
     };
 
     const currentAvatarUrl = isEditing ? draft.avatarUrl : profile.avatarUrl;
-    const currentDisplayName = isEditing ? draft.displayName : profile.displayName;
+    const currentDisplayName = composeDisplayName(
+        isEditing ? draft.firstName : profile.firstName,
+        isEditing ? draft.lastName : profile.lastName,
+        isEditing ? draft.displayName : profile.displayName
+    );
     const currentEmail = isEditing ? draft.email : profile.email;
     const currentCountryLabel = toCountryLabel(profile.country);
     const handleConfirmAction = () => {
@@ -446,7 +485,14 @@ export function AccountPage() {
                     </div>
 
                     <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                        <InfoField label="Display Name" name="displayName" value={draft.displayName} onChange={onFieldChange} isEditing={isEditing} />
+                        <InfoField
+                            label="Display Name"
+                            name="displayName"
+                            value={composeDisplayName(draft.firstName, draft.lastName, draft.displayName)}
+                            onChange={onFieldChange}
+                            isEditing={isEditing}
+                            forceReadOnly
+                        />
                         <InfoField label="Email" name="email" value={draft.email} onChange={onFieldChange} isEditing={isEditing} forceReadOnly />
                         <InfoField label="First Name" name="firstName" value={draft.firstName} onChange={onFieldChange} isEditing={isEditing} />
                         <InfoField label="Last Name" name="lastName" value={draft.lastName} onChange={onFieldChange} isEditing={isEditing} />

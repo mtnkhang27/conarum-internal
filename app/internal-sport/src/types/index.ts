@@ -162,6 +162,10 @@ export interface TournamentLeaderboardItem {
     playerId: string;
     displayName: string;
     avatarUrl: string;
+    email?: string;
+    favoriteTeam?: string;
+    bio?: string;
+    country?: string;
     totalPoints: number;
     totalCorrect: number;
     totalPredictions: number;

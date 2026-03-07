@@ -635,7 +635,7 @@ export class PredictionHandler {
      */
     async getPredictionLeaderboard(req: Request) {
         const { tournamentId } = req.data;
-        const { PlayerTournamentStats, Player } = cds.entities('cnma.prediction');
+        const { PlayerTournamentStats, Player, Team } = cds.entities('cnma.prediction');
         const currentPlayerId = await this.getCurrentPlayerId(req);
 
         const stats = await SELECT.from(PlayerTournamentStats)
@@ -647,10 +647,25 @@ export class PredictionHandler {
         for (const s of stats) {
             const player = await SELECT.one.from(Player).where({ ID: s.player_ID });
             const displayName = this.resolveDisplayName(player);
+            const email = this.asTrimmedString(player?.email) ?? '';
+            const bio = this.asTrimmedString(player?.bio) ?? '';
+            const country = this.asTrimmedString(player?.country) ?? this.asTrimmedString(player?.country_code) ?? '';
+            const favoriteTeamId = this.asTrimmedString(player?.favoriteTeam_ID);
+
+            let favoriteTeam = '';
+            if (favoriteTeamId) {
+                const team = await SELECT.one.from(Team).columns('name').where({ ID: favoriteTeamId });
+                favoriteTeam = this.asTrimmedString(team?.name) ?? '';
+            }
+
             enriched.push({
                 playerId: s.player_ID,
                 displayName,
                 avatarUrl: player?.avatarUrl ?? '',
+                email,
+                favoriteTeam,
+                bio,
+                country,
                 totalPoints: Number(s.totalPoints),
                 totalCorrect: s.totalCorrect,
                 totalPredictions: s.totalPredictions,
@@ -669,6 +684,10 @@ export class PredictionHandler {
             playerId: e.playerId,
             displayName: e.displayName,
             avatarUrl: e.avatarUrl,
+            email: e.email,
+            favoriteTeam: e.favoriteTeam,
+            bio: e.bio,
+            country: e.country,
             totalPoints: e.totalPoints,
             totalCorrect: e.totalCorrect,
             totalPredictions: e.totalPredictions,
@@ -975,13 +994,13 @@ export class PredictionHandler {
     }
 
     private resolveDisplayName(player: any): string {
-        const explicit = this.asTrimmedString(player?.displayName);
-        if (explicit) return explicit;
-
         const fullName = [this.asTrimmedString(player?.givenName), this.asTrimmedString(player?.familyName)]
             .filter((value): value is string => Boolean(value))
             .join(' ');
         if (fullName) return fullName;
+
+        const explicit = this.asTrimmedString(player?.displayName);
+        if (explicit) return explicit;
 
         return this.asTrimmedString(player?.email)
             ?? this.asTrimmedString(player?.loginName)

@@ -60,7 +60,11 @@ export class AdminService extends cds.ApplicationService {
     async init() {
         this.adminHandler = new AdminHandler(this);
         this.before('*', async (req) => {
-            await syncAuthenticatedUser(req);
+            const context = await syncAuthenticatedUser(req);
+            const isAdmin = context.roles.includes('PredictionAdmin') || context.roles.includes('admin');
+            if (!isAdmin) {
+                return req.reject(403, 'Admin access is restricted to authorized accounts');
+            }
         });
 
         // ── Actions ──────────────────────────────────────────

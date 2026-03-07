@@ -5,7 +5,7 @@ using {cnma.prediction as db} from '../db/schema';
 // ────────────────────────────────────────────────────────────
 
 @path    : '/api/player'
-@requires: 'PredictionUser'
+@requires: 'authenticated-user'
 service PlayerService {
 
     // ── Read-Only Views ──────────────────────────────────────
@@ -322,6 +322,10 @@ service PlayerService {
         playerId     : UUID;
         displayName  : String;
         avatarUrl    : String;
+        email        : String;
+        favoriteTeam : String;
+        bio          : String;
+        country      : String;
         totalPoints  : Decimal;
         totalCorrect : Integer;
         totalPredictions : Integer;
@@ -432,7 +436,7 @@ service PlayerService {
 // ────────────────────────────────────────────────────────────
 
 @path    : '/api/admin'
-@requires: 'PredictionAdmin'
+@requires: 'authenticated-user'
 service AdminService {
 
     // ── Full CRUD Entities ───────────────────────────────────

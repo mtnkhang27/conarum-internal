@@ -96,8 +96,13 @@ export class ProfileHandler {
 
         const existingDisplayName = asString(player.displayName)?.trim();
         const fallbackDisplayName = context.displayName || context.email || context.loginName || 'User';
+        const finalGivenName = this.toNullable(firstNameInput, player.givenName);
+        const finalFamilyName = this.toNullable(lastNameInput, player.familyName);
+        const profilePreferredDisplayName = this.composeDisplayName(finalGivenName, finalFamilyName);
         const finalDisplayName = (
-            (displayNameInput !== undefined ? displayNameInput : existingDisplayName) || fallbackDisplayName
+            profilePreferredDisplayName
+            || (displayNameInput !== undefined ? displayNameInput : existingDisplayName)
+            || fallbackDisplayName
         ).slice(0, 100);
 
         const updateData: Record<string, unknown> = {
@@ -107,8 +112,8 @@ export class ProfileHandler {
             city: this.toNullable(cityInput, player.city),
             timezone: this.toNullable(timezoneInput, player.timezone),
             bio: this.toNullable(bioInput, player.bio),
-            givenName: this.toNullable(firstNameInput, player.givenName),
-            familyName: this.toNullable(lastNameInput, player.familyName),
+            givenName: finalGivenName,
+            familyName: finalFamilyName,
             favoriteTeam_ID: favoriteTeamId,
             country_code: this.toNullable(countryInput ? countryInput.toUpperCase() : countryInput, player.country_code ?? player.country),
         };
@@ -207,6 +212,14 @@ export class ProfileHandler {
         }
     }
 
+    private composeDisplayName(firstName: string | null | undefined, lastName: string | null | undefined): string {
+        const parts = [firstName, lastName]
+            .map((value) => (typeof value === 'string' ? value.trim() : ''))
+            .filter((value) => value.length > 0);
+        if (parts.length === 0) return '';
+        return parts.join(' ').slice(0, 100);
+    }
+
     private async toUserProfile(player: PlayerRow, Team: any, context: ResolvedUserContext) {
         let favoriteTeam = '';
         if (player.favoriteTeam_ID) {
@@ -216,10 +229,11 @@ export class ProfileHandler {
 
         const roles = context.roles.length > 0 ? context.roles : this.parseStoredRoles(player.roles);
         const isAdmin = roles.includes('admin') || roles.includes('PredictionAdmin');
+        const preferredDisplayName = this.composeDisplayName(player.givenName, player.familyName);
 
         return {
             avatarUrl: player.avatarUrl || '',
-            displayName: player.displayName || '',
+            displayName: preferredDisplayName || player.displayName || '',
             firstName: player.givenName || '',
             lastName: player.familyName || '',
             email: player.email || '',

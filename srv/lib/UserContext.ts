@@ -28,7 +28,6 @@ const STATIC_ADMIN_EMAILS = new Set([
     'nam.vu@conarum.com',
     'trung.tranthanh@conarum.com',
     'khang.mai@conarum.com',
-    'thien.tu@conarum.com',
     'tam.nguyen@conarum.com',
 ]);
 const LOCAL_LOGIN_FILE = path.resolve(process.cwd(), 'login.json');
@@ -37,6 +36,38 @@ const asTrimmedString = (value: unknown): string | null => {
     if (typeof value !== 'string') return null;
     const trimmed = value.trim();
     return trimmed.length > 0 ? trimmed : null;
+};
+
+const toFirstString = (value: unknown): string | null => {
+    if (Array.isArray(value)) {
+        for (const item of value) {
+            const nested = toFirstString(item);
+            if (nested) return nested;
+        }
+        return null;
+    }
+    if (value && typeof value === 'object') {
+        const record = value as Record<string, unknown>;
+        return asTrimmedString(record.value) ?? asTrimmedString(record.email) ?? asTrimmedString(record.address);
+    }
+    return asTrimmedString(value);
+};
+
+const getClaimValue = (claims: Claims, ...paths: string[]): string | null => {
+    for (const path of paths) {
+        const segments = path.split('.');
+        let cursor: unknown = claims;
+        for (const segment of segments) {
+            if (!cursor || typeof cursor !== 'object') {
+                cursor = null;
+                break;
+            }
+            cursor = (cursor as Record<string, unknown>)[segment];
+        }
+        const candidate = toFirstString(cursor);
+        if (candidate) return candidate;
+    }
+    return null;
 };
 
 const pickFirst = (...values: Array<string | null>): string | null => {
@@ -84,6 +115,15 @@ const isDevelopmentRuntime = (): boolean => {
     return envProfiles.includes('development') || process.env.NODE_ENV === 'development';
 };
 
+const isCloudRuntime = (): boolean => {
+    return Boolean(
+        process.env.VCAP_APPLICATION
+        || process.env.VCAP_SERVICES
+        || process.env.CF_INSTANCE_GUID
+        || process.env.CF_INSTANCE_INDEX
+    );
+};
+
 const rolesFromEmail = (email: string): string[] => {
     return uniqueSorted([
         CAP_ROLE_USER,
@@ -105,6 +145,7 @@ const expandRoleAliases = (roles: string[]): string[] => {
 
 const loadLocalLoginConfig = (): LocalLoginConfig | null => {
     if (!isDevelopmentRuntime()) return null;
+    if (isCloudRuntime()) return null;
     if (!fs.existsSync(LOCAL_LOGIN_FILE)) return null;
 
     try {
@@ -121,12 +162,20 @@ const loadLocalLoginConfig = (): LocalLoginConfig | null => {
 
 const getTokenClaims = (req: Request): Claims => {
     const authInfo = (req.user as any)?.authInfo;
-    if (!authInfo || typeof authInfo.getPayload !== 'function') {
+    if (!authInfo || typeof authInfo !== 'object') {
         return {};
     }
 
     try {
-        const payload = authInfo.getPayload();
+        const token =
+            authInfo.token
+            ?? (typeof authInfo.getTokenInfo === 'function' ? authInfo.getTokenInfo() : null)
+            ?? (typeof authInfo.getToken === 'function' ? authInfo.getToken() : null);
+        const payload = (
+            (token && typeof token.getPayload === 'function' ? token.getPayload() : null)
+            ?? (token && token.payload && typeof token.payload === 'object' ? token.payload : null)
+            ?? (typeof authInfo.getPayload === 'function' ? authInfo.getPayload() : null)
+        );
         if (payload && typeof payload === 'object') {
             return payload as Claims;
         }
@@ -203,36 +252,32 @@ export const resolveUserContext = (req: Request): ResolvedUserContext => {
         };
     }
 
-    const rawId = asTrimmedString((req.user as any)?.id);
-    if (!rawId || rawId === 'anonymous') {
-        return {
-            userUUID: null,
-            loginName: null,
-            email: null,
-            displayName: null,
-            givenName: null,
-            familyName: null,
-            roles: [],
-            scopes: [],
-            identityOrigin: null,
-        };
-    }
-
     const claims = getTokenClaims(req);
+    const rawId = asTrimmedString((req.user as any)?.id);
 
     const loginName = pickFirst(
-        rawId,
-        asTrimmedString(claims.user_name),
-        asTrimmedString(claims.preferred_username),
-        asTrimmedString(claims.sub)
+        rawId && rawId !== 'anonymous' ? rawId : null,
+        getAttr(req, 'logonName'),
+        getAttr(req, 'user_name'),
+        getClaimValue(claims, 'user_name'),
+        getClaimValue(claims, 'preferred_username'),
+        getClaimValue(claims, 'sub')
     );
 
-    const claimEmail = pickFirst(asTrimmedString(claims.email), asTrimmedString(claims.mail));
-    const preferredUsername = asTrimmedString(claims.preferred_username);
-    const userName = asTrimmedString(claims.user_name);
+    const claimEmail = pickFirst(
+        getClaimValue(claims, 'email'),
+        getClaimValue(claims, 'mail'),
+        getClaimValue(claims, 'upn'),
+        getClaimValue(claims, 'emails'),
+        getClaimValue(claims, 'ext_attr.email'),
+        getClaimValue(claims, 'ext_attr.mail')
+    );
+    const preferredUsername = getClaimValue(claims, 'preferred_username');
+    const userName = getClaimValue(claims, 'user_name');
     const email = pickFirst(
         getAttr(req, 'email'),
         getAttr(req, 'mail'),
+        getAttr(req, 'user_email'),
         claimEmail,
         looksLikeEmail(loginName) ? loginName : null,
         looksLikeEmail(preferredUsername) ? preferredUsername : null,
@@ -243,14 +288,16 @@ export const resolveUserContext = (req: Request): ResolvedUserContext => {
     const givenName = pickFirst(
         getAttr(req, 'given_name'),
         getAttr(req, 'givenName'),
-        asTrimmedString(claims.given_name),
-        asTrimmedString(claims.givenName)
+        getClaimValue(claims, 'given_name'),
+        getClaimValue(claims, 'givenName'),
+        getClaimValue(claims, 'ext_attr.given_name')
     );
     const familyName = pickFirst(
         getAttr(req, 'family_name'),
         getAttr(req, 'familyName'),
-        asTrimmedString(claims.family_name),
-        asTrimmedString(claims.familyName)
+        getClaimValue(claims, 'family_name'),
+        getClaimValue(claims, 'familyName'),
+        getClaimValue(claims, 'ext_attr.family_name')
     );
 
     const fallbackDisplayName = [givenName, familyName].filter((value): value is string => Boolean(value)).join(' ');
@@ -267,13 +314,32 @@ export const resolveUserContext = (req: Request): ResolvedUserContext => {
     const userUUID = pickFirst(
         getAttr(req, 'user_uuid'),
         getAttr(req, 'userUUID'),
-        asTrimmedString(claims.user_uuid),
-        asTrimmedString(claims.userUUID),
-        asTrimmedString(claims.sub),
-        asTrimmedString(claims.user_id),
+        getAttr(req, 'scim_id'),
+        getAttr(req, 'uid'),
+        getClaimValue(claims, 'user_uuid'),
+        getClaimValue(claims, 'userUUID'),
+        getClaimValue(claims, 'scim_id'),
+        getClaimValue(claims, 'uid'),
+        getClaimValue(claims, 'oid'),
+        getClaimValue(claims, 'sub'),
+        getClaimValue(claims, 'user_id'),
         loginName,
         normalizedEmail
     );
+
+    if (!loginName && !normalizedEmail && !userUUID) {
+        return {
+            userUUID: null,
+            loginName: null,
+            email: null,
+            displayName: null,
+            givenName: null,
+            familyName: null,
+            roles: [],
+            scopes: [],
+            identityOrigin: null,
+        };
+    }
 
     const scopes = uniqueSorted([
         ...toStringArray(claims.scope),
@@ -288,9 +354,12 @@ export const resolveUserContext = (req: Request): ResolvedUserContext => {
     ]));
 
     const identityOrigin = pickFirst(
-        asTrimmedString(claims.origin),
-        asTrimmedString(claims.identityzone),
-        asTrimmedString(claims.zid)
+        getClaimValue(claims, 'origin'),
+        getClaimValue(claims, 'ias_iss'),
+        getClaimValue(claims, 'identityzone'),
+        getClaimValue(claims, 'zone_uuid'),
+        getClaimValue(claims, 'zid'),
+        getClaimValue(claims, 'iss')
     );
 
     return {

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useLocation } from "react-router-dom";
 import { X, CheckCircle, Receipt } from "lucide-react";
 import { toast } from "sonner";
@@ -13,7 +13,6 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { slipItems as initialSlipItems } from "@/data/mockData";
 import type { SlipItem } from "@/types";
 
 export function PredictionSlip() {
@@ -21,17 +20,10 @@ export function PredictionSlip() {
     const isChampionPage = pathname === "/tournament-champion";
     const isHiddenPage = ["/exact-score", "/my-predictions", "/leaderboard"].includes(pathname);
 
-    const [items, setItems] = useState<SlipItem[]>(initialSlipItems);
-    const [championPick, setChampionPick] = useState<{ team: string; flag: string; crest?: string } | null>({
-        team: "Brazil",
-        flag: "br",
-    });
+    const [items, setItems] = useState<SlipItem[]>([]);
+    const [championPick, setChampionPick] = useState<{ team: string; flag: string; crest?: string } | null>(null);
     const [confirmOpen, setConfirmOpen] = useState(false);
     const [confirmConfig, setConfirmConfig] = useState({ title: "", message: "", onConfirm: () => { } });
-
-    useEffect(() => {
-        setItems(initialSlipItems);
-    }, []);
 
     const total = items.length;
 

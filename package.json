@@ -40,9 +40,7 @@
     },
     "requires": {
       "auth": {
-        "[production]": {
-          "strategy": "xsuaa"
-        },
+        "strategy": "xsuaa",
         "[development]": {
           "strategy": "mock",
           "users": {

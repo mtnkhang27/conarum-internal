@@ -33,6 +33,11 @@
     "build": {
       "typescript": true
     },
+    "server": {
+      "body_parser": {
+        "limit": "20mb"
+      }
+    },
     "requires": {
       "auth": {
         "[production]": {
@@ -44,6 +49,8 @@
             "admin": {
               "password": "admin",
               "roles": [
+                "PredictionAdmin",
+                "PredictionUser",
                 "admin",
                 "authenticated-user"
               ],
@@ -54,6 +61,7 @@
             "nguyen.a@conarum.com": {
               "password": "player",
               "roles": [
+                "PredictionUser",
                 "authenticated-user"
               ],
               "attr": {
@@ -63,6 +71,7 @@
             "tran.b@conarum.com": {
               "password": "player",
               "roles": [
+                "PredictionUser",
                 "authenticated-user"
               ],
               "attr": {
@@ -78,3 +87,4 @@
     "#cds-models/*": "./@cds-models/*/index.js"
   }
 }
+

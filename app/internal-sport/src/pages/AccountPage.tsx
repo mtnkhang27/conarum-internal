@@ -56,6 +56,74 @@ type ConfirmConfig = {
     onConfirm: () => void | Promise<void>;
 };
 
+type CountryOption = {
+    code: string;
+    label: string;
+};
+
+const COUNTRY_CODES = [
+    "AE", "AR", "AT", "AU", "BE", "BG", "BH", "BO", "BR", "BN", "CA", "CH", "CL", "CN", "CO", "CR", "CU", "CZ",
+    "DE", "DK", "DO", "DZ", "EC", "EE", "EG", "ES", "FI", "FR", "GB", "GH", "GR", "GT", "HK", "HN", "HR", "HU",
+    "ID", "IE", "IL", "IN", "IT", "JO", "JP", "KE", "KH", "KR", "KW", "LA", "LB", "LK", "LT", "LU", "LV", "MA",
+    "MM", "MX", "MY", "NG", "NI", "NL", "NO", "NP", "NZ", "OM", "PA", "PE", "PH", "PK", "PL", "PT", "PY", "QA",
+    "RO", "RS", "RU", "SA", "SE", "SG", "SI", "SK", "SV", "TH", "TN", "TR", "TW", "UA", "US", "UY", "VE", "VN",
+    "ZA",
+] as const;
+
+const createRegionDisplayNames = (locale: string): Intl.DisplayNames | null => {
+    try {
+        return new Intl.DisplayNames([locale], { type: "region" });
+    } catch {
+        return null;
+    }
+};
+
+const REGION_NAMES_VI = createRegionDisplayNames("vi");
+const REGION_NAMES_EN = createRegionDisplayNames("en");
+
+const COUNTRY_OPTIONS: CountryOption[] = COUNTRY_CODES
+    .map((code) => ({
+        code,
+        label: REGION_NAMES_VI?.of(code) || REGION_NAMES_EN?.of(code) || code,
+    }))
+    .sort((a, b) => a.label.localeCompare(b.label, "vi"));
+
+const COUNTRY_LABEL_BY_CODE = new Map(COUNTRY_OPTIONS.map((country) => [country.code, country.label]));
+
+const normalizeCountryKey = (value: string): string => {
+    return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLowerCase();
+};
+
+const COUNTRY_ALIAS_TO_CODE = (() => {
+    const aliases = new Map<string, string>();
+    for (const country of COUNTRY_OPTIONS) {
+        aliases.set(normalizeCountryKey(country.code), country.code);
+        aliases.set(normalizeCountryKey(country.label), country.code);
+        const englishName = REGION_NAMES_EN?.of(country.code);
+        if (englishName) {
+            aliases.set(normalizeCountryKey(englishName), country.code);
+        }
+    }
+    return aliases;
+})();
+
+const toCountryCode = (value: string): string => {
+    const trimmed = value.trim();
+    if (!trimmed) return "";
+
+    const normalizedCode = trimmed.toUpperCase();
+    if (COUNTRY_LABEL_BY_CODE.has(normalizedCode)) {
+        return normalizedCode;
+    }
+
+    return COUNTRY_ALIAS_TO_CODE.get(normalizeCountryKey(trimmed)) || normalizedCode;
+};
+
+const toCountryLabel = (value: string): string => {
+    if (!value) return "";
+    return COUNTRY_LABEL_BY_CODE.get(toCountryCode(value)) || value;
+};
+
 export function AccountPage() {
     const [profile, setProfile] = useState<UserProfile>(defaultProfile);
     const [draft, setDraft] = useState<UserProfile>(defaultProfile);
@@ -84,8 +152,12 @@ export function AccountPage() {
                     playerTeamsApi.getAll().catch(() => []),
                 ]);
                 if (!active) return;
-                setProfile(loaded);
-                setDraft(loaded);
+                const normalizedProfile: UserProfile = {
+                    ...loaded,
+                    country: toCountryCode(loaded.country || ""),
+                };
+                setProfile(normalizedProfile);
+                setDraft(normalizedProfile);
                 const teamNames = [...new Set(teams.map((team) => team.name).filter(Boolean))].sort((a, b) =>
                     a.localeCompare(b)
                 );
@@ -105,7 +177,7 @@ export function AccountPage() {
         };
     }, []);
 
-    const onFieldChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const onFieldChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
         const { name, value } = e.target;
         setDraft((prev) => ({ ...prev, [name]: value }));
     };
@@ -155,9 +227,17 @@ export function AccountPage() {
                 setIsSaving(true);
                 setConfirmOpen(false);
                 try {
-                    const saved = await playerProfileApi.updateMyProfile(draft);
-                    setProfile(saved);
-                    setDraft(saved);
+                    const payload: UserProfile = {
+                        ...draft,
+                        country: toCountryCode(draft.country || ""),
+                    };
+                    const saved = await playerProfileApi.updateMyProfile(payload);
+                    const normalizedSaved: UserProfile = {
+                        ...saved,
+                        country: toCountryCode(saved.country || ""),
+                    };
+                    setProfile(normalizedSaved);
+                    setDraft(normalizedSaved);
                     setAvatarError("");
                     setIsEditing(false);
                     toast.success("Profile updated", { description: "Your account information has been saved." });
@@ -191,9 +271,9 @@ export function AccountPage() {
             return;
         }
 
-        if (file.size > 2 * 1024 * 1024) {
-            setAvatarError("Avatar must be smaller than 2MB.");
-            toast.error("File too large", { description: "Avatar image must be smaller than 2MB." });
+        if (file.size > 10 * 1024 * 1024) {
+            setAvatarError("Avatar must be smaller than 10MB.");
+            toast.error("File too large", { description: "Avatar image must be smaller than 10MB." });
             e.target.value = "";
             return;
         }
@@ -226,6 +306,7 @@ export function AccountPage() {
     const currentAvatarUrl = isEditing ? draft.avatarUrl : profile.avatarUrl;
     const currentDisplayName = isEditing ? draft.displayName : profile.displayName;
     const currentEmail = isEditing ? draft.email : profile.email;
+    const currentCountryLabel = toCountryLabel(profile.country);
     const handleConfirmAction = () => {
         void Promise.resolve(confirmConfig.onConfirm());
     };
@@ -297,7 +378,7 @@ export function AccountPage() {
                     </div>
 
                     <p className="mb-4 text-[11px] text-muted-foreground">
-                        {isEditing ? "Accepted: JPG, PNG, WEBP. Max size 2MB." : "Click Edit Profile to update avatar."}
+                        {isEditing ? "Accepted: JPG, PNG, WEBP. Max size 10MB." : "Click Edit Profile to update avatar."}
                     </p>
 
                     {avatarError && (
@@ -307,8 +388,8 @@ export function AccountPage() {
                     )}
 
                     <div className="space-y-2 border-t border-border pt-4 text-sm">
-                        {[
-                            { label: "Country", value: profile.country },
+                        {[ 
+                            { label: "Country", value: currentCountryLabel },
                             { label: "City", value: profile.city },
                             { label: "Timezone", value: profile.timezone },
                         ].map((item) => (
@@ -370,7 +451,23 @@ export function AccountPage() {
                         <InfoField label="First Name" name="firstName" value={draft.firstName} onChange={onFieldChange} isEditing={isEditing} />
                         <InfoField label="Last Name" name="lastName" value={draft.lastName} onChange={onFieldChange} isEditing={isEditing} />
                         <InfoField label="Phone" name="phone" value={draft.phone} onChange={onFieldChange} isEditing={isEditing} />
-                        <InfoField label="Country" name="country" value={draft.country} onChange={onFieldChange} isEditing={isEditing} />
+                        <label className="flex flex-col gap-1">
+                            <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Country</span>
+                            <select
+                                name="country"
+                                value={toCountryCode(draft.country)}
+                                onChange={onFieldChange}
+                                disabled={!isEditing}
+                                className={inputClass(isEditing)}
+                            >
+                                <option value="">Select country</option>
+                                {COUNTRY_OPTIONS.map((country) => (
+                                    <option key={country.code} value={country.code}>
+                                        {country.label}
+                                    </option>
+                                ))}
+                            </select>
+                        </label>
                         <InfoField label="City" name="city" value={draft.city} onChange={onFieldChange} isEditing={isEditing} />
                         <InfoField label="Timezone" name="timezone" value={draft.timezone} onChange={onFieldChange} isEditing={isEditing} />
                         <div className="md:col-span-2">
@@ -428,3 +525,4 @@ export function AccountPage() {
         </div>
     );
 }
+

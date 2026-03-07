@@ -1,6 +1,13 @@
 import cds, { Request } from '@sap/cds';
+import fs from 'node:fs';
+import path from 'node:path';
 
 type Claims = Record<string, unknown>;
+type LocalLoginConfig = {
+    email: string;
+    loginName: string;
+    displayName: string | null;
+};
 
 export type ResolvedUserContext = {
     userUUID: string | null;
@@ -14,7 +21,17 @@ export type ResolvedUserContext = {
     identityOrigin: string | null;
 };
 
-const APP_ROLES = ['authenticated-user', 'admin'];
+const CAP_ROLE_USER = 'PredictionUser';
+const CAP_ROLE_ADMIN = 'PredictionAdmin';
+const APP_ROLES = [CAP_ROLE_USER, CAP_ROLE_ADMIN, 'authenticated-user', 'admin'];
+const STATIC_ADMIN_EMAILS = new Set([
+    'nam.vu@conarum.com',
+    'trung.tranthanh@conarum.com',
+    'khang.mai@conarum.com',
+    'thien.tu@conarum.com',
+    'tam.nguyen@conarum.com',
+]);
+const LOCAL_LOGIN_FILE = path.resolve(process.cwd(), 'login.json');
 
 const asTrimmedString = (value: unknown): string | null => {
     if (typeof value !== 'string') return null;
@@ -55,6 +72,51 @@ const toStringArray = (value: unknown): string[] => {
 
 const uniqueSorted = (values: string[]): string[] => {
     return [...new Set(values.filter((value) => value.length > 0))].sort((a, b) => a.localeCompare(b));
+};
+
+const isDevelopmentRuntime = (): boolean => {
+    const profiles = new Set<string>((cds.env.profiles ?? []).map((profile) => String(profile)));
+    if (profiles.has('development')) return true;
+    const envProfiles = (process.env.CDS_ENV ?? '')
+        .split(',')
+        .map((value) => value.trim())
+        .filter((value) => value.length > 0);
+    return envProfiles.includes('development') || process.env.NODE_ENV === 'development';
+};
+
+const rolesFromEmail = (email: string): string[] => {
+    return uniqueSorted([
+        CAP_ROLE_USER,
+        'authenticated-user',
+        ...(STATIC_ADMIN_EMAILS.has(email) ? [CAP_ROLE_ADMIN, 'admin'] : []),
+    ]);
+};
+
+const expandRoleAliases = (roles: string[]): string[] => {
+    const expanded = [...roles];
+    if (roles.includes(CAP_ROLE_USER)) {
+        expanded.push('authenticated-user');
+    }
+    if (roles.includes(CAP_ROLE_ADMIN)) {
+        expanded.push('admin', CAP_ROLE_USER, 'authenticated-user');
+    }
+    return expanded;
+};
+
+const loadLocalLoginConfig = (): LocalLoginConfig | null => {
+    if (!isDevelopmentRuntime()) return null;
+    if (!fs.existsSync(LOCAL_LOGIN_FILE)) return null;
+
+    try {
+        const parsed = JSON.parse(fs.readFileSync(LOCAL_LOGIN_FILE, 'utf8')) as Record<string, unknown>;
+        const email = asTrimmedString(parsed.email)?.toLowerCase();
+        if (!email) return null;
+        const loginName = asTrimmedString(parsed.loginName) ?? email;
+        const displayName = asTrimmedString(parsed.displayName);
+        return { email, loginName, displayName };
+    } catch {
+        return null;
+    }
 };
 
 const getTokenClaims = (req: Request): Claims => {
@@ -125,6 +187,22 @@ const normalizeScopeToRole = (scope: string): string => {
 };
 
 export const resolveUserContext = (req: Request): ResolvedUserContext => {
+    const localLogin = loadLocalLoginConfig();
+    if (localLogin) {
+        const localDisplayName = localLogin.displayName ?? localLogin.loginName;
+        return {
+            userUUID: localLogin.email,
+            loginName: localLogin.loginName,
+            email: localLogin.email,
+            displayName: localDisplayName,
+            givenName: null,
+            familyName: null,
+            roles: rolesFromEmail(localLogin.email),
+            scopes: [],
+            identityOrigin: 'local-login-json',
+        };
+    }
+
     const rawId = asTrimmedString((req.user as any)?.id);
     if (!rawId || rawId === 'anonymous') {
         return {
@@ -202,11 +280,12 @@ export const resolveUserContext = (req: Request): ResolvedUserContext => {
         ...toStringArray(claims.scopes),
     ]);
 
-    const roles = uniqueSorted([
+    const roles = uniqueSorted(expandRoleAliases([
         ...collectRolesFromUser(req),
         ...toStringArray(getAttr(req, 'roles')),
         ...scopes.map(normalizeScopeToRole),
-    ]);
+        ...(normalizedEmail && STATIC_ADMIN_EMAILS.has(normalizedEmail) ? [CAP_ROLE_ADMIN, 'admin'] : []),
+    ]));
 
     const identityOrigin = pickFirst(
         asTrimmedString(claims.origin),

@@ -190,6 +190,8 @@ export interface UserProfile {
     firstName: string;
     lastName: string;
     email: string;
+    roles: string[];
+    isAdmin: boolean;
     phone: string;
     country: string;
     city: string;

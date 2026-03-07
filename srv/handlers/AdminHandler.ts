@@ -1350,6 +1350,7 @@ export class AdminHandler {
                     venue: apiMatch.venue ?? null,
                     stage,
                     status: matchStatus,
+                    bettingLocked: true,
                     matchday: apiMatch.matchday ?? null,
                     externalId: apiMatch.id,
                     homeScore,

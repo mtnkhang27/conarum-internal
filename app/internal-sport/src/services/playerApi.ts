@@ -180,6 +180,7 @@ import type {
     TournamentLeaderboardItem,
     StandingItem,
     RecentPredictionItem,
+    UserProfile,
 } from "@/types";
 
 // ─── Transform helpers ──────────────────────────────────────
@@ -411,6 +412,125 @@ function toLeaderboardEntry(p: ODataLeaderboardEntry, idx: number): LeaderboardE
         streak: Number(p.currentStreak) || 0,
     };
 }
+
+type ODataUserProfile = {
+    avatarUrl?: string | null;
+    displayName?: string | null;
+    firstName?: string | null;
+    lastName?: string | null;
+    email?: string | null;
+    roles?: string[] | null;
+    isAdmin?: boolean | null;
+    phone?: string | null;
+    country?: string | null;
+    city?: string | null;
+    timezone?: string | null;
+    favoriteTeamId?: string | null;
+    favoriteTeam?: string | null;
+    bio?: string | null;
+};
+
+function toUserProfile(raw: ODataUserProfile): UserProfile {
+    return {
+        avatarUrl: raw.avatarUrl ?? "",
+        displayName: raw.displayName ?? "",
+        firstName: raw.firstName ?? "",
+        lastName: raw.lastName ?? "",
+        email: raw.email ?? "",
+        roles: Array.isArray(raw.roles) ? raw.roles.filter((r): r is string => typeof r === "string") : [],
+        isAdmin: raw.isAdmin === true,
+        phone: raw.phone ?? "",
+        country: raw.country ?? "",
+        city: raw.city ?? "",
+        timezone: raw.timezone ?? "",
+        favoriteTeamId: raw.favoriteTeamId ?? null,
+        favoriteTeam: raw.favoriteTeam ?? "",
+        bio: raw.bio ?? "",
+    };
+}
+
+type UserProfileCachePayload = {
+    profile: UserProfile;
+    expiresAt: number;
+};
+
+const PROFILE_CACHE_KEY = "conarum.playerProfile";
+const PROFILE_CACHE_TTL_MS = 5 * 60 * 1000;
+let profileCache: UserProfileCachePayload | null = null;
+let profileInFlight: Promise<UserProfile> | null = null;
+
+const hasValidProfileCache = (cache: UserProfileCachePayload | null): cache is UserProfileCachePayload => {
+    return !!cache && cache.expiresAt > Date.now();
+};
+
+const readProfileCache = (): UserProfileCachePayload | null => {
+    if (hasValidProfileCache(profileCache)) return profileCache;
+    if (typeof window === "undefined") return null;
+
+    try {
+        const raw = window.sessionStorage.getItem(PROFILE_CACHE_KEY);
+        if (!raw) return null;
+        const parsed = JSON.parse(raw) as UserProfileCachePayload;
+        if (!hasValidProfileCache(parsed)) {
+            window.sessionStorage.removeItem(PROFILE_CACHE_KEY);
+            return null;
+        }
+        profileCache = parsed;
+        return parsed;
+    } catch {
+        return null;
+    }
+};
+
+const writeProfileCache = (profile: UserProfile): UserProfile => {
+    const payload: UserProfileCachePayload = {
+        profile,
+        expiresAt: Date.now() + PROFILE_CACHE_TTL_MS,
+    };
+    profileCache = payload;
+    if (typeof window !== "undefined") {
+        try {
+            window.sessionStorage.setItem(PROFILE_CACHE_KEY, JSON.stringify(payload));
+        } catch {
+            // Best-effort cache only.
+        }
+    }
+    return profile;
+};
+
+const clearProfileCache = (): void => {
+    profileCache = null;
+    if (typeof window !== "undefined") {
+        try {
+            window.sessionStorage.removeItem(PROFILE_CACHE_KEY);
+        } catch {
+            // Ignore cache cleanup errors.
+        }
+    }
+};
+
+const getCachedProfile = (): UserProfile | null => {
+    return readProfileCache()?.profile ?? null;
+};
+
+const fetchProfile = async (forceRefresh: boolean): Promise<UserProfile> => {
+    const cached = getCachedProfile();
+    if (!forceRefresh && cached) return cached;
+
+    if (profileInFlight) return profileInFlight;
+
+    profileInFlight = json<ODataUserProfile>(`${BASE}/getMyProfile()`)
+        .then((profile) => writeProfileCache(toUserProfile(profile)))
+        .catch((err) => {
+            if (forceRefresh) clearProfileCache();
+            throw err;
+        })
+        .finally(() => {
+            profileInFlight = null;
+        });
+
+    return profileInFlight;
+};
 
 // ─── Public API ──────────────────────────────────────────────
 
@@ -789,6 +909,41 @@ export const playerPredictionsApi = {
         if (tournamentId) url += `&$filter=tournament_ID eq '${tournamentId}'`;
         const picks = await json<ODataChampionPick[]>(url);
         return picks.length > 0 ? picks[0].team?.name || null : null;
+    },
+};
+
+export const playerProfileApi = {
+    getCachedProfile(): UserProfile | null {
+        return getCachedProfile();
+    },
+
+    clearCachedProfile(): void {
+        clearProfileCache();
+    },
+
+    async getMyProfile(): Promise<UserProfile> {
+        return fetchProfile(false);
+    },
+
+    async refreshMyProfile(): Promise<UserProfile> {
+        return fetchProfile(true);
+    },
+
+    async updateMyProfile(profile: UserProfile): Promise<UserProfile> {
+        const saved = await post<ODataUserProfile>(`${BASE}/updateMyProfile`, {
+            avatarUrl: profile.avatarUrl,
+            displayName: profile.displayName,
+            firstName: profile.firstName,
+            lastName: profile.lastName,
+            phone: profile.phone,
+            country: profile.country,
+            city: profile.city,
+            timezone: profile.timezone,
+            favoriteTeamId: profile.favoriteTeamId || null,
+            favoriteTeam: profile.favoriteTeam,
+            bio: profile.bio,
+        });
+        return writeProfileCache(toUserProfile(saved));
     },
 };
 

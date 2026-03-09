@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Users, Search, RefreshCw, Trash2, Flame } from "lucide-react";
+import { Users, Search, RefreshCw, Trash2, Flame, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -186,9 +186,23 @@ export function PlayerManagement() {
                                     </td>
                                     <td className="px-4 py-3">
                                         <div className="flex items-center gap-3">
-                                            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/20 text-xs font-bold text-primary">
-                                                {p.displayName.charAt(0)}
-                                            </div>
+                                            {p.avatarUrl ? (
+                                                <img
+                                                    src={p.avatarUrl}
+                                                    alt={p.displayName}
+                                                    className="h-8 w-8 rounded-full border border-border object-cover"
+                                                />
+                                            ) : (
+                                                <div className="flex h-8 w-8 items-center justify-center rounded-full border border-border bg-primary/10 text-primary">
+                                                    {p.displayName?.trim() ? (
+                                                        <span className="text-xs font-bold">
+                                                            {p.displayName.trim().charAt(0).toUpperCase()}
+                                                        </span>
+                                                    ) : (
+                                                        <User className="h-4 w-4" />
+                                                    )}
+                                                </div>
+                                            )}
                                             <span className="font-medium text-white">
                                                 {p.displayName}
                                             </span>

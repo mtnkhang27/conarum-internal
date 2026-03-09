@@ -1,6 +1,7 @@
 import cds, { Request } from '@sap/cds';
 import { ScoringEngine } from '../lib/ScoringEngine';
 import { materializeSlotBetsForMatch } from '../lib/SlotBetMaterializer';
+import { syncAuthenticatedUser } from '../lib/UserContext';
 
 /**
  * PredictionHandler — Handles user prediction submissions.
@@ -8,6 +9,8 @@ import { materializeSlotBetsForMatch } from '../lib/SlotBetMaterializer';
  */
 export class PredictionHandler {
     private srv: cds.ApplicationService;
+    private static readonly FALLBACK_USER_EMAIL = (process.env.DEFAULT_PLAYER_EMAIL || 'local.player@conarum.invalid').toLowerCase();
+    private static readonly FALLBACK_USER_NAME = process.env.DEFAULT_PLAYER_NAME || 'Local Player';
 
     constructor(srv: cds.ApplicationService) {
         this.srv = srv;
@@ -632,7 +635,7 @@ export class PredictionHandler {
      */
     async getPredictionLeaderboard(req: Request) {
         const { tournamentId } = req.data;
-        const { PlayerTournamentStats, Player } = cds.entities('cnma.prediction');
+        const { PlayerTournamentStats, Player, Team } = cds.entities('cnma.prediction');
         const currentPlayerId = await this.getCurrentPlayerId(req);
 
         const stats = await SELECT.from(PlayerTournamentStats)
@@ -643,14 +646,30 @@ export class PredictionHandler {
         const enriched = [];
         for (const s of stats) {
             const player = await SELECT.one.from(Player).where({ ID: s.player_ID });
+            const displayName = this.resolveDisplayName(player);
+            const email = this.asTrimmedString(player?.email) ?? '';
+            const bio = this.asTrimmedString(player?.bio) ?? '';
+            const country = this.asTrimmedString(player?.country) ?? this.asTrimmedString(player?.country_code) ?? '';
+            const favoriteTeamId = this.asTrimmedString(player?.favoriteTeam_ID);
+
+            let favoriteTeam = '';
+            if (favoriteTeamId) {
+                const team = await SELECT.one.from(Team).columns('name').where({ ID: favoriteTeamId });
+                favoriteTeam = this.asTrimmedString(team?.name) ?? '';
+            }
+
             enriched.push({
                 playerId: s.player_ID,
-                displayName: player?.displayName ?? '',
+                displayName,
                 avatarUrl: player?.avatarUrl ?? '',
+                email,
+                favoriteTeam,
+                bio,
+                country,
                 totalPoints: Number(s.totalPoints),
                 totalCorrect: s.totalCorrect,
                 totalPredictions: s.totalPredictions,
-                _name: (player?.displayName ?? '').toLowerCase(),
+                _name: displayName.toLowerCase(),
             });
         }
 
@@ -665,6 +684,10 @@ export class PredictionHandler {
             playerId: e.playerId,
             displayName: e.displayName,
             avatarUrl: e.avatarUrl,
+            email: e.email,
+            favoriteTeam: e.favoriteTeam,
+            bio: e.bio,
+            country: e.country,
             totalPoints: e.totalPoints,
             totalCorrect: e.totalCorrect,
             totalPredictions: e.totalPredictions,
@@ -941,11 +964,7 @@ export class PredictionHandler {
      * Get current user's Player ID from the user context.
      */
     private async getCurrentPlayerId(req: Request): Promise<string | null> {
-        const { Player } = cds.entities('cnma.prediction');
-        const userEmail = req.user?.id;
-        if (!userEmail) return null;
-
-        const player = await SELECT.one.from(Player).where({ email: userEmail });
+        const player = await this.resolveCurrentPlayer(req, false);
         return player?.ID ?? null;
     }
 
@@ -953,24 +972,180 @@ export class PredictionHandler {
      * Get or auto-create Player record for the current user.
      */
     private async getOrCreatePlayerId(req: Request): Promise<string> {
-        const { Player } = cds.entities('cnma.prediction');
-        const userEmail = req.user?.id;
-        const userName = req.user?.attr?.name || userEmail || 'Unknown';
-
-        if (!userEmail) {
-            req.error(401, 'User not authenticated');
-            throw new Error('User not authenticated');
+        const player = await this.resolveCurrentPlayer(req, true);
+        if (!player?.ID) {
+            throw new Error('Unable to resolve current player');
         }
-
-        let player = await SELECT.one.from(Player).where({ email: userEmail });
-        if (!player) {
-            const result = await INSERT.into(Player).entries({
-                email: userEmail,
-                displayName: userName
-            });
-            player = await SELECT.one.from(Player).where({ email: userEmail });
-        }
-
         return player.ID;
+    }
+
+    private asTrimmedString(value: unknown): string | null {
+        if (typeof value !== 'string') return null;
+        const trimmed = value.trim();
+        return trimmed.length > 0 ? trimmed : null;
+    }
+
+    private toLegacySyntheticEmail(loginName: string | null): string | null {
+        const normalizedLogin = this.asTrimmedString(loginName);
+        if (!normalizedLogin) return null;
+
+        const localPart = normalizedLogin.replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 80) || 'user';
+        return `${localPart}@local.user.invalid`.toLowerCase();
+    }
+
+    private resolveDisplayName(player: any): string {
+        const fullName = [this.asTrimmedString(player?.givenName), this.asTrimmedString(player?.familyName)]
+            .filter((value): value is string => Boolean(value))
+            .join(' ');
+        if (fullName) return fullName;
+
+        const explicit = this.asTrimmedString(player?.displayName);
+        if (explicit) return explicit;
+
+        return this.asTrimmedString(player?.email)
+            ?? this.asTrimmedString(player?.loginName)
+            ?? 'Unknown';
+    }
+
+    private async hasPredictionData(playerId: string): Promise<boolean> {
+        const { Prediction, SlotPrediction, PlayerTournamentStats } = cds.entities('cnma.prediction');
+        const [prediction, slotPrediction, stats] = await Promise.all([
+            SELECT.one.from(Prediction).columns('ID').where({ player_ID: playerId }),
+            SELECT.one.from(SlotPrediction).columns('ID').where({ player_ID: playerId }),
+            SELECT.one.from(PlayerTournamentStats).columns('ID').where({ player_ID: playerId }),
+        ]);
+        return Boolean(prediction || slotPrediction || stats);
+    }
+
+    private async resolveCurrentPlayer(req: Request, createIfMissing: boolean): Promise<any | null> {
+        const { Player } = cds.entities('cnma.prediction');
+        const context = await syncAuthenticatedUser(req);
+
+        let primaryPlayer: any | null = null;
+        if (context.userUUID) {
+            primaryPlayer = await SELECT.one.from(Player).where({ userUUID: context.userUUID });
+        }
+        if (!primaryPlayer && context.email) {
+            primaryPlayer = await SELECT.one.from(Player).where({ email: context.email });
+        }
+
+        const legacyEmail = this.toLegacySyntheticEmail(context.loginName);
+        let legacyPlayer: any | null = null;
+        if (legacyEmail && legacyEmail !== context.email) {
+            legacyPlayer = await SELECT.one.from(Player).where({ email: legacyEmail });
+        }
+
+        let player: any | null = primaryPlayer || legacyPlayer;
+
+        if (primaryPlayer && legacyPlayer && primaryPlayer.ID !== legacyPlayer.ID) {
+            const [primaryHasData, legacyHasData] = await Promise.all([
+                this.hasPredictionData(primaryPlayer.ID),
+                this.hasPredictionData(legacyPlayer.ID),
+            ]);
+            player = legacyHasData && !primaryHasData ? legacyPlayer : primaryPlayer;
+
+            const secondaryPlayer = player.ID === primaryPlayer.ID ? legacyPlayer : primaryPlayer;
+            const playerDisplayName = this.asTrimmedString(player.displayName);
+            const secondaryDisplayName = this.asTrimmedString(secondaryPlayer.displayName);
+            const looksLikePlaceholderName = playerDisplayName
+                ? (
+                    (this.asTrimmedString(player.email) && playerDisplayName.toLowerCase() === this.asTrimmedString(player.email)!.toLowerCase())
+                    || (context.loginName ? playerDisplayName.toLowerCase() === context.loginName.toLowerCase() : false)
+                    || playerDisplayName.toLowerCase() === PredictionHandler.FALLBACK_USER_NAME.toLowerCase()
+                )
+                : false;
+
+            if (secondaryDisplayName && (!playerDisplayName || looksLikePlaceholderName)) {
+                await UPDATE(Player).where({ ID: player.ID }).set({ displayName: secondaryDisplayName });
+                player.displayName = secondaryDisplayName;
+            }
+        }
+
+        if (!player && createIfMissing) {
+            const fallbackUser = this.resolveCurrentUser(req);
+            const email = (context.email ?? fallbackUser.email).slice(0, 255);
+            const displayName = (context.displayName ?? fallbackUser.displayName ?? email).slice(0, 100);
+
+            player = await SELECT.one.from(Player).where({ email });
+            if (!player) {
+                const newPlayerEntry: Record<string, unknown> = {
+                    email,
+                    displayName,
+                    userUUID: context.userUUID ?? null,
+                    loginName: context.loginName ?? null,
+                    givenName: context.givenName ?? null,
+                    familyName: context.familyName ?? null,
+                };
+
+                try {
+                    await INSERT.into(Player).entries(newPlayerEntry);
+                } catch {
+                    // Ignore race conditions and unique conflicts; resolve below.
+                }
+
+                if (context.userUUID) {
+                    player = await SELECT.one.from(Player).where({ userUUID: context.userUUID });
+                }
+                if (!player) {
+                    player = await SELECT.one.from(Player).where({ email });
+                }
+            }
+        }
+
+        if (!player) {
+            return null;
+        }
+
+        const patch: Record<string, unknown> = {};
+        const resolvedDisplayName = this.resolveDisplayName(player);
+        if (resolvedDisplayName !== player.displayName) {
+            patch.displayName = resolvedDisplayName.slice(0, 100);
+        }
+        if (context.loginName && context.loginName !== player.loginName) {
+            patch.loginName = context.loginName;
+        }
+
+        if (context.userUUID && context.userUUID !== player.userUUID) {
+            const ownerByUUID = await SELECT.one.from(Player).columns('ID').where({ userUUID: context.userUUID });
+            if (!ownerByUUID || ownerByUUID.ID === player.ID) {
+                patch.userUUID = context.userUUID;
+            }
+        }
+
+        if (context.email && context.email !== player.email) {
+            const ownerByEmail = await SELECT.one.from(Player).columns('ID').where({ email: context.email });
+            if (!ownerByEmail || ownerByEmail.ID === player.ID) {
+                patch.email = context.email;
+            }
+        }
+
+        if (Object.keys(patch).length > 0) {
+            await UPDATE(Player).where({ ID: player.ID }).set(patch);
+            player = { ...player, ...patch };
+        }
+
+        return player;
+    }
+
+    /**
+     * Resolve current user identity with safe fallbacks.
+     * Temporary behavior: if email claim is missing, synthesize one from user id.
+     */
+    private resolveCurrentUser(req: Request): { email: string; displayName: string } {
+        const userObj = req.user as any;
+        const rawId = typeof userObj?.id === 'string' ? userObj.id.trim() : '';
+        const rawName = typeof userObj?.attr?.name === 'string' ? userObj.attr.name.trim() : '';
+        const rawEmailAttr = typeof userObj?.attr?.email === 'string' ? userObj.attr.email.trim() : '';
+
+        const fromAttr = rawEmailAttr.includes('@') ? rawEmailAttr.toLowerCase() : '';
+        const fromId = rawId.includes('@') ? rawId.toLowerCase() : '';
+        const syntheticFromId = rawId
+            ? `${rawId.replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 80) || 'user'}@local.user.invalid`
+            : '';
+
+        const email = (fromAttr || fromId || syntheticFromId || PredictionHandler.FALLBACK_USER_EMAIL).slice(0, 255);
+        const displayName = (rawName || rawId || PredictionHandler.FALLBACK_USER_NAME).slice(0, 100);
+
+        return { email, displayName };
     }
 }

@@ -86,6 +86,8 @@ const MATCH_STATUSES: { value: AdminMatch["status"]; label: string }[] = [
     { value: "cancelled", label: "Cancelled" },
 ];
 
+type HotMatchFilter = "all" | "hot" | "normal";
+
 function statusVariant(status: string) {
     switch (status) {
         case "upcoming":
@@ -131,7 +133,7 @@ export function MatchManagement() {
     const [selectedTournament, setSelectedTournament] = useState<string>("all");
     const [selectedStatus, setSelectedStatus] = useState<string>("upcoming");
     const [selectedStage, setSelectedStage] = useState<string>("all");
-    const [selectedHotMatch, setSelectedHotMatch] = useState<string>("all");
+    const [selectedHotMatch, setSelectedHotMatch] = useState<HotMatchFilter>("all");
     const [selectedDay, setSelectedDay] = useState<string>("");
     const [teamSearch, setTeamSearch] = useState<string>("");
     const [loading, setLoading] = useState(true);
@@ -160,7 +162,6 @@ export function MatchManagement() {
 
     // Per-match lock state
     const [lockingMatchId, setLockingMatchId] = useState<string | null>(null);
-    const [updatingStatusMatchId, setUpdatingStatusMatchId] = useState<string | null>(null);
 
     // Form state
     const [form, setForm] = useState({
@@ -239,8 +240,8 @@ export function MatchManagement() {
     function openResult(match: AdminMatch) {
         setResultMatch(match);
         setIsCorrection(false);
-        setResultHome("");
-        setResultAway("");
+        setResultHome(String(match.homeScore ?? ""));
+        setResultAway(String(match.awayScore ?? ""));
         setResultDialogOpen(true);
     }
 
@@ -361,25 +362,6 @@ export function MatchManagement() {
             toast.error(e.message);
         } finally {
             setLockingMatchId(null);
-        }
-    }
-
-    async function handleUpdateMatchStatus(match: AdminMatch, status: AdminMatch["status"]) {
-        if (match.status === status) return;
-        setUpdatingStatusMatchId(match.ID);
-        try {
-            const updatePayload: Partial<AdminMatch> = { status };
-            if (status === "live" && (match.homeScore == null || match.awayScore == null)) {
-                updatePayload.homeScore = 0;
-                updatePayload.awayScore = 0;
-            }
-            await matchesApi.update(match.ID, updatePayload);
-            toast.success(`Match status updated to ${status}`);
-            load();
-        } catch (e: any) {
-            toast.error(e.message);
-        } finally {
-            setUpdatingStatusMatchId(null);
         }
     }
 
@@ -561,15 +543,15 @@ export function MatchManagement() {
                     {/* Hot filter */}
                     <Select
                         value={selectedHotMatch}
-                        onValueChange={setSelectedHotMatch}
+                        onValueChange={(v) => setSelectedHotMatch(v as HotMatchFilter)}
                     >
                         <SelectTrigger className="w-[140px]">
-                            <SelectValue placeholder="Hot match" />
+                            <SelectValue placeholder="Filter hot match" />
                         </SelectTrigger>
                         <SelectContent>
-                            <SelectItem value="all">All Matches</SelectItem>
-                            <SelectItem value="hot">Hot Only</SelectItem>
-                            <SelectItem value="normal">Normal Only</SelectItem>
+                            <SelectItem value="all">All</SelectItem>
+                            <SelectItem value="hot">Hot Matches</SelectItem>
+                            <SelectItem value="normal">Normal Matches</SelectItem>
                         </SelectContent>
                     </Select>
                     {/* Day filter */}
@@ -816,10 +798,10 @@ export function MatchManagement() {
                                                         )}
                                                     </DropdownMenuItem>
                                                 )}
-                                                {m.status === "upcoming" && (
+                                                {(m.status === "upcoming" || m.status === "live") && (
                                                     <DropdownMenuItem onClick={() => openResult(m)}>
                                                         <Trophy className="mr-2 h-4 w-4" />
-                                                        Enter Result
+                                                        {m.status === "live" ? "Update Result" : "Enter Result"}
                                                     </DropdownMenuItem>
                                                 )}
                                                 {m.status === "finished" && (

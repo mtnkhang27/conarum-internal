@@ -202,10 +202,13 @@ export const defaultProfile: UserProfile = {
     firstName: "Nguyen",
     lastName: "Hien",
     email: "thien@wc-predictor.app",
+    roles: [],
+    isAdmin: false,
     phone: "+84 912 345 678",
     country: "Vietnam",
     city: "Ho Chi Minh City",
     timezone: "UTC+07:00",
+    favoriteTeamId: null,
     favoriteTeam: "Argentina",
     bio: "Football fan, data-driven predictor, and always ready for knockout drama.",
 };

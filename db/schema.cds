@@ -244,7 +244,19 @@ entity Match : cuid, managed {
 entity Player : cuid, managed {
     displayName      : String(100) @mandatory;
     email            : String(255) @mandatory;
-    avatarUrl        : String(500);
+    userUUID         : String(120); // BTP/IAS user UUID (or JWT subject)
+    loginName        : String(255); // req.user.id / preferred username
+    givenName        : String(100);
+    familyName       : String(100);
+    phone            : String(50);
+    city             : String(120);
+    timezone         : String(80);
+    bio              : String(2000);
+    roles            : LargeString; // JSON array
+    scopes           : LargeString; // JSON array
+    identityOrigin   : String(120);
+    lastLoginAt      : DateTime;
+    avatarUrl        : LargeString;
     country          : Country;
     favoriteTeam     : Association to Team;
     // Aggregated stats across ALL tournaments (denormalized)
@@ -266,7 +278,10 @@ entity Player : cuid, managed {
 }
 
 // Unique constraints
-annotate Player with @assert.unique: {email: [email]};
+annotate Player with @assert.unique: {
+    email: [email],
+    userUUID: [userUUID]
+};
 
 /**
  * Per-tournament stats for a player.

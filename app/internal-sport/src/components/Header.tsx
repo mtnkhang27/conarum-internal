@@ -1,22 +1,9 @@
+import { useEffect, useState } from "react";
 import { NavLink, Link, useLocation } from "react-router-dom";
 import { Trophy, User, Settings, Home } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { scrollToSection, SECTION } from "@/pages/SportPage";
-
-const topNavItems = [
-    {
-        label: "Predictions",
-        to: "/",
-        icon: Trophy,
-        isActive: (p: string) => p === "/" || p === "/tournament-champion",
-    },
-    {
-        label: "Admin",
-        to: "/admin/matches",
-        icon: Settings,
-        isActive: (p: string) => p.startsWith("/admin"),
-    },
-];
+import { playerProfileApi } from "@/services/playerApi";
 
 const sportSections = [
     // { id: SECTION.leaderboard, label: "Leaderboard" },
@@ -29,6 +16,39 @@ const sportSections = [
 export function Header() {
     const { pathname, hash } = useLocation();
     const isOnSportPage = pathname === "/";
+    const [isAdmin, setIsAdmin] = useState(() => playerProfileApi.getCachedProfile()?.isAdmin ?? false);
+
+    useEffect(() => {
+        let active = true;
+        playerProfileApi
+            .refreshMyProfile()
+            .then((profile) => {
+                if (active) setIsAdmin(profile.isAdmin);
+            })
+            .catch(() => {
+                if (active) setIsAdmin(false);
+            });
+        return () => {
+            active = false;
+        };
+    }, []);
+
+    const topNavItems = [
+        {
+            label: "Predictions",
+            to: "/",
+            icon: Trophy,
+            isActive: (p: string) => p === "/" || p === "/tournament-champion",
+        },
+        ...(isAdmin
+            ? [{
+                label: "Admin",
+                to: "/admin/matches",
+                icon: Settings,
+                isActive: (p: string) => p.startsWith("/admin"),
+            }]
+            : []),
+    ];
 
     return (
         <header className="z-30 flex-none border-b border-border bg-surface-dark">

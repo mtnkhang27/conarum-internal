@@ -704,6 +704,7 @@ export class AdminHandler {
         const stageMap: Record<string, string> = {
             LEAGUE_STAGE: 'regular',
             GROUP_STAGE: 'group',
+            REGULAR_SEASON: 'regular',
             LAST_32: 'roundOf32',
             LAST_16: 'roundOf16',
             QUARTER_FINALS: 'quarterFinal',
@@ -756,6 +757,7 @@ export class AdminHandler {
 
         let synced = 0;
         let scored = 0;
+        let recreated = 0;
         const nowTs = Date.now();
         const liveKickoffGraceMs = 5 * 60 * 1000; // tolerate minor clock drift between systems
 
@@ -763,11 +765,9 @@ export class AdminHandler {
             const extId = Number(ext.id);
             if (!Number.isFinite(extId)) continue;
 
-            const ourMatch = matchByExternalId.get(extId);
-            if (!ourMatch) continue; // no match linked to this external ID — skip
-
             let newStatus = statusMap[ext.status] ?? 'upcoming';
-            const newStage = stageMap[ext.stage] ?? ourMatch.stage;
+            let ourMatch = matchByExternalId.get(extId);
+            const newStage = stageMap[ext.stage] ?? ourMatch?.stage ?? 'group';
             const homeScore = ext.score?.fullTime?.home ?? null;
             const awayScore = ext.score?.fullTime?.away ?? null;
             const extOutcome = ext.score?.winner ? (outcomeMap[ext.score.winner] ?? null) : null;
@@ -781,9 +781,45 @@ export class AdminHandler {
                 }
             }
 
+            const nowFinished = newStatus === 'finished';
+
+            // If local match was deleted, recreate it from external source.
+            if (!ourMatch) {
+                const resolvedHome = this._resolveTeamFromExternal(ext.homeTeam, teamByCrest);
+                const resolvedAway = this._resolveTeamFromExternal(ext.awayTeam, teamByCrest);
+
+                const insertData: Record<string, any> = {
+                    ID: cds.utils.uuid(),
+                    tournament_ID: tournamentId,
+                    externalId: extId,
+                    status: newStatus,
+                    stage: newStage,
+                    kickoff: ext.utcDate ?? new Date(nowTs).toISOString(),
+                    venue: ext.venue ?? null,
+                    matchday: ext.matchday ?? null,
+                    homeTeam_ID: resolvedHome ?? null,
+                    awayTeam_ID: resolvedAway ?? null,
+                    homeScore: null,
+                    awayScore: null,
+                    outcome: null,
+                };
+
+                if (nowFinished && homeScore !== null && awayScore !== null) {
+                    insertData.homeScore = homeScore;
+                    insertData.awayScore = awayScore;
+                    insertData.outcome = extOutcome ?? ScoringEngine.determineOutcome(homeScore, awayScore);
+                }
+
+                await INSERT.into(Match).entries(insertData);
+                ourMatch = insertData;
+                matchByExternalId.set(extId, ourMatch);
+                synced++;
+                recreated++;
+                continue;
+            }
+
             // Determine if we should trigger scoring (was not finished, now is)
             const wasFinished = ourMatch.status === 'finished';
-            const nowFinished = newStatus === 'finished';
 
             const updateData: Record<string, any> = {
                 status: newStatus,
@@ -892,7 +928,7 @@ export class AdminHandler {
 
         return {
             success: true,
-            message: `Sync complete: ${synced} match(es) updated, ${scored} newly scored.`,
+            message: `Sync complete: ${synced} match(es) synced (${recreated} recreated), ${scored} newly scored.`,
             synced,
             scored,
         };

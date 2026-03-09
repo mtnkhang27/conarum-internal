@@ -756,16 +756,30 @@ export class AdminHandler {
 
         let synced = 0;
         let scored = 0;
+        const nowTs = Date.now();
+        const liveKickoffGraceMs = 5 * 60 * 1000; // tolerate minor clock drift between systems
 
         for (const ext of externalMatches) {
-            const ourMatch = matchByExternalId.get(ext.id);
+            const extId = Number(ext.id);
+            if (!Number.isFinite(extId)) continue;
+
+            const ourMatch = matchByExternalId.get(extId);
             if (!ourMatch) continue; // no match linked to this external ID — skip
 
-            const newStatus = statusMap[ext.status] ?? 'upcoming';
+            let newStatus = statusMap[ext.status] ?? 'upcoming';
             const newStage = stageMap[ext.stage] ?? ourMatch.stage;
             const homeScore = ext.score?.fullTime?.home ?? null;
             const awayScore = ext.score?.fullTime?.away ?? null;
             const extOutcome = ext.score?.winner ? (outcomeMap[ext.score.winner] ?? null) : null;
+
+            // Safety: if kickoff is still in the future, keep match in "upcoming"
+            // even when an incorrect/stale "live" status is received.
+            if (newStatus === 'live' && ext.utcDate) {
+                const kickoffTs = Date.parse(ext.utcDate);
+                if (Number.isFinite(kickoffTs) && kickoffTs > nowTs + liveKickoffGraceMs) {
+                    newStatus = 'upcoming';
+                }
+            }
 
             // Determine if we should trigger scoring (was not finished, now is)
             const wasFinished = ourMatch.status === 'finished';

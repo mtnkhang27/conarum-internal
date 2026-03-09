@@ -641,11 +641,11 @@ export function MatchManagement() {
                                 <th className="px-4 py-3">Away</th>
                                 <th className="px-4 py-3">Stage</th>
                                 <th className="px-4 py-3">Date &amp; Time</th>
-                                <th className="px-4 py-3">Matchday</th>
                                 {/* <th className="px-4 py-3">Day</th> */}
                                 <th className="px-4 py-3">Hot</th>
                                 <th className="px-4 py-3">Result</th>
                                 <th className="px-4 py-3">Status</th>
+                                <th className="px-4 py-3">Betting</th>
                                 <th className="px-4 py-3">Actions</th>
                             </tr>
                         </thead>
@@ -654,6 +654,12 @@ export function MatchManagement() {
                                 const kickoff = formatKickoff(m.kickoff);
                                 const homeFallbackName = unresolvedTeamName(m, "home");
                                 const awayFallbackName = unresolvedTeamName(m, "away");
+                                const resultText =
+                                    m.status === "live"
+                                        ? `${m.homeScore ?? 0} - ${m.awayScore ?? 0}`
+                                        : m.status === "finished" && m.homeScore != null && m.awayScore != null
+                                            ? `${m.homeScore} - ${m.awayScore}`
+                                            : "--";
                                 return (
                                 <tr
                                     key={m.ID}
@@ -730,9 +736,6 @@ export function MatchManagement() {
                                     {/* <td className="px-4 py-3 text-muted-foreground">
                                         {m.venue || "—"}
                                     </td> */}
-                                    <td className="px-4 py-3 text-center font-mono text-muted-foreground">
-                                        {m.matchday ?? "—"}
-                                    </td>
                                     <td className="px-4 py-3">
                                         {m.isHotMatch ? (
                                             <Badge className="border-amber-500/40 bg-amber-500/10 text-amber-400" variant="outline">
@@ -743,14 +746,37 @@ export function MatchManagement() {
                                         )}
                                     </td>
                                     <td className="px-4 py-3 font-mono text-white">
-                                        {m.status === "finished"
-                                            ? `${m.homeScore} – ${m.awayScore}`
-                                            : "—"}
+                                        {resultText}
                                     </td>
                                     <td className="px-4 py-3">
                                         <Badge variant={statusVariant(m.status)}>
                                             {m.status}
                                         </Badge>
+                                    </td>
+                                    <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                                        {m.status !== "finished" ? (
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                disabled={lockingMatchId === m.ID}
+                                                onClick={() => handleToggleMatchLock(m)}
+                                                className="h-8"
+                                            >
+                                                {m.bettingLocked ? (
+                                                    <>
+                                                        <Unlock className="mr-2 h-4 w-4" />
+                                                        Unlock
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <Lock className="mr-2 h-4 w-4" />
+                                                        Lock
+                                                    </>
+                                                )}
+                                            </Button>
+                                        ) : (
+                                            <span className="text-xs text-muted-foreground">N/A</span>
+                                        )}
                                     </td>
                                     <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                                         <DropdownMenu>

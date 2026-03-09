@@ -19,48 +19,75 @@ export class AdminHandler {
     }
 
     /**
-     * Enter match result and trigger scoring for all predictions/bets.
-     * 1. Update match with result
-     * 2. Determine outcome (home/draw/away)
-     * 3. Score all UC2 predictions using per-match outcomePoints
-     * 4. Score all UC1 score bets using per-match MatchScoreBetConfig
-     * 5. Update player stats (both global and per-tournament)
+     * Enter or update match score.
+     * - If status is upcoming/live: score is saved only, no scoring.
+     * - If status is finished: predictions and score bets are scored.
      */
     async enterMatchResult(req: Request) {
         const { matchId, homeScore, awayScore } = req.data;
-        const {
-            Match,
-            Prediction,
-            ScoreBet,
-            Player,
-            MatchScoreBetConfig,
-            PlayerTournamentStats
-        } = cds.entities('cnma.prediction');
+        const { Match, Prediction, ScoreBet } = cds.entities('cnma.prediction');
 
         // Validate match
         const match = await SELECT.one.from(Match).where({ ID: matchId });
         if (!match) return req.error(404, 'Match not found');
+        if (match.status === 'cancelled') return req.error(400, 'Cannot enter result for a cancelled match');
 
-        if (match.status === 'finished') {
+        // Keep live/upcoming status unchanged when admin updates running score.
+        if (match.status !== 'finished') {
+            const outcome = ScoringEngine.determineOutcome(homeScore, awayScore);
+            await UPDATE(Match).where({ ID: matchId }).set({
+                homeScore,
+                awayScore,
+                outcome
+            });
+
+            return {
+                success: true,
+                message: `Match score ${homeScore}-${awayScore} saved while status is '${match.status}'. No scoring until status is set to finished.`,
+                predictionsScored: 0,
+                scoreBetsScored: 0
+            };
+        }
+
+        // Match is finished: block duplicate first-entry scoring.
+        const anyPredictionScored = await SELECT.one.from(Prediction)
+            .columns('ID')
+            .where({ match_ID: matchId, status: 'scored' });
+        const anyScoreBetResolved = await SELECT.one.from(ScoreBet)
+            .columns('ID')
+            .where({ match_ID: matchId, status: { in: ['won', 'lost'] } });
+        if (anyPredictionScored || anyScoreBetResolved) {
             return req.error(400, 'Match result has already been entered. Use correctMatchResult to fix it.');
         }
 
-        // Determine outcome
+        const result = await this.scoreFinishedMatch(matchId, homeScore, awayScore);
+        return {
+            success: true,
+            message: `Match result ${homeScore}-${awayScore} entered. ${result.predictionsScored} predictions, ${result.scoreBetsScored} score bets scored.`,
+            predictionsScored: result.predictionsScored,
+            scoreBetsScored: result.scoreBetsScored
+        };
+    }
+
+    private async scoreFinishedMatch(matchId: string, homeScore: number, awayScore: number) {
+        const { Match, Prediction, ScoreBet, MatchScoreBetConfig } = cds.entities('cnma.prediction');
+
+        const match = await SELECT.one.from(Match).where({ ID: matchId });
+        if (!match) throw new Error('Match not found');
+
         const outcome = ScoringEngine.determineOutcome(homeScore, awayScore);
         const tournamentId = match.tournament_ID;
 
-        // Convert any unresolved slot bets into concrete match bets before scoring.
+        // Convert unresolved slot bets into concrete match bets before scoring.
         await materializeSlotBetsForMatch(matchId);
 
-        // Update match with result
+        // Persist score/outcome only. Status transition is managed separately.
         await UPDATE(Match).where({ ID: matchId }).set({
             homeScore,
             awayScore,
-            outcome,
-            status: 'finished'
+            outcome
         });
 
-        // ── Score UC2 Predictions (per-match outcomePoints) ──
         const outcomePoints = Number(match.outcomePoints ?? 1);
         const predictions = await SELECT.from(Prediction)
             .where({ match_ID: matchId, status: { '!=': 'scored' } });
@@ -77,7 +104,6 @@ export class AdminHandler {
                 scoredAt: new Date().toISOString()
             });
 
-            // Update both global and per-tournament stats
             await this.updatePlayerStats(pred.player_ID, points, isCorrect);
             if (tournamentId) {
                 await this.updatePlayerTournamentStats(
@@ -87,7 +113,6 @@ export class AdminHandler {
             predictionsScored++;
         }
 
-        // ── Score UC1 Score Bets (per-match MatchScoreBetConfig) ──
         const scoreBetCfg = await SELECT.one.from(MatchScoreBetConfig)
             .where({ match_ID: matchId });
         const bets = await SELECT.from(ScoreBet)
@@ -96,7 +121,7 @@ export class AdminHandler {
         let scoreBetsScored = 0;
         const prize = Number(scoreBetCfg?.prize ?? 200000);
 
-        // Group bets by player to handle duplicate-bet multiplier
+        // Group bets by player to handle duplicate-bet multiplier.
         const betsByPlayer = new Map<string, typeof bets>();
         for (const bet of bets) {
             const pid = bet.player_ID;
@@ -108,9 +133,6 @@ export class AdminHandler {
             for (const bet of playerBets) {
                 const isCorrect = bet.predictedHomeScore === homeScore
                     && bet.predictedAwayScore === awayScore;
-
-                // Each correct bet wins 1×prize.
-                // If player placed N identical bets and all are correct, each pays 1×prize (total N×prize).
                 const payout = isCorrect ? prize : 0;
 
                 await UPDATE(ScoreBet).where({ ID: bet.ID }).set({
@@ -122,20 +144,15 @@ export class AdminHandler {
             }
         }
 
-        // ── Lock all remaining draft/submitted predictions ───
         await UPDATE(Prediction)
             .where({ match_ID: matchId, status: { in: ['draft', 'submitted'] } })
             .set({ status: 'locked', lockedAt: new Date().toISOString() });
 
-        // ── Bracket Progression ──────────────────────────────
-        // If this match belongs to a bracket slot, update aggregates & advance winner
         if (match.bracketSlot_ID) {
             await this.updateBracketProgression(match.bracketSlot_ID, matchId);
         }
 
         return {
-            success: true,
-            message: `Match result ${homeScore}-${awayScore} entered. ${predictionsScored} predictions, ${scoreBetsScored} score bets scored.`,
             predictionsScored,
             scoreBetsScored
         };
@@ -144,7 +161,7 @@ export class AdminHandler {
     /**
      * Correct an already-finished match result.
      * Resets scored predictions back to submitted, score bets back to pending,
-     * re-enters the new result, and re-scores everything.
+     * then re-scores everything with the updated score.
      */
     async correctMatchResult(req: Request) {
         const { matchId, homeScore, awayScore } = req.data;
@@ -166,16 +183,7 @@ export class AdminHandler {
             .where({ match_ID: matchId, status: { in: ['won', 'lost'] } })
             .set({ status: 'pending', isCorrect: null, payout: 0 });
 
-        // Re-open the match so enterMatchResult accepts it
-        await UPDATE(Match).where({ ID: matchId }).set({ status: 'live' });
-
-        // Re-enter with new scores (this scores predictions, bets, triggers bracket)
-        const fakeReq = {
-            data: { matchId, homeScore, awayScore },
-            error: (code: number, msg: string) => { throw new Error(msg); }
-        } as unknown as Request;
-
-        const result: any = await this.enterMatchResult(fakeReq);
+        const result = await this.scoreFinishedMatch(matchId, homeScore, awayScore);
 
         // Recalculate leaderboard for the tournament
         if (match.tournament_ID) {
@@ -188,9 +196,9 @@ export class AdminHandler {
 
         return {
             success: true,
-            message: `Match result corrected to ${homeScore}-${awayScore}. ${result?.predictionsScored ?? 0} predictions and ${result?.scoreBetsScored ?? 0} score bets re-scored.`,
-            predictionsScored: result?.predictionsScored ?? 0,
-            scoreBetsScored: result?.scoreBetsScored ?? 0,
+            message: `Match result corrected to ${homeScore}-${awayScore}. ${result.predictionsScored} predictions and ${result.scoreBetsScored} score bets re-scored.`,
+            predictionsScored: result.predictionsScored,
+            scoreBetsScored: result.scoreBetsScored,
         };
     }
 
@@ -712,6 +720,7 @@ export class AdminHandler {
             FINAL: 'final',
             PLAY_OFF_ROUND: 'playoff',
             REGULAR: 'regular',
+            REGULAR_SEASON: 'regular',
             PLAYOFF: 'playoff',
             RELEGATION: 'relegation',
         };
@@ -756,15 +765,25 @@ export class AdminHandler {
 
         let synced = 0;
         let scored = 0;
+        const nowMs = Date.now();
 
         for (const ext of externalMatches) {
             const ourMatch = matchByExternalId.get(ext.id);
             if (!ourMatch) continue; // no match linked to this external ID — skip
 
-            const newStatus = statusMap[ext.status] ?? 'upcoming';
+            const mappedStatus = statusMap[ext.status] ?? 'upcoming';
+            const effectiveKickoff = ext.utcDate ?? ourMatch.kickoff;
+            const kickoffMs = effectiveKickoff ? new Date(effectiveKickoff).getTime() : NaN;
+            let newStatus = mappedStatus;
+            if (mappedStatus === 'upcoming' && Number.isFinite(kickoffMs) && kickoffMs <= nowMs) {
+                newStatus = 'live';
+            }
+            if (mappedStatus === 'upcoming' && ourMatch.status === 'live') {
+                newStatus = 'live';
+            }
             const newStage = stageMap[ext.stage] ?? ourMatch.stage;
-            const homeScore = ext.score?.fullTime?.home ?? null;
-            const awayScore = ext.score?.fullTime?.away ?? null;
+            const homeScore = ext.score?.fullTime?.home ?? ext.score?.regularTime?.home ?? null;
+            const awayScore = ext.score?.fullTime?.away ?? ext.score?.regularTime?.away ?? null;
             const extOutcome = ext.score?.winner ? (outcomeMap[ext.score.winner] ?? null) : null;
 
             // Determine if we should trigger scoring (was not finished, now is)
@@ -797,6 +816,17 @@ export class AdminHandler {
                 updateData.homeScore = homeScore;
                 updateData.awayScore = awayScore;
                 updateData.outcome = extOutcome ?? ScoringEngine.determineOutcome(homeScore, awayScore);
+            } else if (newStatus === 'live') {
+                // Keep manual/live score unless API provides explicit numbers.
+                if (homeScore !== null && awayScore !== null) {
+                    updateData.homeScore = homeScore;
+                    updateData.awayScore = awayScore;
+                    updateData.outcome = extOutcome ?? ScoringEngine.determineOutcome(homeScore, awayScore);
+                } else if (ourMatch.homeScore == null || ourMatch.awayScore == null) {
+                    // Live match should always have a visible score; default missing values to 0-0.
+                    updateData.homeScore = ourMatch.homeScore ?? 0;
+                    updateData.awayScore = ourMatch.awayScore ?? 0;
+                }
             } else {
                 // Match is not finished in API -> clear stale manual result
                 updateData.homeScore = null;
@@ -1296,6 +1326,14 @@ export class AdminHandler {
             REGULAR:       'regular',
             PLAYOFF:       'playoff',
             RELEGATION:    'relegation',
+            SEMI_FINALS: 'semiFinal',
+            THIRD_PLACE: 'thirdPlace',
+            FINAL: 'final',
+            PLAY_OFF_ROUND: 'playoff',
+            REGULAR: 'regular',
+            REGULAR_SEASON: 'regular',
+            PLAYOFF: 'playoff',
+            RELEGATION: 'relegation',
         };
         const statusMap: Record<string, string> = {
             SCHEDULED:         'upcoming',
@@ -1334,9 +1372,17 @@ export class AdminHandler {
                 const awayTeamId = apiMatch.awayTeam?.id ? teamIdMap.get(apiMatch.awayTeam.id) ?? null : null;
                 const stage = stageMap[apiMatch.stage] ?? 'group';
 
-                const matchStatus = statusMap[apiMatch.status] ?? 'upcoming';
-                const homeScore = apiMatch.score?.fullTime?.home ?? null;
-                const awayScore = apiMatch.score?.fullTime?.away ?? null;
+                const kickoff = apiMatch.utcDate ?? startDate;
+                const kickoffMs = kickoff ? new Date(kickoff).getTime() : NaN;
+                let matchStatus = statusMap[apiMatch.status] ?? 'upcoming';
+                if (matchStatus === 'upcoming' && Number.isFinite(kickoffMs) && kickoffMs <= Date.now()) {
+                    matchStatus = 'live';
+                }
+
+                const apiHomeScore = apiMatch.score?.fullTime?.home ?? apiMatch.score?.regularTime?.home ?? null;
+                const apiAwayScore = apiMatch.score?.fullTime?.away ?? apiMatch.score?.regularTime?.away ?? null;
+                const homeScore = matchStatus === 'live' ? (apiHomeScore ?? 0) : apiHomeScore;
+                const awayScore = matchStatus === 'live' ? (apiAwayScore ?? 0) : apiAwayScore;
                 const isFinished = matchStatus === 'finished' && homeScore !== null && awayScore !== null;
                 const outcome = isFinished
                     ? (outcomeMap[apiMatch.score?.winner] ?? ScoringEngine.determineOutcome(homeScore, awayScore))

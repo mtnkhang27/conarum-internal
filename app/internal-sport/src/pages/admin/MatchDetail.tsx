@@ -397,7 +397,12 @@ export function MatchDetail() {
   const awayTeamResolved = match.awayTeam ?? allTeams.find((t) => t.ID === awayTeamId);
   const homeTeamName = homeTeamResolved?.name ?? "TBD";
   const awayTeamName = awayTeamResolved?.name ?? "TBD";
+  const isLive = match.status === "live";
   const isFinished = match.status === "finished";
+  const displayedHomeScore = isLive ? (match.homeScore ?? 0) : match.homeScore;
+  const displayedAwayScore = isLive ? (match.awayScore ?? 0) : match.awayScore;
+  const showScoreBanner =
+    (isLive || isFinished) && displayedHomeScore != null && displayedAwayScore != null;
   const canEnterResult = match.status === "upcoming" || match.status === "live";
   const showPenaltyButton = computeShowPenaltyButton();
 
@@ -486,12 +491,12 @@ export function MatchDetail() {
       </div>
 
       {/* Result banner */}
-      {isFinished && (
+      {showScoreBanner && (
         <Card className="border-border bg-card p-4">
           <div className="flex items-center justify-center gap-6 text-lg">
             <span className="font-bold text-white">{homeTeamName}</span>
             <span className="font-mono text-2xl font-bold text-primary">
-              {match.homeScore} – {match.awayScore}
+              {displayedHomeScore} - {displayedAwayScore}
             </span>
             <span className="font-bold text-white">{awayTeamName}</span>
           </div>

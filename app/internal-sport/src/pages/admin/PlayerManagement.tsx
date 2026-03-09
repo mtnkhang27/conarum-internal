@@ -109,7 +109,7 @@ export function PlayerManagement() {
                     <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/20 text-primary">
                         <Users className="h-6 w-6" />
                     </div>
-                    <div>
+                    <div className="flex items-center gap-2">
                         <p className="text-2xl font-bold text-white">{players.length}</p>
                         <p className="text-xs text-muted-foreground">Total Players</p>
                     </div>
@@ -118,7 +118,7 @@ export function PlayerManagement() {
                     <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-green-500/20 text-green-400">
                         <Flame className="h-6 w-6" />
                     </div>
-                    <div>
+                    <div className="flex items-center gap-2">
                         <p className="text-2xl font-bold text-white">
                             {players.filter((p) => Number(p.totalPredictions) > 0).length}
                         </p>
@@ -129,7 +129,7 @@ export function PlayerManagement() {
                     <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-yellow-500/20 text-yellow-400">
                         <Users className="h-6 w-6" />
                     </div>
-                    <div>
+                    <div className="flex items-center gap-2">
                         <p className="text-2xl font-bold text-white">{totalPoints}</p>
                         <p className="text-xs text-muted-foreground">Total Points</p>
                     </div>

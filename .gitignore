@@ -44,3 +44,5 @@ app/internal-sport/.env
 db/mock/PLmatches.json
 db/mock/PLstandings.json
 db/mock/PLteams.json
+db/mock/pd_half_time.json
+# db/mock/pd.matches.json

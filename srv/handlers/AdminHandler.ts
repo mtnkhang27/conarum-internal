@@ -1390,10 +1390,10 @@ export class AdminHandler {
 
                 await INSERT.into(Match).entries({
                     tournament_ID: tournamentId,
-                    homeTeam_ID:   homeTeamId,
-                    awayTeam_ID:   awayTeamId,
-                    kickoff:       apiMatch.utcDate ?? startDate,
-                    venue:         apiMatch.venue ?? null,
+                    homeTeam_ID: homeTeamId,
+                    awayTeam_ID: awayTeamId,
+                    kickoff: apiMatch.utcDate ?? startDate,
+                    venue: apiMatch.venue ?? null,
                     stage,
                     status:        matchStatus,
                     matchday:      apiMatch.matchday ?? null,

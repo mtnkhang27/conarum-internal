@@ -1326,14 +1326,8 @@ export class AdminHandler {
             REGULAR:       'regular',
             PLAYOFF:       'playoff',
             RELEGATION:    'relegation',
-            SEMI_FINALS: 'semiFinal',
-            THIRD_PLACE: 'thirdPlace',
-            FINAL: 'final',
-            PLAY_OFF_ROUND: 'playoff',
-            REGULAR: 'regular',
+
             REGULAR_SEASON: 'regular',
-            PLAYOFF: 'playoff',
-            RELEGATION: 'relegation',
         };
         const statusMap: Record<string, string> = {
             SCHEDULED:         'upcoming',
@@ -1390,10 +1384,10 @@ export class AdminHandler {
 
                 await INSERT.into(Match).entries({
                     tournament_ID: tournamentId,
-                    homeTeam_ID: homeTeamId,
-                    awayTeam_ID: awayTeamId,
-                    kickoff: apiMatch.utcDate ?? startDate,
-                    venue: apiMatch.venue ?? null,
+                    homeTeam_ID:   homeTeamId,
+                    awayTeam_ID:   awayTeamId,
+                    kickoff:       apiMatch.utcDate ?? startDate,
+                    venue:         apiMatch.venue ?? null,
                     stage,
                     status:        matchStatus,
                     matchday:      apiMatch.matchday ?? null,

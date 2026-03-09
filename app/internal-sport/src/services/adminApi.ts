@@ -17,6 +17,7 @@ import type {
     AdminChampionPick,
     AdminBracketSlot,
 } from "@/types/admin";
+import { mapExternalAssetUrls } from "@/utils/externalAssetProxy";
 
 // ── Helpers ────────────────────────────────────────────────
 
@@ -34,7 +35,8 @@ async function odata<T>(path: string, init?: RequestInit): Promise<T> {
         const err = await res.json().catch(() => ({}));
         throw new Error(err?.error?.message || `Request failed: ${res.status}`);
     }
-    return res.json();
+    const data = await res.json();
+    return mapExternalAssetUrls(data) as T;
 }
 
 function odataList<T>(path: string) {

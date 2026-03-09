@@ -4,6 +4,8 @@
  * and transforms data into shapes expected by UI components.
  */
 
+import { mapExternalAssetUrls } from "@/utils/externalAssetProxy";
+
 const BASE = "/api/player";
 
 async function json<T>(url: string): Promise<T> {
@@ -13,7 +15,7 @@ async function json<T>(url: string): Promise<T> {
         throw new Error(body?.error?.message || `Request failed: ${res.status}`);
     }
     const data = await res.json();
-    return data.value ?? data;
+    return mapExternalAssetUrls((data.value ?? data) as T);
 }
 
 async function post<T>(url: string, body: unknown): Promise<T> {
@@ -24,7 +26,7 @@ async function post<T>(url: string, body: unknown): Promise<T> {
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data?.error?.message || `Request failed: ${res.status}`);
-    return data as T;
+    return mapExternalAssetUrls(data as T);
 }
 
 // ─── Raw OData types from PlayerService ──────────────────────

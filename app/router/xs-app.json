@@ -10,8 +10,14 @@
             "csrfProtection": false
         },
         {
-            "source": "^(.*)$",
-            "target": "$1",
+            "source": "^/(.*\\..*)$",
+            "target": "/$1",
+            "localDir": "resources",
+            "authenticationType": "xsuaa"
+        },
+        {
+            "source": "^/(.*)$",
+            "target": "/index.html",
             "localDir": "resources",
             "authenticationType": "xsuaa"
         }

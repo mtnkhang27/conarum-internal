@@ -99,6 +99,39 @@ export class AdminService extends cds.ApplicationService {
             }
         });
 
+        // Preserve bracket linkage metadata when a knockout match is deleted manually.
+        // This keeps enough information for syncMatchResults to restore the match into its slot.
+        this.before('DELETE', 'Matches', async (req: any) => {
+            const { Match, BracketSlot } = cds.entities('cnma.prediction');
+            const param0 = req.params?.[0];
+            const matchId = (param0 as any)?.ID ?? req.data?.ID ?? param0;
+            if (!matchId) return;
+
+            const match = await SELECT.one.from(Match).where({ ID: matchId });
+            if (!match?.bracketSlot_ID) return;
+
+            const slot = await SELECT.one.from(BracketSlot).where({ ID: match.bracketSlot_ID });
+            if (!slot) return;
+
+            const patch: Record<string, any> = {};
+            const legNumber = Number(match.leg ?? 0);
+            const isLeg1 = slot.leg1_ID === match.ID || legNumber === 1;
+            const isLeg2 = slot.leg2_ID === match.ID || legNumber === 2;
+
+            if (isLeg1) {
+                patch.leg1_ID = null;
+                if (match.externalId != null) patch.leg1ExternalId = Number(match.externalId);
+            }
+            if (isLeg2) {
+                patch.leg2_ID = null;
+                if (match.externalId != null) patch.leg2ExternalId = Number(match.externalId);
+            }
+
+            if (Object.keys(patch).length > 0) {
+                await UPDATE(BracketSlot).where({ ID: slot.ID }).set(patch);
+            }
+        });
+
         return super.init();
     }
 }

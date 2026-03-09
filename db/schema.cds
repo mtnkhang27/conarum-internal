@@ -439,6 +439,8 @@ entity BracketSlot : cuid, managed {
     // ── Matches (two-leg or single) ──
     leg1          : Association to Match;                 // first leg
     leg2          : Association to Match;                 // second leg (null for single-match finals)
+    leg1ExternalId: Integer;                              // football-data.org match ID for leg1
+    leg2ExternalId: Integer;                              // football-data.org match ID for leg2
     // ── Aggregate scores ──
     homeAgg       : Integer default 0;                    // aggregate score home team
     awayAgg       : Integer default 0;                    // aggregate score away team

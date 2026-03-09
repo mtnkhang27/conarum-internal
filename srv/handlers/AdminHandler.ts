@@ -751,8 +751,66 @@ export class AdminHandler {
         // Load all our matches for this tournament, indexed by externalId
         const ourMatches = await SELECT.from(Match).where({ tournament_ID: tournamentId });
         const matchByExternalId = new Map<number, any>();
+        const matchById = new Map<string, any>();
         for (const m of ourMatches) {
             if (m.externalId != null) matchByExternalId.set(Number(m.externalId), m);
+            if (m.ID) matchById.set(m.ID, m);
+        }
+
+        // Keep a durable map from football-data match ID -> bracket slot leg.
+        // This allows sync to restore bracket links after a local match was deleted.
+        const bracketSlots = await SELECT.from(BracketSlot).where({ tournament_ID: tournamentId });
+        const bracketSlotByLegExternalId = new Map<number, { slotId: string; leg: 1 | 2 }>();
+        const bracketSlotByStageAndTeams = new Map<string, { slotId: string; leg: 1 | 2 }>();
+        const toBracketTeamKey = (stage: string, homeTeamId: string, awayTeamId: string) =>
+            `${stage}|${homeTeamId}|${awayTeamId}`;
+        for (const slot of bracketSlots) {
+            const slotPatch: Record<string, any> = {};
+            const leg1Match = slot.leg1_ID ? matchById.get(slot.leg1_ID) : null;
+            const leg2Match = slot.leg2_ID ? matchById.get(slot.leg2_ID) : null;
+            const leg1ExternalId = slot.leg1ExternalId ?? (slot.leg1_ID ? matchById.get(slot.leg1_ID)?.externalId : null);
+            const leg2ExternalId = slot.leg2ExternalId ?? (slot.leg2_ID ? matchById.get(slot.leg2_ID)?.externalId : null);
+
+            if (slot.leg1ExternalId == null && leg1ExternalId != null) {
+                slotPatch.leg1ExternalId = Number(leg1ExternalId);
+            }
+            if (slot.leg2ExternalId == null && leg2ExternalId != null) {
+                slotPatch.leg2ExternalId = Number(leg2ExternalId);
+            }
+
+            if (Object.keys(slotPatch).length > 0) {
+                await UPDATE(BracketSlot).where({ ID: slot.ID }).set(slotPatch);
+            }
+
+            if (leg1ExternalId != null && Number.isFinite(Number(leg1ExternalId))) {
+                bracketSlotByLegExternalId.set(Number(leg1ExternalId), { slotId: slot.ID, leg: 1 });
+            }
+            if (leg2ExternalId != null && Number.isFinite(Number(leg2ExternalId))) {
+                bracketSlotByLegExternalId.set(Number(leg2ExternalId), { slotId: slot.ID, leg: 2 });
+            }
+
+            // Inference fallback for legacy slots that lost one leg but still have the opposite leg.
+            // Example: leg1 deleted, leg2 still exists -> infer leg1 by reversed home/away teams.
+            if (
+                leg1ExternalId == null &&
+                leg2Match?.homeTeam_ID &&
+                leg2Match?.awayTeam_ID
+            ) {
+                bracketSlotByStageAndTeams.set(
+                    toBracketTeamKey(slot.stage, leg2Match.awayTeam_ID, leg2Match.homeTeam_ID),
+                    { slotId: slot.ID, leg: 1 }
+                );
+            }
+            if (
+                leg2ExternalId == null &&
+                leg1Match?.homeTeam_ID &&
+                leg1Match?.awayTeam_ID
+            ) {
+                bracketSlotByStageAndTeams.set(
+                    toBracketTeamKey(slot.stage, leg1Match.awayTeam_ID, leg1Match.homeTeam_ID),
+                    { slotId: slot.ID, leg: 2 }
+                );
+            }
         }
 
         let synced = 0;
@@ -771,6 +829,22 @@ export class AdminHandler {
             const homeScore = ext.score?.fullTime?.home ?? null;
             const awayScore = ext.score?.fullTime?.away ?? null;
             const extOutcome = ext.score?.winner ? (outcomeMap[ext.score.winner] ?? null) : null;
+            const resolvedHomeFromApi = this._resolveTeamFromExternal(ext.homeTeam, teamByCrest);
+            const resolvedAwayFromApi = this._resolveTeamFromExternal(ext.awayTeam, teamByCrest);
+
+            let bracketLink = bracketSlotByLegExternalId.get(extId);
+            if (
+                !bracketLink &&
+                typeof resolvedHomeFromApi === 'string' &&
+                typeof resolvedAwayFromApi === 'string'
+            ) {
+                bracketLink = bracketSlotByStageAndTeams.get(
+                    toBracketTeamKey(newStage, resolvedHomeFromApi, resolvedAwayFromApi)
+                );
+                if (bracketLink) {
+                    bracketSlotByLegExternalId.set(extId, bracketLink);
+                }
+            }
 
             // Safety: if kickoff is still in the future, keep match in "upcoming"
             // even when an incorrect/stale "live" status is received.
@@ -785,20 +859,19 @@ export class AdminHandler {
 
             // If local match was deleted, recreate it from external source.
             if (!ourMatch) {
-                const resolvedHome = this._resolveTeamFromExternal(ext.homeTeam, teamByCrest);
-                const resolvedAway = this._resolveTeamFromExternal(ext.awayTeam, teamByCrest);
-
                 const insertData: Record<string, any> = {
                     ID: cds.utils.uuid(),
                     tournament_ID: tournamentId,
                     externalId: extId,
+                    bracketSlot_ID: bracketLink?.slotId ?? null,
+                    leg: bracketLink?.leg ?? null,
                     status: newStatus,
                     stage: newStage,
                     kickoff: ext.utcDate ?? new Date(nowTs).toISOString(),
                     venue: ext.venue ?? null,
                     matchday: ext.matchday ?? null,
-                    homeTeam_ID: resolvedHome ?? null,
-                    awayTeam_ID: resolvedAway ?? null,
+                    homeTeam_ID: resolvedHomeFromApi ?? null,
+                    awayTeam_ID: resolvedAwayFromApi ?? null,
                     homeScore: null,
                     awayScore: null,
                     outcome: null,
@@ -813,9 +886,47 @@ export class AdminHandler {
                 await INSERT.into(Match).entries(insertData);
                 ourMatch = insertData;
                 matchByExternalId.set(extId, ourMatch);
+                matchById.set(ourMatch.ID, ourMatch);
+
+                if (bracketLink) {
+                    const slotUpdate =
+                        bracketLink.leg === 1
+                            ? { leg1_ID: ourMatch.ID, leg1ExternalId: extId }
+                            : { leg2_ID: ourMatch.ID, leg2ExternalId: extId };
+                    await UPDATE(BracketSlot).where({ ID: bracketLink.slotId }).set(slotUpdate);
+
+                    // If both legs are finished now, recompute aggregates and winner immediately.
+                    if (nowFinished) {
+                        await this.updateBracketProgression(bracketLink.slotId, ourMatch.ID);
+                    }
+                }
+
                 synced++;
                 recreated++;
                 continue;
+            }
+
+            // Repair bracket linkage for existing matches that were recreated earlier without slot mapping.
+            if (
+                bracketLink &&
+                (ourMatch.bracketSlot_ID !== bracketLink.slotId || Number(ourMatch.leg ?? 0) !== bracketLink.leg)
+            ) {
+                await UPDATE(Match).where({ ID: ourMatch.ID }).set({
+                    bracketSlot_ID: bracketLink.slotId,
+                    leg: bracketLink.leg,
+                });
+
+                const slotUpdate =
+                    bracketLink.leg === 1
+                        ? { leg1_ID: ourMatch.ID, leg1ExternalId: extId }
+                        : { leg2_ID: ourMatch.ID, leg2ExternalId: extId };
+                await UPDATE(BracketSlot).where({ ID: bracketLink.slotId }).set(slotUpdate);
+
+                ourMatch = {
+                    ...ourMatch,
+                    bracketSlot_ID: bracketLink.slotId,
+                    leg: bracketLink.leg,
+                };
             }
 
             // Determine if we should trigger scoring (was not finished, now is)
@@ -834,13 +945,11 @@ export class AdminHandler {
             // Sync teams authoritatively from API:
             // - clear local team when API still returns placeholder (TBD)
             // - overwrite local team when API returns a resolvable crest
-            const resolvedHome = this._resolveTeamFromExternal(ext.homeTeam, teamByCrest);
-            const resolvedAway = this._resolveTeamFromExternal(ext.awayTeam, teamByCrest);
-            if (resolvedHome !== undefined && resolvedHome !== ourMatch.homeTeam_ID) {
-                updateData.homeTeam_ID = resolvedHome;
+            if (resolvedHomeFromApi !== undefined && resolvedHomeFromApi !== ourMatch.homeTeam_ID) {
+                updateData.homeTeam_ID = resolvedHomeFromApi;
             }
-            if (resolvedAway !== undefined && resolvedAway !== ourMatch.awayTeam_ID) {
-                updateData.awayTeam_ID = resolvedAway;
+            if (resolvedAwayFromApi !== undefined && resolvedAwayFromApi !== ourMatch.awayTeam_ID) {
+                updateData.awayTeam_ID = resolvedAwayFromApi;
             }
 
             if (nowFinished && homeScore !== null && awayScore !== null) {
@@ -1657,7 +1766,9 @@ export class AdminHandler {
                     slotData.homeTeam_ID = tie.homeTeamId ?? null;
                     slotData.awayTeam_ID = tie.awayTeamId ?? null;
                     slotData.leg1_ID = tie.leg1.ID;
+                    slotData.leg1ExternalId = tie.leg1.externalId ?? null;
                     if (tie.leg2) slotData.leg2_ID = tie.leg2.ID;
+                    if (tie.leg2) slotData.leg2ExternalId = tie.leg2.externalId ?? null;
 
                     // Compute aggregate scores for finished legs
                     // In two-leg: homeAgg = leg1.homeScore + leg2.awayScore

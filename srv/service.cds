@@ -401,10 +401,12 @@ service PlayerService {
         awayTeamFlag : String;
         awayTeamCrest: String;
         leg1Id       : UUID;
+        leg1ExternalId: Integer;
         leg1HomeScore: Integer;
         leg1AwayScore: Integer;
         leg1Status   : String;
         leg2Id       : UUID;
+        leg2ExternalId: Integer;
         leg2HomeScore: Integer;
         leg2AwayScore: Integer;
         leg2Status   : String;

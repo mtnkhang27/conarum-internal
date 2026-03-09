@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { mapExternalAssetUrls } from "@/utils/externalAssetProxy";
 
 /* ────────────────────────────────────────────────────────── */
 /*  Types                                                     */
@@ -239,13 +240,15 @@ export function TournamentBracket({
     hidePlayoff = true,
     compact = false,
 }: TournamentBracketProps) {
-    const [slots, setSlots] = useState<BracketSlot[]>(externalSlots ?? []);
+    const [slots, setSlots] = useState<BracketSlot[]>(
+        mapExternalAssetUrls(externalSlots ?? [])
+    );
     const [loading, setLoading] = useState(!externalSlots);
     const [error, setError] = useState("");
 
     useEffect(() => {
         if (externalSlots) {
-            setSlots(externalSlots);
+            setSlots(mapExternalAssetUrls(externalSlots));
             return;
         }
         if (!tournamentId) return;
@@ -257,7 +260,8 @@ export function TournamentBracket({
             .then(async (res) => {
                 if (!res.ok) throw new Error("Failed to load bracket");
                 const data = await res.json();
-                setSlots(data.value ?? data);
+                const bracketSlots = (data.value ?? data) as BracketSlot[];
+                setSlots(mapExternalAssetUrls(bracketSlots));
             })
             .catch((e) => setError(e.message))
             .finally(() => setLoading(false));
@@ -341,3 +345,4 @@ export function TournamentBracket({
         </div>
     );
 }
+ 

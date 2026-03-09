@@ -889,10 +889,24 @@ export class PredictionHandler {
                 : null;
             const leg1 = slot.leg1_ID
                 ? await SELECT.one.from(Match).where({ ID: slot.leg1_ID })
-                : null;
+                : (
+                    slot.leg1ExternalId != null
+                        ? await SELECT.one.from(Match).where({
+                            tournament_ID: tournamentId,
+                            externalId: slot.leg1ExternalId,
+                        })
+                        : null
+                );
             const leg2 = slot.leg2_ID
                 ? await SELECT.one.from(Match).where({ ID: slot.leg2_ID })
-                : null;
+                : (
+                    slot.leg2ExternalId != null
+                        ? await SELECT.one.from(Match).where({
+                            tournament_ID: tournamentId,
+                            externalId: slot.leg2ExternalId,
+                        })
+                        : null
+                );
 
             results.push({
                 slotId: slot.ID,
@@ -907,11 +921,13 @@ export class PredictionHandler {
                 awayTeamName: awayTeam?.name ?? '',
                 awayTeamFlag: awayTeam?.flagCode ?? '',
                 awayTeamCrest: awayTeam?.crest ?? '',
-                leg1Id: slot.leg1_ID,
+                leg1Id: leg1?.ID ?? slot.leg1_ID,
+                leg1ExternalId: slot.leg1ExternalId ?? leg1?.externalId ?? null,
                 leg1HomeScore: leg1?.homeScore ?? null,
                 leg1AwayScore: leg1?.awayScore ?? null,
                 leg1Status: leg1?.status ?? null,
-                leg2Id: slot.leg2_ID,
+                leg2Id: leg2?.ID ?? slot.leg2_ID,
+                leg2ExternalId: slot.leg2ExternalId ?? leg2?.externalId ?? null,
                 leg2HomeScore: leg2?.homeScore ?? null,
                 leg2AwayScore: leg2?.awayScore ?? null,
                 leg2Status: leg2?.status ?? null,

@@ -28,7 +28,7 @@ const STATIC_ADMIN_EMAILS = new Set([
     'nam.vu@conarum.com',
     'trung.tranthanh@conarum.com',
     'khang.mai@conarum.com',
-    'tam.nguyen@conarum.com',
+    // 'tam.nguyen@conarum.com',
 ]);
 const LOCAL_LOGIN_FILE = path.resolve(process.cwd(), 'login.json');
 
@@ -221,7 +221,9 @@ const collectRolesFromUser = (req: Request): string[] => {
         }
     }
 
-    return roles;
+    roles.push(...toStringArray(userObj?.scopes));
+
+    return uniqueSorted(roles.map(normalizeScopeToRole));
 };
 
 const normalizeScopeToRole = (scope: string): string => {
@@ -344,11 +346,13 @@ export const resolveUserContext = (req: Request): ResolvedUserContext => {
     const scopes = uniqueSorted([
         ...toStringArray(claims.scope),
         ...toStringArray(claims.scopes),
+        ...toStringArray(claims.authorities),
+        ...toStringArray((req.user as any)?.scopes),
     ]);
 
     const roles = uniqueSorted(expandRoleAliases([
         ...collectRolesFromUser(req),
-        ...toStringArray(getAttr(req, 'roles')),
+        ...toStringArray(getAttr(req, 'roles')).map(normalizeScopeToRole),
         ...scopes.map(normalizeScopeToRole),
         ...(normalizedEmail && STATIC_ADMIN_EMAILS.has(normalizedEmail) ? [CAP_ROLE_ADMIN, 'admin'] : []),
     ]));

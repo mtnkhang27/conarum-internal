@@ -690,7 +690,7 @@ export function MatchDetail() {
           {isFinished && correctScoreBets.length > 0 && (
             <div className="flex items-center gap-2 rounded-lg border border-green-500/30 bg-green-500/10 px-3 py-2 text-sm text-green-400">
               <CheckCircle2 className="h-4 w-4" />
-              <strong>{correctScoreBets.length}</strong> {t("admin.matchDetail.correctScoreBet")}{correctScoreBets.length !== 1 && "s"} — {t("admin.matchDetail.payout")}:{" "}}
+              <strong>{correctScoreBets.length}</strong> {t("admin.matchDetail.correctScoreBet")}{correctScoreBets.length !== 1 && "s"} — {t("admin.matchDetail.payout")}:{" "}
               <strong>{correctScoreBets.reduce((s, b) => s + b.payout, 0).toLocaleString()} VND</strong> each
             </div>
           )}

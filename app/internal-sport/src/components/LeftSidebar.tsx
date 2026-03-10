@@ -21,11 +21,11 @@ export function LeftSidebar() {
     const isOnSportPage = pathname === "/";
 
     const SECTIONS = [
-        { id: SECTION.leaderboard, label: t("nav.leaderboard"), dot: "bg-yellow-400" },
-        { id: SECTION.bracket, label: t("nav.tournamentBracket"), dot: "bg-secondary" },
         { id: SECTION.matches, label: t("nav.matchesAndLive"), dot: "bg-primary" },
-        { id: SECTION.completed, label: t("nav.completedMatches"), dot: "bg-foreground/30" },
+        { id: SECTION.leaderboard, label: t("nav.leaderboard"), dot: "bg-yellow-400" },
         { id: SECTION.recent, label: t("nav.myPredictions"), dot: "bg-secondary" },
+        { id: SECTION.bracket, label: t("nav.tournamentBracket"), dot: "bg-secondary" },
+        { id: SECTION.completed, label: t("nav.completedMatches"), dot: "bg-foreground/30" },
     ] as const;
 
     const INFO: Record<string, string> = {

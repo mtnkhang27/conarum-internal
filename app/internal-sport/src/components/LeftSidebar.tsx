@@ -1,5 +1,6 @@
 import { Link, NavLink, useLocation } from "react-router-dom";
 import { Info } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { scrollToSection, SECTION } from "@/pages/SportPage";
 
 function sectionLinkClass(active: boolean) {
@@ -14,29 +15,30 @@ function pageLink(active: boolean) {
         : "block w-full border-l-4 border-transparent px-4 py-2 text-sm text-muted-foreground transition-colors hover:bg-surface hover:text-foreground";
 }
 
-const SECTIONS = [
-    { id: SECTION.leaderboard, label: "Leaderboard", dot: "bg-yellow-400" },
-    { id: SECTION.bracket, label: "Tournament Bracket", dot: "bg-secondary" },
-    { id: SECTION.matches, label: "Matches & Live", dot: "bg-primary" },
-    { id: SECTION.completed, label: "Completed Matches", dot: "bg-foreground/30" },
-    { id: SECTION.recent, label: "My Predictions", dot: "bg-secondary" },
-] as const;
-
-const INFO: Record<string, string> = {
-    "/tournament-champion": "Admin managed rewards.",
-    default: "Realtime results are hidden in manual mode.",
-};
-
 export function LeftSidebar() {
     const { pathname, hash } = useLocation();
+    const { t } = useTranslation();
     const isOnSportPage = pathname === "/";
+
+    const SECTIONS = [
+        { id: SECTION.leaderboard, label: t("nav.leaderboard"), dot: "bg-yellow-400" },
+        { id: SECTION.bracket, label: t("nav.tournamentBracket"), dot: "bg-secondary" },
+        { id: SECTION.matches, label: t("nav.matchesAndLive"), dot: "bg-primary" },
+        { id: SECTION.completed, label: t("nav.completedMatches"), dot: "bg-foreground/30" },
+        { id: SECTION.recent, label: t("nav.myPredictions"), dot: "bg-secondary" },
+    ] as const;
+
+    const INFO: Record<string, string> = {
+        "/tournament-champion": t("nav.adminManagedRewards"),
+        default: t("nav.realtimeHidden"),
+    };
 
     return (
         <aside className="hidden w-[240px] flex-shrink-0 flex-col overflow-y-auto border-r border-border bg-surface-dark lg:flex">
             <div className="flex-1 overflow-y-auto">
                 <div className="py-2">
                     <div className="px-4 py-2.5 text-xs font-bold uppercase tracking-widest text-muted-foreground">
-                        Navigation
+                        {t("nav.navigation")}
                     </div>
 
                     {/* Sport page sections */}
@@ -67,7 +69,7 @@ export function LeftSidebar() {
 
                     {/* Separate pages */}
                     <NavLink to="/tournament-champion" className={pageLink(pathname === "/tournament-champion")}>
-                        <span className="truncate">Tournament Champion</span>
+                        <span className="truncate">{t("nav.tournamentChampion")}</span>
                     </NavLink>
                 </div>
             </div>

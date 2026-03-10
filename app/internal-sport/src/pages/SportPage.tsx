@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { useLocation } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { MatchPredictionTable } from "@/components/MatchPredictionTable";
 import { LiveMatchesTable } from "@/components/LiveMatchesTable";
 import { CompletedMatchesTable } from "@/components/CompletedMatchesTable";
@@ -58,6 +59,7 @@ function SectionHeading({
 // ─── Main page ─────────────────────────────────────────────────
 export function SportPage() {
     const location = useLocation();
+    const { t } = useTranslation();
     const [tournamentId, setTournamentId] = useState("");
 
     // Matches data
@@ -131,9 +133,9 @@ export function SportPage() {
             {/* ── Sticky top controls ── */}
             <div className="sticky top-0 z-20 flex flex-col gap-3 border-b border-border/60 bg-background/95 px-4 py-3 backdrop-blur-sm sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                    <h1 className="text-lg font-extrabold text-white">Sport Predictions</h1>
+                    <h1 className="text-lg font-extrabold text-white">{t("sport.title")}</h1>
                     <p className="text-[11px] text-muted-foreground">
-                        Predictions, leaderboard, results — all in one place.
+                        {t("sport.subtitle")}
                     </p>
                 </div>
                 <TournamentSelector
@@ -153,8 +155,8 @@ export function SportPage() {
                     <SectionHeading
                         id={SECTION.leaderboard}
                         color="bg-yellow-400"
-                        title="Prediction Leaderboard"
-                        subtitle="Points are per tournament — 1 point per correct prediction. Ties broken by name (A→Z)."
+                        title={t("sport.sections.leaderboard")}
+                        subtitle={t("sport.sections.leaderboardSubtitle")}
                     />
                     <LeaderboardSection tournamentId={tournamentId} />
                 </section>
@@ -163,8 +165,8 @@ export function SportPage() {
                     <SectionHeading
                         id={SECTION.bracket}
                         color="bg-primary"
-                        title="Tournament Bracket"
-                        subtitle="Pick the winner for each upcoming match. Use the cards below to submit your prediction."
+                        title={t("sport.sections.bracket")}
+                        subtitle={t("sport.sections.bracketSubtitle")}
                     />
                      <TournamentBracket
                      
@@ -179,18 +181,18 @@ export function SportPage() {
                     <SectionHeading
                         id={SECTION.matches}
                         color="bg-primary"
-                        title="Match Predictions"
-                        subtitle=""
+                        title={t("sport.sections.matches")}
+                        subtitle={t("sport.sections.matchesSubtitle")}
                     />
 
                     {/* Available match table */}
                     {loadingMatches ? (
                         <div className="flex h-48 items-center justify-center text-muted-foreground">
-                            Loading matches…
+                            {t("common.loading")}
                         </div>
                     ) : matches.length === 0 ? (
                         <p className="py-10 text-center text-sm text-muted-foreground">
-                            No upcoming matches available for prediction.
+                            {t("matchPredictionTable.noMatchesFound")}
                         </p>
                     ) : (
                         <MatchPredictionTable matches={matches} onPredictionChange={refreshAll} />
@@ -216,13 +218,13 @@ export function SportPage() {
                     <SectionHeading
                         id={SECTION.completed}
                         color="bg-foreground/40"
-                        title="Completed Matches"
-                        subtitle="Results and your predictions for finished matches."
+                        title={t("sport.sections.completed")}
+                        subtitle={t("sport.sections.completedSubtitle")}
                     />
 
                     {loadingMatches ? (
                         <div className="flex h-32 items-center justify-center text-muted-foreground">
-                            Loading completed matches…
+                            {t("common.loading")}
                         </div>
                     ) : (
                         <CompletedMatchesTable matches={completed} />
@@ -236,8 +238,8 @@ export function SportPage() {
                     <SectionHeading
                         id={SECTION.recent}
                         color="bg-secondary"
-                        title="My Recent Predictions"
-                        subtitle="Your latest match predictions across all tournaments."
+                        title={t("sport.sections.recent")}
+                        subtitle={t("sport.sections.recentSubtitle")}
                     />
                     <RecentPredictionsSection
                         predictions={predictions}

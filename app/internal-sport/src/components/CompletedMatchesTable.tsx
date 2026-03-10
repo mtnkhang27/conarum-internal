@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import type { Match } from "@/types";
 
 const PAGE_SIZE = 10;
@@ -6,13 +7,6 @@ type PaginationItem = number | "dots-left" | "dots-right";
 
 interface CompletedMatchesTableProps {
     matches: Match[];
-}
-
-function pickLabel(pick: string, home: string, away: string): string {
-    if (pick === "home") return `${home} Win`;
-    if (pick === "away") return `${away} Win`;
-    if (pick === "draw") return "Draw";
-    return pick || "—";
 }
 
 function formatKickoffDisplay(iso?: string): string {
@@ -26,7 +20,15 @@ function formatKickoffDisplay(iso?: string): string {
 }
 
 export function CompletedMatchesTable({ matches }: CompletedMatchesTableProps) {
+    const { t } = useTranslation();
     const [page, setPage] = useState(1);
+
+    function pickLabel(pick: string, home: string, away: string): string {
+        if (pick === "home") return t("completedMatchesTable.homeWin", { team: home });
+        if (pick === "away") return t("completedMatchesTable.awayWin", { team: away });
+        if (pick === "draw") return t("common.draw");
+        return pick || "—";
+    }
 
     const firstMatchId = matches[0]?.id ?? "";
     const totalPages = Math.max(1, Math.ceil(matches.length / PAGE_SIZE));
@@ -68,7 +70,7 @@ export function CompletedMatchesTable({ matches }: CompletedMatchesTableProps) {
     if (matches.length === 0) {
         return (
             <p className="py-10 text-center text-sm text-muted-foreground">
-                No completed matches yet.
+                {t("completedMatchesTable.noCompleted")}
             </p>
         );
     }
@@ -78,10 +80,10 @@ export function CompletedMatchesTable({ matches }: CompletedMatchesTableProps) {
             <div className="overflow-x-auto">
                 {/* Header */}
                 <div className="grid min-w-[640px] grid-cols-12 gap-2 border-b border-border bg-surface/60 px-4 py-2.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                    <div className="col-span-5">Match</div>
-                    <div className="col-span-2 text-center">Score</div>
-                    <div className="col-span-2 text-center">Your Pick</div>
-                    <div className="col-span-3 text-right">Date</div>
+                    <div className="col-span-5">{t("completedMatchesTable.match")}</div>
+                    <div className="col-span-2 text-center">{t("completedMatchesTable.score")}</div>
+                    <div className="col-span-2 text-center">{t("completedMatchesTable.yourPick")}</div>
+                    <div className="col-span-3 text-right">{t("completedMatchesTable.date")}</div>
                 </div>
 
                 {/* Rows */}
@@ -115,7 +117,7 @@ export function CompletedMatchesTable({ matches }: CompletedMatchesTableProps) {
                                                 : <span className={`fi fi-${match.home.flag} rounded-sm`} />}
                                             {match.home.name}
                                         </span>
-                                        <span className="text-[10px] font-black text-muted-foreground">VS</span>
+                                        <span className="text-[10px] font-black text-muted-foreground">{t("common.vs")}</span>
                                         <span className="flex items-center gap-1 text-sm font-bold text-white">
                                             {match.away.crest
                                                 ? <img src={match.away.crest} alt={match.away.name} className="h-4 w-4 object-contain" />
@@ -153,7 +155,7 @@ export function CompletedMatchesTable({ matches }: CompletedMatchesTableProps) {
                                             {pickLabel(match.selectedOption, match.home.name, match.away.name)}
                                         </span>
                                     ) : (
-                                        <span className="text-xs text-muted-foreground">No pick</span>
+                                        <span className="text-xs text-muted-foreground">{t("completedMatchesTable.noPick")}</span>
                                     )}
                                 </div>
 
@@ -171,7 +173,7 @@ export function CompletedMatchesTable({ matches }: CompletedMatchesTableProps) {
                 <div className="border-t border-border bg-surface/35 px-4 py-3">
                     <div className="flex flex-wrap items-center justify-between gap-2">
                         <p className="text-xs text-muted-foreground">
-                            Showing {from}-{to} of {matches.length} matches
+                            {t("common.showing", { from, to, total: matches.length })}
                         </p>
 
                         <div className="flex items-center justify-end gap-2">
@@ -182,7 +184,7 @@ export function CompletedMatchesTable({ matches }: CompletedMatchesTableProps) {
                                 className="inline-flex h-9 items-center rounded-md border border-border bg-surface-dark px-3 text-xs font-semibold text-foreground/90 transition-colors hover:border-primary hover:text-primary disabled:cursor-not-allowed disabled:opacity-45"
                                 aria-label="Previous completed page"
                             >
-                                Previous
+                                {t("common.previous")}
                             </button>
 
                             <div className="inline-flex items-center rounded-md border border-border bg-surface-dark/85 p-1">
@@ -225,11 +227,11 @@ export function CompletedMatchesTable({ matches }: CompletedMatchesTableProps) {
                                 className="inline-flex h-9 items-center rounded-md border border-border bg-surface-dark px-3 text-xs font-semibold text-foreground/90 transition-colors hover:border-primary hover:text-primary disabled:cursor-not-allowed disabled:opacity-45"
                                 aria-label="Next completed page"
                             >
-                                Next
+                                {t("common.next")}
                             </button>
 
                             <div className="ml-1 text-[11px] font-semibold text-muted-foreground">
-                                Page {page}/{totalPages}
+                                {t("common.page", { current: page, total: totalPages })}
                             </div>
                         </div>
                     </div>

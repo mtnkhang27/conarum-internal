@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Trophy, ChevronDown } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { playerTournamentsApi } from "@/services/playerApi";
 import type { TournamentInfo } from "@/types";
 
@@ -10,16 +11,17 @@ interface TournamentSelectorProps {
     allowAll?: boolean;
 }
 
-const FORMAT_LABELS: Record<string, string> = {
-    knockout: "Knockout",
-    league: "League",
-    groupKnockout: "Group + Knockout",
-    cup: "Cup",
-};
-
 export function TournamentSelector({ selectedId, onSelect, allowAll = false }: TournamentSelectorProps) {
+    const { t } = useTranslation();
     const [tournaments, setTournaments] = useState<TournamentInfo[]>([]);
     const [open, setOpen] = useState(false);
+
+    const FORMAT_LABELS: Record<string, string> = {
+        knockout: t("tournamentSelector.format.knockout"),
+        league: t("tournamentSelector.format.league"),
+        groupKnockout: t("tournamentSelector.format.groupKnockout"),
+        cup: t("tournamentSelector.format.cup"),
+    };
 
     useEffect(() => {
         playerTournamentsApi.getAll().then((list) => {
@@ -33,7 +35,7 @@ export function TournamentSelector({ selectedId, onSelect, allowAll = false }: T
     }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
     const selected = tournaments.find((t) => t.ID === selectedId);
-    const label = selected ? selected.name : allowAll ? "All Tournaments" : "Select Tournament";
+    const label = selected ? selected.name : allowAll ? t("tournamentSelector.allTournaments") : t("tournamentSelector.selectTournament");
 
     return (
         <div className="relative">
@@ -84,7 +86,7 @@ export function TournamentSelector({ selectedId, onSelect, allowAll = false }: T
                         ))}
                         {tournaments.length === 0 && (
                             <div className="px-4 py-6 text-center text-xs text-muted-foreground">
-                                No tournaments available
+                                {t("tournamentSelector.noTournaments")}
                             </div>
                         )}
                         {allowAll && (
@@ -96,7 +98,7 @@ export function TournamentSelector({ selectedId, onSelect, allowAll = false }: T
                                     className={`flex w-full items-center gap-3 px-4 py-3 text-left text-sm transition-colors hover:bg-surface ${!selectedId ? "bg-primary/10 text-primary" : "text-foreground"}`}
                                 >
                                     <Trophy className="h-4 w-4 text-muted-foreground" />
-                                    <span>All Tournaments</span>
+                                    <span>{t("tournamentSelector.allTournaments")}</span>
                                 </button>
                             </>
                         )}

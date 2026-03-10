@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { MatchCard } from "@/components/MatchCard";
 import { Input } from "@/components/ui/input";
 import type { Match } from "@/types";
@@ -15,6 +16,7 @@ interface MatchPredictionTableProps {
 }
 
 export function MatchPredictionTable({ matches, onPredictionChange }: MatchPredictionTableProps) {
+    const { t } = useTranslation();
     const [page, setPage] = useState(1);
     const [dateFilter, setDateFilter] = useState<DateFilter>("all");
     const [teamSearch, setTeamSearch] = useState("");
@@ -106,7 +108,7 @@ export function MatchPredictionTable({ matches, onPredictionChange }: MatchPredi
             <div className="border-b border-border bg-surface/55 px-4 py-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                     <p className="text-xs text-muted-foreground">
-                        Showing {from}-{to} of {filteredMatches.length} matches
+                        {t("common.showing", { from, to, total: filteredMatches.length })}
                     </p>
                     <div className="flex flex-wrap items-center justify-end gap-2">
                         <select
@@ -115,15 +117,15 @@ export function MatchPredictionTable({ matches, onPredictionChange }: MatchPredi
                             className="h-9 min-w-[130px] rounded-md border border-border bg-surface-dark px-3 text-xs text-foreground outline-none transition-colors focus:border-primary"
                             aria-label="Filter by date"
                         >
-                            <option value="all">All dates</option>
-                            <option value="today">Today</option>
-                            <option value="tomorrow">Tomorrow</option>
-                            <option value="future">Future</option>
+                            <option value="all">{t("matchPredictionTable.allDates")}</option>
+                            <option value="today">{t("matchPredictionTable.today")}</option>
+                            <option value="tomorrow">{t("matchPredictionTable.tomorrow")}</option>
+                            <option value="future">{t("matchPredictionTable.future")}</option>
                         </select>
                         <Input
                             value={teamSearch}
                             onChange={(e) => setTeamSearch(e.target.value)}
-                            placeholder="Search team name..."
+                            placeholder={t("matchPredictionTable.searchTeam")}
                             className="h-9 w-[220px] text-xs"
                             aria-label="Search by team name"
                         />
@@ -134,7 +136,7 @@ export function MatchPredictionTable({ matches, onPredictionChange }: MatchPredi
                                 onChange={(e) => setOnlyHotMatches(e.target.checked)}
                                 className="h-4 w-4 accent-primary"
                             />
-                            Hot match only
+                            {t("matchPredictionTable.hotMatchOnly")}
                         </label>
                     </div>
                 </div>
@@ -144,7 +146,7 @@ export function MatchPredictionTable({ matches, onPredictionChange }: MatchPredi
                 <div className="min-w-[1040px]">
                     {rows.length === 0 ? (
                         <p className="py-10 text-center text-sm text-muted-foreground">
-                            No matches found for current filters.
+                            {t("matchPredictionTable.noMatchesFound")}
                         </p>
                     ) : (
                         rows.map((row, rowIdx) => (
@@ -163,7 +165,7 @@ export function MatchPredictionTable({ matches, onPredictionChange }: MatchPredi
                                             ) : (
                                                 <div className="flex min-h-[220px] items-center justify-center rounded-xl border border-dashed border-border/60 bg-surface-dark/40">
                                                     <span className="text-xs font-medium text-muted-foreground">
-                                                        Empty
+                                                        {t("matchPredictionTable.empty")}
                                                     </span>
                                                 </div>
                                             )}
@@ -186,7 +188,7 @@ export function MatchPredictionTable({ matches, onPredictionChange }: MatchPredi
                             className="inline-flex h-9 items-center rounded-md border border-border bg-surface-dark px-3 text-xs font-semibold text-foreground/90 transition-colors hover:border-primary hover:text-primary disabled:cursor-not-allowed disabled:opacity-45"
                             aria-label="Previous page"
                         >
-                            Previous
+                            {t("common.previous")}
                         </button>
 
                         <div className="inline-flex items-center rounded-md border border-border bg-surface-dark/85 p-1">
@@ -229,11 +231,11 @@ export function MatchPredictionTable({ matches, onPredictionChange }: MatchPredi
                             className="inline-flex h-9 items-center rounded-md border border-border bg-surface-dark px-3 text-xs font-semibold text-foreground/90 transition-colors hover:border-primary hover:text-primary disabled:cursor-not-allowed disabled:opacity-45"
                             aria-label="Next page"
                         >
-                            Next
+                            {t("common.next")}
                         </button>
 
                         <div className="ml-1 text-[11px] font-semibold text-muted-foreground">
-                            Page {page}/{totalPages}
+                            {t("common.page", { current: page, total: totalPages })}
                         </div>
                     </div>
                 </div>

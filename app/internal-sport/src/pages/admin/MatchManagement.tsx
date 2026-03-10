@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import {
     Calendar,
     Clock,
@@ -54,16 +55,16 @@ import { bracketSlotsApi, matchesApi, teamsApi, tournamentsApi, tournamentAction
 import type { AdminBracketSlot, AdminMatch, AdminTeam, AdminTournament } from "@/types/admin";
 
 const STAGES = [
-    { value: "group", label: "Group Stage" },
-    { value: "roundOf32", label: "Round of 32" },
-    { value: "roundOf16", label: "Round of 16" },
-    { value: "quarterFinal", label: "Quarter Final" },
-    { value: "semiFinal", label: "Semi Final" },
-    { value: "thirdPlace", label: "Third Place" },
-    { value: "final", label: "Final" },
-    { value: "regular", label: "Regular Season" },
-    { value: "playoff", label: "Playoff" },
-    { value: "relegation", label: "Relegation" },
+    { value: "group", label: "admin.matchManagement.stages.group" },
+    { value: "roundOf32", label: "admin.matchManagement.stages.roundOf32" },
+    { value: "roundOf16", label: "admin.matchManagement.stages.roundOf16" },
+    { value: "quarterFinal", label: "admin.matchManagement.stages.quarterFinal" },
+    { value: "semiFinal", label: "admin.matchManagement.stages.semiFinal" },
+    { value: "thirdPlace", label: "admin.matchManagement.stages.thirdPlace" },
+    { value: "final", label: "admin.matchManagement.stages.final" },
+    { value: "regular", label: "admin.matchManagement.stages.regular" },
+    { value: "playoff", label: "admin.matchManagement.stages.playoff" },
+    { value: "relegation", label: "admin.matchManagement.stages.relegation" },
 ];
 
 const STAGE_ORDER: Record<string, number> = {
@@ -80,10 +81,10 @@ const STAGE_ORDER: Record<string, number> = {
 };
 
 const MATCH_STATUSES: { value: AdminMatch["status"]; label: string }[] = [
-    { value: "upcoming", label: "Upcoming" },
-    { value: "live", label: "Live" },
-    { value: "finished", label: "Finished" },
-    { value: "cancelled", label: "Cancelled" },
+    { value: "upcoming", label: "common.status.upcoming" },
+    { value: "live", label: "common.status.live" },
+    { value: "finished", label: "common.status.finished" },
+    { value: "cancelled", label: "common.status.cancelled" },
 ];
 
 type HotMatchFilter = "all" | "hot" | "normal";
@@ -126,6 +127,7 @@ function formatKickoff(kickoff?: string | null) {
 
 export function MatchManagement() {
     const navigate = useNavigate();
+    const { t } = useTranslation();
     const [matches, setMatches] = useState<AdminMatch[]>([]);
     const [teams, setTeams] = useState<AdminTeam[]>([]);
     const [tournaments, setTournaments] = useState<AdminTournament[]>([]);
@@ -275,10 +277,10 @@ export function MatchManagement() {
 
             if (editing) {
                 await matchesApi.update(editing.ID, data);
-                toast.success("Match updated");
+                toast.success(t("admin.matchManagement.matchUpdated"));
             } else {
                 await matchesApi.create(data);
-                toast.success("Match created");
+                toast.success(t("admin.matchManagement.matchCreated"));
             }
             setDialogOpen(false);
             load();
@@ -291,7 +293,7 @@ export function MatchManagement() {
         if (!deleteId) return;
         try {
             await matchesApi.delete(deleteId);
-            toast.success("Match deleted");
+            toast.success(t("admin.matchManagement.matchDeleted"));
             setDeleteId(null);
             load();
         } catch (e: any) {
@@ -317,10 +319,10 @@ export function MatchManagement() {
         if (!penaltyMatch?.bracketSlot_ID) return;
         const h = parseInt(penHome);
         const a = parseInt(penAway);
-        if (isNaN(h) || isNaN(a)) { toast.error("Please enter valid penalty scores."); return; }
-        if (h === a) { toast.error("Penalty scores cannot be equal \u2014 there must be a winner."); return; }
+        if (isNaN(h) || isNaN(a)) { toast.error(t("admin.matchManagement.invalidPenaltyScores")); return; }
+        if (h === a) { toast.error(t("admin.matchManagement.penaltyScoresEqual")); return; }
         const winnerId = h > a ? penaltyMatch.homeTeam_ID : penaltyMatch.awayTeam_ID;
-        if (!winnerId) { toast.error("Winner team is not resolved yet."); return; }
+        if (!winnerId) { toast.error(t("admin.matchManagement.winnerNotResolved")); return; }
         try {
             const res = await matchesApi.setPenaltyWinner(penaltyMatch.bracketSlot_ID, winnerId, h, a);
             toast.success(res.message);
@@ -336,7 +338,7 @@ export function MatchManagement() {
     async function handleSync() {
         const tournamentId = selectedTournament !== "all" ? selectedTournament : null;
         if (!tournamentId) {
-            toast.error("Please select a specific tournament to sync");
+            toast.error(t("admin.matchManagement.selectTournamentToSync"));
             return;
         }
         setSyncing(true);
@@ -467,7 +469,7 @@ export function MatchManagement() {
     if (loading) {
         return (
             <div className="flex h-64 items-center justify-center text-muted-foreground">
-                Loading matches…
+                {t("admin.matchManagement.loadingMatches")}
             </div>
         );
     }
@@ -479,14 +481,14 @@ export function MatchManagement() {
                 <div className="flex w-full justify-between ">
                     <div className="flex flex-col">
 
-                    <h1 className="text-2xl font-bold text-white">Match Management</h1>
+                    <h1 className="text-2xl font-bold text-white">{t("admin.matchManagement.title")}</h1>
                     <p className="text-sm text-muted-foreground">
-                        Manage all matches and schedules
+                        {t("admin.matchManagement.subtitle")}
                     </p>
                     </div>
                     <Button onClick={openAdd} className="">
                         <Plus className="mr-2 h-4 w-4" />
-                        Add Match
+                        {t("admin.matchManagement.addMatch")}
                     </Button>
                 </div>
                 <div className="flex flex-wrap items-center justify-start gap-3">
@@ -496,10 +498,10 @@ export function MatchManagement() {
                         onValueChange={setSelectedTournament}
                     >
                         <SelectTrigger className="w-[200px]">
-                            <SelectValue placeholder="Filter by tournament" />
+                            <SelectValue placeholder={t("admin.matchManagement.filterByTournament")} />
                         </SelectTrigger>
                         <SelectContent>
-                            <SelectItem value="all">All Tournaments</SelectItem>
+                            <SelectItem value="all">{t("admin.matchManagement.allTournaments")}</SelectItem>
                             {tournaments.map((t) => (
                                 <SelectItem key={t.ID} value={t.ID}>
                                     {t.name}
@@ -513,14 +515,14 @@ export function MatchManagement() {
                         onValueChange={setSelectedStatus}
                     >
                         <SelectTrigger className="w-[150px]">
-                            <SelectValue placeholder="Filter by status" />
+                            <SelectValue placeholder={t("admin.matchManagement.filterByStatus")} />
                         </SelectTrigger>
                         <SelectContent>
-                            <SelectItem value="all">All Status</SelectItem>
-                            <SelectItem value="upcoming">Upcoming</SelectItem>
-                            <SelectItem value="live">Live</SelectItem>
-                            <SelectItem value="finished">Finished</SelectItem>
-                            <SelectItem value="cancelled">Cancelled</SelectItem>
+                            <SelectItem value="all">{t("admin.matchManagement.allStatuses")}</SelectItem>
+                            <SelectItem value="upcoming">{t("common.status.upcoming")}</SelectItem>
+                            <SelectItem value="live">{t("common.status.live")}</SelectItem>
+                            <SelectItem value="finished">{t("common.status.completed")}</SelectItem>
+                            <SelectItem value="cancelled">{t("common.status.cancelled")}</SelectItem>
                         </SelectContent>
                     </Select>
                     {/* Stage filter */}
@@ -529,13 +531,13 @@ export function MatchManagement() {
                         onValueChange={setSelectedStage}
                     >
                         <SelectTrigger className="w-[180px]">
-                            <SelectValue placeholder="Filter by stage" />
+                            <SelectValue placeholder={t("admin.matchManagement.filterByStage")} />
                         </SelectTrigger>
                         <SelectContent>
-                            <SelectItem value="all">All Stages</SelectItem>
+                            <SelectItem value="all">{t("admin.matchManagement.allStages")}</SelectItem>
                             {STAGES.map((stage) => (
                                 <SelectItem key={stage.value} value={stage.value}>
-                                    {stage.label}
+                                    {t(stage.label)}
                                 </SelectItem>
                             ))}
                         </SelectContent>
@@ -546,12 +548,12 @@ export function MatchManagement() {
                         onValueChange={(v) => setSelectedHotMatch(v as HotMatchFilter)}
                     >
                         <SelectTrigger className="w-[140px]">
-                            <SelectValue placeholder="Filter hot match" />
+                            <SelectValue placeholder={t("admin.matchManagement.filterHotMatch")} />
                         </SelectTrigger>
                         <SelectContent>
-                            <SelectItem value="all">All</SelectItem>
-                            <SelectItem value="hot">Hot Matches</SelectItem>
-                            <SelectItem value="normal">Normal Matches</SelectItem>
+                            <SelectItem value="all">{t("admin.matchManagement.allHotFilter")}</SelectItem>
+                            <SelectItem value="hot">{t("admin.matchManagement.hotMatches")}</SelectItem>
+                            <SelectItem value="normal">{t("admin.matchManagement.normalMatches")}</SelectItem>
                         </SelectContent>
                     </Select>
                     {/* Day filter */}
@@ -564,7 +566,7 @@ export function MatchManagement() {
                     {/* Team search */}
                     <Input
                         className="w-[220px]"
-                        placeholder="Search team name..."
+                        placeholder={t("admin.matchManagement.searchTeams")}
                         value={teamSearch}
                         onChange={(e) => setTeamSearch(e.target.value)}
                     />
@@ -575,7 +577,7 @@ export function MatchManagement() {
                             onClick={() => setSyncDialogOpen(true)}
                         >
                             <RefreshCw className="mr-2 h-4 w-4" />
-                            Sync Results
+                            {t("admin.matchManagement.syncResults")}
                         </Button>
                     )}
                 </div>
@@ -589,7 +591,7 @@ export function MatchManagement() {
                     </div>
                     <div className="flex items-center gap-1">
                         <p className="text-2xl font-bold text-white">{upcoming}</p>
-                        <p className="text-xl text-muted-foreground">Upcoming</p>
+                        <p className="text-xl text-muted-foreground">{t("common.status.upcoming")}</p>
                     </div>
                 </Card>
                 <Card className="flex items-center gap-4 border-border bg-card p-4">
@@ -598,7 +600,7 @@ export function MatchManagement() {
                     </div>
                     <div className="flex items-center gap-1">
                         <p className="text-2xl font-bold text-white">{live}</p>
-                        <p className="text-xl text-muted-foreground">Live</p>
+                        <p className="text-xl text-muted-foreground">{t("common.status.live")}</p>
                     </div>
                 </Card>
                 <Card className="flex items-center gap-4 border-border bg-card p-4">
@@ -607,7 +609,7 @@ export function MatchManagement() {
                     </div>
                     <div className="flex items-center gap-1">
                         <p className="text-2xl font-bold text-white">{finished}</p>
-                        <p className="text-xl text-muted-foreground">Finished</p>
+                        <p className="text-xl text-muted-foreground">{t("admin.matchManagement.finished")}</p>
                     </div>
                 </Card>
             </div>
@@ -618,17 +620,17 @@ export function MatchManagement() {
                     <table className="w-full text-sm">
                         <thead>
                             <tr className="border-b border-border text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                                <th className="px-4 py-3 text-right">Home</th>
+                                <th className="px-4 py-3 text-right">{t("common.home")}</th>
                                 <th className="px-2 py-3 text-center"></th>
-                                <th className="px-4 py-3">Away</th>
-                                <th className="px-4 py-3">Stage</th>
-                                <th className="px-4 py-3">Date &amp; Time</th>
-                                <th className="px-4 py-3">Matchday</th>
+                                <th className="px-4 py-3">{t("common.away")}</th>
+                                <th className="px-4 py-3">{t("admin.matchManagement.stage")}</th>
+                                <th className="px-4 py-3">{t("admin.matchManagement.dateAndTime")}</th>
+                                <th className="px-4 py-3">{t("admin.matchManagement.matchday")}</th>
                                 {/* <th className="px-4 py-3">Day</th> */}
-                                <th className="px-4 py-3">Hot</th>
-                                <th className="px-4 py-3">Result</th>
-                                <th className="px-4 py-3">Status</th>
-                                <th className="px-4 py-3">Actions</th>
+                                <th className="px-4 py-3">{t("common.hot")}</th>
+                                <th className="px-4 py-3">{t("admin.matchManagement.result")}</th>
+                                <th className="px-4 py-3">{t("admin.matchManagement.matchStatus")}</th>
+                                <th className="px-4 py-3">{t("common.actions")}</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -670,7 +672,7 @@ export function MatchManagement() {
                                     </td>
                                     {/* vs */}
                                     <td className="px-2 py-3 text-center text-xs text-muted-foreground">
-                                        vs
+                                        {t("common.vs").toLowerCase()}
                                     </td>
                                     {/* Away team */}
                                     <td className="px-4 py-3">
@@ -718,10 +720,10 @@ export function MatchManagement() {
                                     <td className="px-4 py-3">
                                         {m.isHotMatch ? (
                                             <Badge className="border-amber-500/40 bg-amber-500/10 text-amber-400" variant="outline">
-                                                Hot
+                                                {t("common.hot")}
                                             </Badge>
                                         ) : (
-                                            <span className="text-muted-foreground">No</span>
+                                            <span className="text-muted-foreground">{t("admin.matchManagement.no")}</span>
                                         )}
                                     </td>
                                     <td className="px-4 py-3 font-mono text-white">
@@ -748,7 +750,7 @@ export function MatchManagement() {
                                             <DropdownMenuContent align="end" className="w-48">
                                                 <DropdownMenuItem onClick={() => navigate(`/admin/matches/${m.ID}`)}>
                                                     <Settings className="mr-2 h-4 w-4" />
-                                                    Configure
+                                                    {t("admin.matchManagement.configure")}
                                                 </DropdownMenuItem>
                                                 <DropdownMenuSeparator />
                                                 
@@ -760,12 +762,12 @@ export function MatchManagement() {
                                                         {m.bettingLocked ? (
                                                             <>
                                                                 <Unlock className="mr-2 h-4 w-4" />
-                                                                Unlock Betting
+                                                                {t("admin.matchManagement.unlockBetting")}
                                                             </>
                                                         ) : (
                                                             <>
                                                                 <Lock className="mr-2 h-4 w-4" />
-                                                                Lock Betting
+                                                                {t("admin.matchManagement.lockBetting")}
                                                             </>
                                                         )}
                                                     </DropdownMenuItem>
@@ -773,19 +775,19 @@ export function MatchManagement() {
                                                 {(m.status === "upcoming" || m.status === "live") && (
                                                     <DropdownMenuItem onClick={() => openResult(m)}>
                                                         <Trophy className="mr-2 h-4 w-4" />
-                                                        {m.status === "live" ? "Update Result" : "Enter Result"}
+                                                        {m.status === "live" ? t("admin.matchManagement.updateResult") : t("admin.matchManagement.enterResult")}
                                                     </DropdownMenuItem>
                                                 )}
                                                 {m.status === "finished" && (
                                                     <DropdownMenuItem onClick={() => openCorrectResult(m)}>
                                                         <Edit className="mr-2 h-4 w-4" />
-                                                        Correct Result
+                                                        {t("admin.matchManagement.correctResult")}
                                                     </DropdownMenuItem>
                                                 )}
                                                 {m.status === "finished" && m.bracketSlot_ID && (
                                                     <DropdownMenuItem onClick={() => { setPenaltyMatch(m); setPenHome(""); setPenAway(""); setPenaltyDialogOpen(true); }}>
                                                         <Trophy className="mr-2 h-4 w-4 text-amber-400" />
-                                                        Penalty Shootout
+                                                        {t("admin.matchManagement.penaltyShootout")}
                                                     </DropdownMenuItem>
                                                 )}
                                                 {m.status !== "finished" && (
@@ -793,14 +795,14 @@ export function MatchManagement() {
                                                         <DropdownMenuSeparator />
                                                         <DropdownMenuItem onClick={() => openEdit(m)}>
                                                             <Edit className="mr-2 h-4 w-4" />
-                                                            Edit Match
+                                                            {t("admin.matchManagement.editMatch")}
                                                         </DropdownMenuItem>
                                                         <DropdownMenuItem
                                                             variant="destructive"
                                                             onClick={() => setDeleteId(m.ID)}
                                                         >
                                                             <Trash2 className="mr-2 h-4 w-4" />
-                                                            Delete Match
+                                                            {t("admin.matchManagement.deleteMatch")}
                                                         </DropdownMenuItem>
                                                     </>
                                                 )}
@@ -816,7 +818,7 @@ export function MatchManagement() {
                                         colSpan={10}
                                         className="px-4 py-8 text-center text-muted-foreground"
                                     >
-                                        No matches found
+                                        {t("admin.matchManagement.noMatches")}
                                     </td>
                                 </tr>
                             )}
@@ -830,21 +832,21 @@ export function MatchManagement() {
                 <DialogContent className="border-border bg-card text-white sm:max-w-lg">
                     <DialogHeader>
                         <DialogTitle>
-                            {editing ? "Edit Match" : "Add New Match"}
+                            {editing ? t("admin.matchManagement.editMatch") : t("admin.matchManagement.addNewMatch")}
                         </DialogTitle>
                     </DialogHeader>
                     <div className="grid gap-4 py-4">
                         <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-2">
                                 <label className="text-xs font-medium text-muted-foreground">
-                                    Home Team
+                                    {t("admin.matchManagement.homeTeam")}
                                 </label>
                                 <Select
                                     value={form.homeTeam_ID}
                                     onValueChange={(v) => setForm({ ...form, homeTeam_ID: v })}
                                 >
                                     <SelectTrigger>
-                                        <SelectValue placeholder="Select team" />
+                                        <SelectValue placeholder={t("admin.matchManagement.selectTeam")} />
                                     </SelectTrigger>
                                     <SelectContent>
                                         {teams.map((t) => (
@@ -857,14 +859,14 @@ export function MatchManagement() {
                             </div>
                             <div className="space-y-2">
                                 <label className="text-xs font-medium text-muted-foreground">
-                                    Away Team
+                                    {t("admin.matchManagement.awayTeam")}
                                 </label>
                                 <Select
                                     value={form.awayTeam_ID}
                                     onValueChange={(v) => setForm({ ...form, awayTeam_ID: v })}
                                 >
                                     <SelectTrigger>
-                                        <SelectValue placeholder="Select team" />
+                                        <SelectValue placeholder={t("admin.matchManagement.selectTeam")} />
                                     </SelectTrigger>
                                     <SelectContent>
                                         {teams.map((t) => (
@@ -878,14 +880,14 @@ export function MatchManagement() {
                         </div>
                         <div className="space-y-2">
                             <label className="text-xs font-medium text-muted-foreground">
-                                Tournament
+                                {t("admin.matchManagement.tournament")}
                             </label>
                             <Select
                                 value={form.tournament_ID}
                                 onValueChange={(v) => setForm({ ...form, tournament_ID: v })}
                             >
                                 <SelectTrigger>
-                                    <SelectValue placeholder="Select tournament" />
+                                    <SelectValue placeholder={t("admin.matchManagement.selectTournament")} />
                                 </SelectTrigger>
                                 <SelectContent>
                                     {tournaments.map((t) => (
@@ -899,7 +901,7 @@ export function MatchManagement() {
                         <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-2">
                                 <label className="text-xs font-medium text-muted-foreground">
-                                    Date &amp; Time
+                                    {t("admin.matchManagement.dateAndTime")}
                                 </label>
                                 <Input
                                     type="datetime-local"
@@ -909,7 +911,7 @@ export function MatchManagement() {
                             </div>
                             <div className="space-y-2">
                                 <label className="text-xs font-medium text-muted-foreground">
-                                    Stage
+                                    {t("admin.matchManagement.stage")}
                                 </label>
                                 <Select
                                     value={form.stage}
@@ -921,7 +923,7 @@ export function MatchManagement() {
                                     <SelectContent>
                                         {STAGES.map((s) => (
                                             <SelectItem key={s.value} value={s.value}>
-                                                {s.label}
+                                                {t(s.label)}
                                             </SelectItem>
                                         ))}
                                     </SelectContent>
@@ -930,7 +932,7 @@ export function MatchManagement() {
                         </div>
                         <div className="space-y-2">
                             <label className="text-xs font-medium text-muted-foreground">
-                                Status
+                                {t("admin.matchManagement.matchStatus")}
                             </label>
                             <Select
                                 value={form.status}
@@ -942,7 +944,7 @@ export function MatchManagement() {
                                 <SelectContent>
                                     {MATCH_STATUSES.map((statusOption) => (
                                         <SelectItem key={statusOption.value} value={statusOption.value}>
-                                            {statusOption.label}
+                                            {t(statusOption.label)}
                                         </SelectItem>
                                     ))}
                                 </SelectContent>
@@ -951,17 +953,17 @@ export function MatchManagement() {
                         <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-2">
                                 <label className="text-xs font-medium text-muted-foreground">
-                                    Venue
+                                    {t("admin.matchManagement.venue")}
                                 </label>
                                 <Input
                                     value={form.venue}
                                     onChange={(e) => setForm({ ...form, venue: e.target.value })}
-                                    placeholder="Stadium name"
+                                    placeholder={t("admin.matchManagement.stadiumPlaceholder")}
                                 />
                             </div>
                             <div className="space-y-2">
                                 <label className="text-xs font-medium text-muted-foreground">
-                                    Matchday
+                                    {t("admin.matchManagement.matchday")}
                                 </label>
                                 <Input
                                     type="number"
@@ -975,7 +977,7 @@ export function MatchManagement() {
                         </div>
                         <div className="space-y-2">
                             <label className="text-xs font-medium text-muted-foreground">
-                                Hot Match
+                                {t("admin.matchManagement.hotMatch")}
                             </label>
                             <div className="flex items-center gap-5 rounded-md border border-border bg-surface-dark/40 px-3 py-2">
                                 <label className="inline-flex items-center gap-2 text-sm text-white">
@@ -986,7 +988,7 @@ export function MatchManagement() {
                                         onChange={() => setForm({ ...form, isHotMatch: true })}
                                         className="h-4 w-4 accent-primary"
                                     />
-                                    Hot
+                                    {t("common.hot")}
                                 </label>
                                 <label className="inline-flex items-center gap-2 text-sm text-white">
                                     <input
@@ -996,17 +998,17 @@ export function MatchManagement() {
                                         onChange={() => setForm({ ...form, isHotMatch: false })}
                                         className="h-4 w-4 accent-primary"
                                     />
-                                    Normal
+                                    {t("common.normal")}
                                 </label>
                             </div>
                         </div>
                     </div>
                     <DialogFooter>
                         <Button variant="outline" onClick={() => setDialogOpen(false)}>
-                            Cancel
+                            {t("common.cancel")}
                         </Button>
                         <Button onClick={handleSave}>
-                            {editing ? "Update" : "Create"} Match
+                            {editing ? t("common.update") : t("common.create")} {t("admin.matchManagement.match")}
                         </Button>
                     </DialogFooter>
                 </DialogContent>
@@ -1016,7 +1018,7 @@ export function MatchManagement() {
             <Dialog open={resultDialogOpen} onOpenChange={setResultDialogOpen}>
                 <DialogContent className="border-border bg-card text-white sm:max-w-sm">
                     <DialogHeader>
-                        <DialogTitle>{isCorrection ? "Correct Match Result" : "Enter Match Result"}</DialogTitle>
+                        <DialogTitle>{isCorrection ? t("admin.matchManagement.correctResult") : t("admin.matchManagement.enterMatchResult")}</DialogTitle>
                     </DialogHeader>
                     {resultMatch && (
                         <div className="space-y-4 py-4">
@@ -1027,12 +1029,12 @@ export function MatchManagement() {
                             </p>
                             {isCorrection && (
                                 <p className="text-center text-xs text-amber-400">
-                                    Predictions and score bets will be re-scored, and the leaderboard will be recalculated.
+                                    {t("admin.matchManagement.reScoredWarning")}
                                 </p>
                             )}
                             <div className="flex items-center justify-center gap-4">
                                 <div className="flex items-center gap-2 text-center">
-                                    <label className=" text-muted-foreground">Home</label>
+                                    <label className=" text-muted-foreground">{t("common.home")}</label>
                                     <Input
                                         type="number"
                                         min="0"
@@ -1054,7 +1056,7 @@ export function MatchManagement() {
                                         value={resultAway}
                                         onChange={(e) => setResultAway(e.target.value)}
                                     />
-                                    <label className="text-muted-foreground">Away</label>
+                                    <label className="text-muted-foreground">{t("common.away")}</label>
 
                                 </div>
                             </div>
@@ -1065,13 +1067,13 @@ export function MatchManagement() {
                             variant="outline"
                             onClick={() => setResultDialogOpen(false)}
                         >
-                            Cancel
+                            {t("common.cancel")}
                         </Button>
                         <Button
                             onClick={handleEnterResult}
                             disabled={resultHome === "" || resultAway === ""}
                         >
-                            {isCorrection ? "Save Correction" : "Submit Result"}
+                            {isCorrection ? t("admin.matchManagement.saveCorrection") : t("admin.matchManagement.submitResult")}
                         </Button>
                     </DialogFooter>
                 </DialogContent>
@@ -1081,12 +1083,12 @@ export function MatchManagement() {
             <Dialog open={penaltyDialogOpen} onOpenChange={(o) => { if (!o) { setPenHome(""); setPenAway(""); } setPenaltyDialogOpen(o); }}>
                 <DialogContent className="border-border bg-card text-white sm:max-w-sm">
                     <DialogHeader>
-                        <DialogTitle>Penalty Shootout Result</DialogTitle>
+                        <DialogTitle>{t("admin.matchDetail.penaltyTitle")}</DialogTitle>
                     </DialogHeader>
                     {penaltyMatch && (
                         <div className="space-y-5 py-4">
                             <p className="text-center text-xs text-amber-400">
-                                ⚠ Only applicable when aggregate is level and no winner is set yet.
+                                ⚠ {t("admin.matchDetail.penaltyWarning")}
                             </p>
                             <div className="flex items-end justify-center gap-3">
                                 <div className="space-y-1 text-center">
@@ -1115,13 +1117,13 @@ export function MatchManagement() {
                     )}
                     <DialogFooter>
                         <Button variant="outline" onClick={() => { setPenHome(""); setPenAway(""); setPenaltyDialogOpen(false); }}>
-                            Cancel
+                            {t("common.cancel")}
                         </Button>
                         <Button
                             disabled={penHome === "" || penAway === ""}
                             onClick={handleSetPenaltyWinner}
                         >
-                            Confirm
+                            {t("common.confirm")}
                         </Button>
                     </DialogFooter>
                 </DialogContent>
@@ -1134,18 +1136,18 @@ export function MatchManagement() {
             >
                 <AlertDialogContent className="border-border bg-card text-white">
                     <AlertDialogHeader>
-                        <AlertDialogTitle>Delete Match</AlertDialogTitle>
+                        <AlertDialogTitle>{t("admin.matchManagement.deleteTitle")}</AlertDialogTitle>
                         <AlertDialogDescription>
-                            Are you sure? This action cannot be undone.
+                            {t("admin.matchManagement.deleteDescription")}
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
                         <AlertDialogAction
                             onClick={handleDelete}
                             className="bg-destructive text-white hover:bg-destructive/90"
                         >
-                            Delete
+                            {t("common.delete")}
                         </AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>
@@ -1155,18 +1157,16 @@ export function MatchManagement() {
             <Dialog open={syncDialogOpen} onOpenChange={setSyncDialogOpen}>
                 <DialogContent className="border-border bg-card text-white sm:max-w-sm">
                     <DialogHeader>
-                        <DialogTitle>Sync Match Results</DialogTitle>
+                        <DialogTitle>{t("admin.matchManagement.syncTitle")}</DialogTitle>
                     </DialogHeader>
                     <div className="space-y-4 py-4">
                         <p className="text-sm text-muted-foreground">
-                            Fetches match status, scores, venues, and team info from
-                            football-data.org and updates all matches linked by their
-                            external ID. Uses the built-in API token.
+                            {t("admin.matchManagement.syncDescription")}
                         </p>
                     </div>
                     <DialogFooter>
                         <Button variant="outline" onClick={() => setSyncDialogOpen(false)}>
-                            Cancel
+                            {t("common.cancel")}
                         </Button>
                         <Button
                             onClick={handleSync}
@@ -1177,7 +1177,7 @@ export function MatchManagement() {
                             ) : (
                                 <RefreshCw className="mr-2 h-4 w-4" />
                             )}
-                            {syncing ? "Syncing…" : "Sync Now"}
+                            {syncing ? t("admin.matchManagement.syncing") : t("admin.matchManagement.syncNow")}
                         </Button>
                     </DialogFooter>
                 </DialogContent>

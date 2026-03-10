@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Plus, Edit, Trash2 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -37,6 +38,7 @@ const CONFEDERATIONS = ["UEFA", "CONMEBOL", "CAF", "AFC", "CONCACAF", "OFC"];
 
 export function TeamManagement() {
     const navigate = useNavigate();
+    const { t } = useTranslation();
     const [allTeams, setAllTeams] = useState<AdminTeam[]>([]);
     const [tournaments, setTournaments] = useState<AdminTournament[]>([]);
     const [tournamentTeams, setTournamentTeams] = useState<AdminTournamentTeam[]>([]);
@@ -139,15 +141,15 @@ export function TeamManagement() {
     async function handleSave() {
         // Validation
         if (!form.name.trim()) {
-            toast.error("Team name is required");
+            toast.error(t("admin.teamManagement.nameRequired"));
             return;
         }
         if (!form.flagCode.trim()) {
-            toast.error("Flag code is required");
+            toast.error(t("admin.teamManagement.flagRequired"));
             return;
         }
         if (form.tla && form.tla.length > 10) {
-            toast.error("TLA must be 10 characters or fewer");
+            toast.error(t("admin.teamManagement.tlaLength"));
             return;
         }
 
@@ -163,10 +165,10 @@ export function TeamManagement() {
             };
             if (editing) {
                 await teamsApi.update(editing.ID, data);
-                toast.success("Team updated");
+                toast.success(t("admin.teamManagement.teamUpdated"));
             } else {
                 await teamsApi.create(data);
-                toast.success("Team created");
+                toast.success(t("admin.teamManagement.teamCreated"));
             }
             setDialogOpen(false);
             // Reload
@@ -184,7 +186,7 @@ export function TeamManagement() {
         if (!deleteId) return;
         try {
             await teamsApi.delete(deleteId);
-            toast.success("Team deleted");
+            toast.success(t("admin.teamManagement.teamDeleted"));
             setDeleteId(null);
             const teams = await teamsApi.list();
             setAllTeams(teams);
@@ -199,7 +201,7 @@ export function TeamManagement() {
     if (loading) {
         return (
             <div className="flex h-64 items-center justify-center text-muted-foreground">
-                Loading teams…
+                {t("common.loading")}
             </div>
         );
     }
@@ -208,9 +210,9 @@ export function TeamManagement() {
         <div className="space-y-6 p-6">
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-2xl font-bold text-white">Team Management</h1>
+                    <h1 className="text-2xl font-bold text-white">{t("admin.teamManagement.title")}</h1>
                     <p className="text-sm text-muted-foreground">
-                        Manage teams and their information
+                        {t("admin.teamManagement.subtitle")}
                     </p>
                 </div>
                 <div className="flex items-center gap-3">
@@ -223,7 +225,7 @@ export function TeamManagement() {
                             <SelectValue placeholder="Filter by tournament" />
                         </SelectTrigger>
                         <SelectContent>
-                            <SelectItem value="all">All Teams</SelectItem>
+                            <SelectItem value="all">{t("admin.teamManagement.allTeams")}</SelectItem>
                             {tournaments.map((t) => (
                                 <SelectItem key={t.ID} value={t.ID}>
                                     {t.name}
@@ -233,7 +235,7 @@ export function TeamManagement() {
                     </Select>
                     <Button onClick={openAdd}>
                         <Plus className="mr-2 h-4 w-4" />
-                        Add Team
+                        {t("admin.teamManagement.addTeam")}
                     </Button>
                 </div>
             </div>
@@ -243,17 +245,17 @@ export function TeamManagement() {
                     <table className="w-full text-sm">
                         <thead>
                             <tr className="border-b border-border text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                                <th className="px-4 py-3">Team</th>
-                                <th className="px-4 py-3">TLA</th>
-                                <th className="px-4 py-3">Confederation</th>
-                                <th className="px-4 py-3">FIFA Rank</th>
+                                <th className="px-4 py-3">{t("admin.teamManagement.team")}</th>
+                                <th className="px-4 py-3">{t("admin.teamManagement.tla")}</th>
+                                <th className="px-4 py-3">{t("admin.teamManagement.confederation")}</th>
+                                <th className="px-4 py-3">{t("admin.teamManagement.fifaRank")}</th>
                                 {selectedTournament !== "all" && (
                                     <>
-                                        <th className="px-4 py-3">Position</th>
-                                        {/* <th className="px-4 py-3">Status</th> */}
+                                        <th className="px-4 py-3">{t("admin.teamManagement.position")}</th>
+                                        {/* <th className="px-4 py-3">{t("admin.teamManagement.status")}</th> */}
                                     </>
                                 )}
-                                <th className="px-4 py-3">Actions</th>
+                                <th className="px-4 py-3">{t("common.actions")}</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -355,7 +357,7 @@ export function TeamManagement() {
                                         colSpan={selectedTournament !== "all" ? 7 : 5}
                                         className="px-4 py-8 text-center text-muted-foreground"
                                     >
-                                        No teams found
+                                        {t("admin.teamManagement.noTeams")}
                                     </td>
                                 </tr>
                             )}
@@ -368,12 +370,12 @@ export function TeamManagement() {
             <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
                 <DialogContent className="border-border bg-card text-white sm:max-w-lg">
                     <DialogHeader>
-                        <DialogTitle>{editing ? "Edit Team" : "Add New Team"}</DialogTitle>
+                        <DialogTitle>{editing ? t("admin.teamManagement.editTeam") : t("admin.teamManagement.addTeamFull")}</DialogTitle>
                     </DialogHeader>
                     <div className="grid gap-4 py-4">
                         <div className="space-y-2">
                             <label className="text-xs font-medium text-muted-foreground">
-                                Team Name *
+                                {t("admin.teamManagement.teamNameLabel")}
                             </label>
                             <Input
                                 value={form.name}
@@ -384,7 +386,7 @@ export function TeamManagement() {
                         <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-2">
                                 <label className="text-xs font-medium text-muted-foreground">
-                                    Short Name
+                                    {t("admin.teamManagement.shortName")}
                                 </label>
                                 <Input
                                     value={form.shortName}
@@ -396,7 +398,7 @@ export function TeamManagement() {
                             </div>
                             <div className="space-y-2">
                                 <label className="text-xs font-medium text-muted-foreground">
-                                    TLA (Abbreviation)
+                                    {t("admin.teamManagement.tlaLabel")}
                                 </label>
                                 <Input
                                     value={form.tla}
@@ -410,7 +412,7 @@ export function TeamManagement() {
                         </div>
                         <div className="space-y-2">
                             <label className="text-xs font-medium text-muted-foreground">
-                                Crest URL
+                                {t("admin.teamManagement.crestUrl")}
                             </label>
                             <Input
                                 value={form.crest}
@@ -434,7 +436,7 @@ export function TeamManagement() {
                         <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-2">
                                 <label className="text-xs font-medium text-muted-foreground">
-                                    Flag Code (ISO) *
+                                    {t("admin.teamManagement.flagCode")}
                                 </label>
                                 <Input
                                     value={form.flagCode}
@@ -447,7 +449,7 @@ export function TeamManagement() {
                             </div>
                             <div className="space-y-2">
                                 <label className="text-xs font-medium text-muted-foreground">
-                                    Confederation
+                                    {t("admin.teamManagement.confederation")}
                                 </label>
                                 <Select
                                     value={form.confederation}
@@ -470,7 +472,7 @@ export function TeamManagement() {
                         </div>
                         <div className="space-y-2">
                             <label className="text-xs font-medium text-muted-foreground">
-                                FIFA Ranking
+                                {t("admin.teamManagement.fifaRanking")}
                             </label>
                             <Input
                                 type="number"
@@ -484,10 +486,10 @@ export function TeamManagement() {
                     </div>
                     <DialogFooter>
                         <Button variant="outline" onClick={() => setDialogOpen(false)}>
-                            Cancel
+                            {t("common.cancel")}
                         </Button>
                         <Button onClick={handleSave}>
-                            {editing ? "Update" : "Create"} Team
+                            {editing ? t("common.update") : t("common.create")} {t("admin.teamManagement.team")}
                         </Button>
                     </DialogFooter>
                 </DialogContent>
@@ -497,18 +499,18 @@ export function TeamManagement() {
             <AlertDialog open={!!deleteId} onOpenChange={(open) => !open && setDeleteId(null)}>
                 <AlertDialogContent className="border-border bg-card text-white">
                     <AlertDialogHeader>
-                        <AlertDialogTitle>Delete Team</AlertDialogTitle>
+                        <AlertDialogTitle>{t("admin.teamManagement.deleteTitle")}</AlertDialogTitle>
                         <AlertDialogDescription>
-                            Are you sure? This will also affect any matches referencing this team.
+                            {t("admin.teamManagement.deleteDescription")}
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
                         <AlertDialogAction
                             onClick={handleDelete}
                             className="bg-destructive text-white hover:bg-destructive/90"
                         >
-                            Delete
+                            {t("common.delete")}
                         </AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>

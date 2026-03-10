@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Trophy, Medal, Award, User } from "lucide-react";
 import { playerLeaderboardApi } from "@/services/playerApi";
 import type { TournamentLeaderboardItem } from "@/types";
@@ -25,6 +26,7 @@ function rankClass(rank: number) {
 export function TournamentLeaderboardWidget({ tournamentId, maxEntries = 5 }: TournamentLeaderboardWidgetProps) {
     const [entries, setEntries] = useState<TournamentLeaderboardItem[]>([]);
     const [loading, setLoading] = useState(false);
+    const { t } = useTranslation();
 
     useEffect(() => {
         if (!tournamentId) {
@@ -45,20 +47,20 @@ export function TournamentLeaderboardWidget({ tournamentId, maxEntries = 5 }: To
             <div className="flex items-center justify-between border-b border-border bg-surface/50 px-4 py-3">
                 <h3 className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-muted-foreground">
                     <Trophy className="h-3.5 w-3.5 text-primary" />
-                    Leaderboard
+                    {t("leaderboard.title")}
                 </h3>
                 <span className="rounded bg-primary/15 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-primary">
-                    Top {maxEntries}
+                    {t("leaderboard.topN", { count: maxEntries })}
                 </span>
             </div>
 
             {loading ? (
                 <div className="flex h-24 items-center justify-center text-xs text-muted-foreground">
-                    Loading…
+                    {t("common.loading")}
                 </div>
             ) : entries.length === 0 ? (
                 <div className="flex h-24 items-center justify-center text-xs text-muted-foreground">
-                    No predictions yet
+                    {t("leaderboard.noPredictions")}
                 </div>
             ) : (
                 <div className="divide-y divide-border/50">

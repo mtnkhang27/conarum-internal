@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { Users, Search, RefreshCw, Trash2, Flame, User } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -19,6 +20,7 @@ import { playersApi } from "@/services/adminApi";
 import type { AdminPlayer } from "@/types/admin";
 
 export function PlayerManagement() {
+    const { t } = useTranslation();
     const [players, setPlayers] = useState<AdminPlayer[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState("");
@@ -57,7 +59,7 @@ export function PlayerManagement() {
         if (!deleteId) return;
         try {
             await playersApi.delete(deleteId);
-            toast.success("Player deleted");
+            toast.success(t("admin.playerManagement.playerDeleted"));
             setDeleteId(null);
             load();
         } catch (e: any) {
@@ -76,7 +78,7 @@ export function PlayerManagement() {
     if (loading) {
         return (
             <div className="flex h-64 items-center justify-center text-muted-foreground">
-                Loading players…
+                {t("admin.playerManagement.loadingPlayers")}
             </div>
         );
     }
@@ -86,9 +88,9 @@ export function PlayerManagement() {
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-2xl font-bold text-white">Player Management</h1>
+                    <h1 className="text-2xl font-bold text-white">{t("admin.playerManagement.title")}</h1>
                     <p className="text-sm text-muted-foreground">
-                        View and manage registered players
+                        {t("admin.playerManagement.subtitle")}
                     </p>
                 </div>
                 <Button
@@ -99,7 +101,7 @@ export function PlayerManagement() {
                     <RefreshCw
                         className={`mr-2 h-4 w-4 ${recalculating ? "animate-spin" : ""}`}
                     />
-                    Recalculate Leaderboard
+                    {t("admin.playerManagement.recalculateLeaderboard")}
                 </Button>
             </div>
 
@@ -111,7 +113,7 @@ export function PlayerManagement() {
                     </div>
                     <div>
                         <p className="text-2xl font-bold text-white">{players.length}</p>
-                        <p className="text-xs text-muted-foreground">Total Players</p>
+                        <p className="text-xs text-muted-foreground">{t("admin.playerManagement.totalPlayers")}</p>
                     </div>
                 </Card>
                 <Card className="flex items-center gap-4 border-border bg-card p-4">
@@ -122,7 +124,7 @@ export function PlayerManagement() {
                         <p className="text-2xl font-bold text-white">
                             {players.filter((p) => Number(p.totalPredictions) > 0).length}
                         </p>
-                        <p className="text-xs text-muted-foreground">Active Players</p>
+                        <p className="text-xs text-muted-foreground">{t("admin.playerManagement.activePlayers")}</p>
                     </div>
                 </Card>
                 <Card className="flex items-center gap-4 border-border bg-card p-4">
@@ -131,7 +133,7 @@ export function PlayerManagement() {
                     </div>
                     <div>
                         <p className="text-2xl font-bold text-white">{totalPoints}</p>
-                        <p className="text-xs text-muted-foreground">Total Points</p>
+                        <p className="text-xs text-muted-foreground">{t("admin.playerManagement.totalPoints")}</p>
                     </div>
                 </Card>
             </div>
@@ -141,7 +143,7 @@ export function PlayerManagement() {
                 <div className="flex items-center gap-3">
                     <Search className="h-4 w-4 text-muted-foreground" />
                     <Input
-                        placeholder="Search by name or email…"
+                        placeholder={t("admin.playerManagement.searchPlayers")}
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                         className="max-w-sm"
@@ -155,14 +157,14 @@ export function PlayerManagement() {
                     <table className="w-full text-sm">
                         <thead>
                             <tr className="border-b border-border text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                                <th className="px-4 py-3">Rank</th>
-                                <th className="px-4 py-3">Player</th>
-                                <th className="px-4 py-3">Email</th>
-                                <th className="px-4 py-3 text-right">Points</th>
-                                <th className="px-4 py-3 text-right">Correct</th>
-                                <th className="px-4 py-3 text-right">Total</th>
-                                <th className="px-4 py-3 text-right">Streak</th>
-                                <th className="px-4 py-3">Actions</th>
+                                <th className="px-4 py-3">{t("admin.playerManagement.rank")}</th>
+                                <th className="px-4 py-3">{t("admin.playerManagement.player")}</th>
+                                <th className="px-4 py-3">{t("admin.playerManagement.email")}</th>
+                                <th className="px-4 py-3 text-right">{t("admin.playerManagement.points")}</th>
+                                <th className="px-4 py-3 text-right">{t("admin.playerManagement.correct")}</th>
+                                <th className="px-4 py-3 text-right">{t("admin.playerManagement.total")}</th>
+                                <th className="px-4 py-3 text-right">{t("admin.playerManagement.streak")}</th>
+                                <th className="px-4 py-3">{t("common.actions")}</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -251,18 +253,18 @@ export function PlayerManagement() {
             <AlertDialog open={!!deleteId} onOpenChange={(open) => !open && setDeleteId(null)}>
                 <AlertDialogContent className="border-border bg-card text-white">
                     <AlertDialogHeader>
-                        <AlertDialogTitle>Delete Player</AlertDialogTitle>
+                        <AlertDialogTitle>{t("admin.playerManagement.deleteTitle")}</AlertDialogTitle>
                         <AlertDialogDescription>
-                            This will remove the player and all their predictions.
+                            {t("admin.playerManagement.deleteDescription")}
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
                         <AlertDialogAction
                             onClick={handleDelete}
                             className="bg-destructive text-white hover:bg-destructive/90"
                         >
-                            Delete
+                            {t("common.delete")}
                         </AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>

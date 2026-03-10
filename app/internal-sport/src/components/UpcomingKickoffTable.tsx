@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import type { UpcomingMatch } from "@/types";
 
 interface UpcomingKickoffTableProps {
@@ -5,20 +6,21 @@ interface UpcomingKickoffTableProps {
 }
 
 export function UpcomingKickoffTable({ items }: UpcomingKickoffTableProps) {
+    const { t } = useTranslation();
     return (
         <div className="mt-6">
             <h3 className="mb-3 flex items-center gap-2 text-sm font-bold text-white">
                 <span className="h-5 w-1 rounded-full bg-success" />
-                Upcoming Kickoffs
+                {t("sport.upcomingKickoffs")}
             </h3>
 
             <div className="overflow-hidden rounded-lg border border-border bg-card">
                 <div className="overflow-x-auto">
                     <div className="grid min-w-[560px] grid-cols-12 gap-2 border-b border-border bg-surface/50 px-4 py-2.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                        <div className="col-span-5">Match</div>
-                        <div className="col-span-3 text-center">Kickoff</div>
-                        <div className="col-span-2 text-center">Stage</div>
-                        <div className="col-span-2 text-center">Points</div>
+                        <div className="col-span-5">{t("sport.match")}</div>
+                        <div className="col-span-3 text-center">{t("sport.kickoff")}</div>
+                        <div className="col-span-2 text-center">{t("admin.matchManagement.stage")}</div>
+                        <div className="col-span-2 text-center">{t("sport.points")}</div>
                     </div>
 
                     <div className="min-w-[560px] divide-y divide-border">
@@ -35,7 +37,7 @@ export function UpcomingKickoffTable({ items }: UpcomingKickoffTableProps) {
                                                 : <span className={`fi fi-${item.home.flag} rounded-sm`} />}
                                             {item.home.name}
                                         </span>
-                                        <span className="text-[10px] font-black text-muted-foreground">VS</span>
+                                        <span className="text-[10px] font-black text-muted-foreground">{t("common.vs")}</span>
                                         <span className="flex items-center gap-1 text-sm font-bold text-white">
                                             {item.away.crest
                                                 ? <img src={item.away.crest} alt={item.away.name} className="h-4 w-4 object-contain" />
@@ -50,7 +52,7 @@ export function UpcomingKickoffTable({ items }: UpcomingKickoffTableProps) {
                                         <span className="text-xs font-semibold text-foreground/80">{item.kickoff}</span>
                                         {item.isSoon && (
                                             <span className="rounded border border-primary/40 bg-primary/20 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-primary">
-                                                Kickoff Soon
+                                                {t("sport.kickoffSoon")}
                                             </span>
                                         )}
                                     </div>

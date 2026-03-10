@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { User } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import {
     AlertDialog,
@@ -149,6 +150,7 @@ const composeDisplayName = (firstName: string, lastName: string, fallback = ""):
 };
 
 export function AccountPage() {
+    const { t } = useTranslation();
     const [profile, setProfile] = useState<UserProfile>(EMPTY_PROFILE);
     const [draft, setDraft] = useState<UserProfile>(EMPTY_PROFILE);
     const [isEditing, setIsEditing] = useState(false);
@@ -354,7 +356,7 @@ export function AccountPage() {
         return (
             <div className="p-4 pb-20 xl:pb-4">
                 <div className="rounded-xl border border-border bg-card p-6 text-sm text-muted-foreground">
-                    Loading profile...
+                    {t("common.loading")}
                 </div>
             </div>
         );
@@ -365,10 +367,10 @@ export function AccountPage() {
             <div className="mb-6">
                 <h2 className="flex items-center gap-2 text-lg font-bold text-white">
                     <span className="h-6 w-1 rounded-full bg-primary" />
-                    Account
+                    {t("account.title")}
                 </h2>
                 <p className="mt-1 text-xs text-muted-foreground">
-                    Display and edit your basic user information.
+                    {t("account.subtitle")}
                 </p>
             </div>
 
@@ -402,7 +404,7 @@ export function AccountPage() {
                             className={`text-[11px] font-bold uppercase tracking-wide ${isEditing ? "bg-primary text-white hover:bg-primary/80" : "cursor-not-allowed bg-surface text-muted-foreground"
                                 }`}
                         >
-                            Upload Avatar
+                            {t("account.profile.uploadAvatar")}
                         </Button>
                         <Button
                             size="sm"
@@ -412,7 +414,7 @@ export function AccountPage() {
                             className={`text-[11px] font-bold uppercase tracking-wide ${!isEditing ? "cursor-not-allowed" : ""
                                 }`}
                         >
-                            Remove
+                            {t("account.profile.remove")}
                         </Button>
                     </div>
 
@@ -428,9 +430,9 @@ export function AccountPage() {
 
                     <div className="space-y-2 border-t border-border pt-4 text-sm">
                         {[ 
-                            { label: "Country", value: currentCountryLabel },
-                            { label: "City", value: profile.city },
-                            { label: "Timezone", value: profile.timezone },
+                            { label: t("account.profile.country"), value: currentCountryLabel },
+                            { label: t("account.profile.city"), value: profile.city },
+                            { label: t("account.profile.timezone"), value: profile.timezone },
                         ].map((item) => (
                             <div key={item.label} className="flex items-center justify-between">
                                 <span className="text-muted-foreground">{item.label}</span>
@@ -438,7 +440,7 @@ export function AccountPage() {
                             </div>
                         ))}
                         <div className="flex items-center justify-between">
-                            <span className="text-muted-foreground">Favorite Team</span>
+                            <span className="text-muted-foreground">{t("account.profile.favoriteTeam")}</span>
                             <span className="font-semibold text-primary">{profile.favoriteTeam}</span>
                         </div>
                     </div>
@@ -448,8 +450,8 @@ export function AccountPage() {
                 <section className="rounded-xl border border-border bg-card p-5 xl:col-span-2">
                     <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
                         <div>
-                            <p className="text-sm font-bold uppercase tracking-widest text-muted-foreground">Profile Details</p>
-                            <p className="text-xs text-muted-foreground">Update your basic account information</p>
+                            <p className="text-sm font-bold uppercase tracking-widest text-muted-foreground">{t("account.profile.title")}</p>
+                            <p className="text-xs text-muted-foreground">{t("account.subtitle")}</p>
                         </div>
 
                         {isEditing ? (
@@ -461,7 +463,7 @@ export function AccountPage() {
                                     disabled={isSaving}
                                     className="text-xs font-bold uppercase tracking-wide"
                                 >
-                                    Cancel
+                                    {t("common.cancel")}
                                 </Button>
                                 <Button
                                     size="sm"
@@ -469,7 +471,7 @@ export function AccountPage() {
                                     disabled={isSaving}
                                     className="bg-primary text-xs font-bold uppercase tracking-wide text-white hover:bg-primary/80"
                                 >
-                                    {isSaving ? "Saving..." : "Save Changes"}
+                                    {isSaving ? t("common.saving") : t("account.profile.saveChanges")}
                                 </Button>
                             </div>
                         ) : (
@@ -479,26 +481,26 @@ export function AccountPage() {
                                     disabled={isSaving}
                                     className="bg-primary text-xs font-bold uppercase tracking-wide text-white hover:bg-primary/80"
                                 >
-                                    Edit Profile
+                                    {t("account.profile.editProfile")}
                             </Button>
                         )}
                     </div>
 
                     <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                         <InfoField
-                            label="Display Name"
+                            label={t("account.profile.displayName")}
                             name="displayName"
                             value={composeDisplayName(draft.firstName, draft.lastName, draft.displayName)}
                             onChange={onFieldChange}
                             isEditing={isEditing}
                             forceReadOnly
                         />
-                        <InfoField label="Email" name="email" value={draft.email} onChange={onFieldChange} isEditing={isEditing} forceReadOnly />
-                        <InfoField label="First Name" name="firstName" value={draft.firstName} onChange={onFieldChange} isEditing={isEditing} />
-                        <InfoField label="Last Name" name="lastName" value={draft.lastName} onChange={onFieldChange} isEditing={isEditing} />
-                        <InfoField label="Phone" name="phone" value={draft.phone} onChange={onFieldChange} isEditing={isEditing} />
+                        <InfoField label={t("account.profile.email")} name="email" value={draft.email} onChange={onFieldChange} isEditing={isEditing} forceReadOnly />
+                        <InfoField label={t("account.profile.firstName")} name="firstName" value={draft.firstName} onChange={onFieldChange} isEditing={isEditing} />
+                        <InfoField label={t("account.profile.lastName")} name="lastName" value={draft.lastName} onChange={onFieldChange} isEditing={isEditing} />
+                        <InfoField label={t("account.profile.phone")} name="phone" value={draft.phone} onChange={onFieldChange} isEditing={isEditing} />
                         <label className="flex flex-col gap-1">
-                            <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Country</span>
+                            <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">{t("account.profile.country")}</span>
                             <select
                                 name="country"
                                 value={toCountryCode(draft.country)}
@@ -514,11 +516,11 @@ export function AccountPage() {
                                 ))}
                             </select>
                         </label>
-                        <InfoField label="City" name="city" value={draft.city} onChange={onFieldChange} isEditing={isEditing} />
-                        <InfoField label="Timezone" name="timezone" value={draft.timezone} onChange={onFieldChange} isEditing={isEditing} />
+                        <InfoField label={t("account.profile.city")} name="city" value={draft.city} onChange={onFieldChange} isEditing={isEditing} />
+                        <InfoField label={t("account.profile.timezone")} name="timezone" value={draft.timezone} onChange={onFieldChange} isEditing={isEditing} />
                         <div className="md:col-span-2">
                             <label className="flex flex-col gap-1">
-                                <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Favorite Team</span>
+                                <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">{t("account.profile.favoriteTeam")}</span>
                                 <input
                                     name="favoriteTeam"
                                     value={draft.favoriteTeam}
@@ -535,7 +537,7 @@ export function AccountPage() {
                             </label>
                         </div>
                         <label className="flex flex-col gap-1 md:col-span-2">
-                            <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Bio</span>
+                            <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">{t("account.profile.bio")}</span>
                             <textarea
                                 name="bio"
                                 value={draft.bio}
@@ -557,7 +559,7 @@ export function AccountPage() {
                     </AlertDialogHeader>
                     <AlertDialogFooter>
                         <AlertDialogCancel className="border-border bg-surface text-foreground hover:bg-surface-dark">
-                            Cancel
+                            {t("common.cancel")}
                         </AlertDialogCancel>
                         <AlertDialogAction
                             onClick={handleConfirmAction}

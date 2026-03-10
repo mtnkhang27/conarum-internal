@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import type { LiveMatch } from "@/types";
 
 interface LiveMatchesTableProps {
@@ -5,6 +6,7 @@ interface LiveMatchesTableProps {
 }
 
 export function LiveMatchesTable({ items }: LiveMatchesTableProps) {
+    const { t } = useTranslation();
     const getFallbackNames = (matchLabel: string): { home: string; away: string } => {
         const [home = "Home", away = "Away"] = matchLabel.split(/\s+vs\s+/i);
         return { home, away };
@@ -20,23 +22,23 @@ export function LiveMatchesTable({ items }: LiveMatchesTableProps) {
     const pickLabel = (item: LiveMatch): string => {
         if (item.pick === "home") return `${getTeamName(item, "home")} Win`;
         if (item.pick === "away") return `${getTeamName(item, "away")} Win`;
-        if (item.pick === "draw") return "Draw";
-        return "No pick";
+        if (item.pick === "draw") return t("sport.picks.draw");
+        return t("sport.picks.noPick");
     };
 
     return (
         <div className="mt-8">
             <h2 className="mb-4 flex items-center gap-2 text-lg font-bold text-white">
                 <span className="h-6 w-1 rounded-full bg-success" />
-                Live Matches
+                {t("sport.liveMatches")}
             </h2>
 
             <div className="overflow-hidden rounded-lg border border-border bg-card">
                 <div className="grid grid-cols-12 gap-2 border-b border-border bg-surface/50 px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                    <div className="col-span-6">In-Play Match</div>
-                    <div className="col-span-2 text-center">Points</div>
-                    <div className="col-span-2 text-center">Score</div>
-                    <div className="col-span-2 text-center">Pick</div>
+                    <div className="col-span-6">{t("sport.inPlayMatch")}</div>
+                    <div className="col-span-2 text-center">{t("sport.points")}</div>
+                    <div className="col-span-2 text-center">{t("sport.score")}</div>
+                    <div className="col-span-2 text-center">{t("sport.pick")}</div>
                 </div>
 
                 <div className="divide-y divide-border">
@@ -57,7 +59,7 @@ export function LiveMatchesTable({ items }: LiveMatchesTableProps) {
                                         )}
                                         {getTeamName(item, "home")}
                                     </span>
-                                    <span className="text-[10px] font-black text-muted-foreground">VS</span>
+                                    <span className="text-[10px] font-black text-muted-foreground">{t("common.vs")}</span>
                                     <span className="flex items-center gap-1 text-sm font-bold text-white">
                                         {item.away?.crest ? (
                                             <img src={item.away.crest} alt={getTeamName(item, "away")} className="h-4 w-4 object-contain" />
@@ -72,7 +74,7 @@ export function LiveMatchesTable({ items }: LiveMatchesTableProps) {
                                 <div className="mt-1 flex items-center gap-2">
                                     <span className="flex items-center gap-1 text-[10px] font-bold text-destructive">
                                         <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-destructive" />
-                                        Live
+                                        {t("common.status.live")}
                                     </span>
                                     {/* <span className="text-[10px] text-muted-foreground">{item.minute}</span> */}
                                 </div>

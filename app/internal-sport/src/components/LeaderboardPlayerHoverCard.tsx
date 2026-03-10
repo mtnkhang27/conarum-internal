@@ -1,4 +1,5 @@
 import { User } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import {
     Tooltip,
     TooltipContent,
@@ -46,6 +47,8 @@ export function LeaderboardPlayerHoverCard({
     sizeClass,
     iconClass,
 }: LeaderboardPlayerHoverCardProps) {
+    const { t } = useTranslation();
+
     return (
         <Tooltip>
             <TooltipTrigger asChild>
@@ -89,7 +92,7 @@ export function LeaderboardPlayerHoverCard({
                                 {valueOrDefault(player.displayName, "-")}
                             </p>
                             <p className="text-[11px] uppercase tracking-wider text-muted-foreground">
-                                Rank #{player.rank}
+                                {t("leaderboard.rank", { rank: player.rank })}
                             </p>
                         </div>
                     </div>
@@ -98,20 +101,20 @@ export function LeaderboardPlayerHoverCard({
                 <div className="space-y-3 p-4">
                     <div className="grid grid-cols-2 gap-3">
                         <div className="rounded-md border border-border/70 bg-surface/40 p-2">
-                            <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Favorite Team</p>
+                            <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">{t("leaderboard.hoverCard.favoriteTeam")}</p>
                             <p className="truncate text-xs font-medium text-foreground/90">{valueOrDefault(player.favoriteTeam, "-")}</p>
                         </div>
                         <div className="rounded-md border border-border/70 bg-surface/40 p-2">
-                            <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Country</p>
+                            <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">{t("leaderboard.hoverCard.country")}</p>
                             <p className="text-xs font-medium text-foreground/90">{toCountryName(player.country)}</p>
                         </div>
                         <div className="rounded-md border border-border/70 bg-surface/40 p-2 col-span-2">
-                            <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Email</p>
+                            <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">{t("leaderboard.hoverCard.email")}</p>
                             <p className="truncate text-xs font-medium text-foreground/90">{valueOrDefault(player.email, "-")}</p>
                         </div>
                     </div>
                     <div className="rounded-md border border-border/70 bg-surface/40 p-2">
-                        <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Bio</p>
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">{t("leaderboard.hoverCard.bio")}</p>
                         <p className="max-h-20 overflow-y-auto whitespace-pre-wrap text-xs font-medium text-foreground/90">
                             {valueOrDefault(player.bio, "-")}
                         </p>

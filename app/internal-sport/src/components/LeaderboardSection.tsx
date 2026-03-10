@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Trophy, Medal, Award } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { playerLeaderboardApi } from "@/services/playerApi";
 import type { TournamentLeaderboardItem } from "@/types";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -37,6 +38,7 @@ interface LeaderboardSectionProps {
 }
 
 export function LeaderboardSection({ tournamentId }: LeaderboardSectionProps) {
+    const { t } = useTranslation();
     const [entries, setEntries] = useState<TournamentLeaderboardItem[]>([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
@@ -61,7 +63,7 @@ export function LeaderboardSection({ tournamentId }: LeaderboardSectionProps) {
         return (
             <div className="flex h-32 flex-col items-center justify-center gap-2 text-muted-foreground">
                 <Trophy className="h-7 w-7 text-border" />
-                <p className="text-sm">Select a tournament to view the leaderboard.</p>
+                <p className="text-sm">{t("leaderboard.selectTournament")}</p>
             </div>
         );
     }
@@ -69,7 +71,7 @@ export function LeaderboardSection({ tournamentId }: LeaderboardSectionProps) {
     if (loading) {
         return (
             <div className="flex h-32 items-center justify-center text-sm text-muted-foreground">
-                Loading leaderboard...
+                {t("leaderboard.loadingLeaderboard")}
             </div>
         );
     }
@@ -78,7 +80,7 @@ export function LeaderboardSection({ tournamentId }: LeaderboardSectionProps) {
         return (
             <div className="flex h-32 flex-col items-center justify-center gap-2 text-muted-foreground">
                 <Trophy className="h-7 w-7 text-border" />
-                <p className="text-sm">{error || "No predictions scored yet."}</p>
+                <p className="text-sm">{error || t("leaderboard.noPredictions")}</p>
             </div>
         );
     }
@@ -100,16 +102,16 @@ export function LeaderboardSection({ tournamentId }: LeaderboardSectionProps) {
                                 <div className="flex items-center gap-2">
                                     {podiumIcon(player.rank)}
                                     <span className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
-                                        Rank #{player.rank}
+                                        {t("leaderboard.rank", { rank: player.rank })}
                                     </span>
                                     {player.isMe && (
                                         <span className="rounded bg-yellow-400/20 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-yellow-400">
-                                            You
+                                            {t("leaderboard.you")}
                                         </span>
                                     )}
                                 </div>
                                 <span className="rounded bg-surface px-2 py-1 text-[10px] font-bold text-foreground/80">
-                                    {player.totalCorrect}/{player.totalPredictions} correct
+                                    {t("leaderboard.correct", { correct: player.totalCorrect, total: player.totalPredictions })}
                                 </span>
                             </div>
 
@@ -118,7 +120,7 @@ export function LeaderboardSection({ tournamentId }: LeaderboardSectionProps) {
                                 <div>
                                     <p className="text-sm font-bold text-white">{player.displayName}</p>
                                     <p className="text-[11px] text-muted-foreground">
-                                        Accuracy:{" "}
+                                        {t("leaderboard.accuracy")}{" "}
                                         {player.totalPredictions > 0
                                             ? Math.round((player.totalCorrect / player.totalPredictions) * 100)
                                             : 0}
@@ -128,7 +130,7 @@ export function LeaderboardSection({ tournamentId }: LeaderboardSectionProps) {
                             </div>
 
                             <div className="flex items-end justify-between border-t border-border pt-3">
-                                <span className="text-[11px] text-muted-foreground">Total Points</span>
+                                <span className="text-[11px] text-muted-foreground">{t("leaderboard.totalPoints")}</span>
                                 <span className="text-2xl font-extrabold text-success">
                                     {Math.floor(player.totalPoints)}
                                 </span>
@@ -140,11 +142,11 @@ export function LeaderboardSection({ tournamentId }: LeaderboardSectionProps) {
                 <div className="overflow-hidden rounded-lg border border-border bg-card">
                     <div className="overflow-x-auto">
                         <div className="grid min-w-[640px] grid-cols-12 gap-2 border-b border-border bg-surface/60 px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                            <div className="col-span-1 text-center">Rank</div>
-                            <div className="col-span-5">Player</div>
-                            <div className="col-span-2 text-center">Correct</div>
-                            <div className="col-span-2 text-center">Accuracy</div>
-                            <div className="col-span-2 text-center">Points</div>
+                            <div className="col-span-1 text-center">{t("leaderboard.rank", { rank: "" }).replace("#", "").trim()}</div>
+                            <div className="col-span-5">{t("leaderboard.player")}</div>
+                            <div className="col-span-2 text-center">{t("account.stats.totalCorrect")}</div>
+                            <div className="col-span-2 text-center">{t("leaderboard.accuracy")}</div>
+                            <div className="col-span-2 text-center">{t("leaderboard.points")}</div>
                         </div>
 
                         <div className="min-w-[640px] divide-y divide-border">
@@ -177,7 +179,7 @@ export function LeaderboardSection({ tournamentId }: LeaderboardSectionProps) {
                                             <span className="text-sm font-bold text-white">{player.displayName}</span>
                                             {player.isMe && (
                                                 <span className="rounded bg-yellow-400/20 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-yellow-400">
-                                                    You
+                                                    {t("leaderboard.you")}
                                                 </span>
                                             )}
                                         </div>
@@ -200,7 +202,7 @@ export function LeaderboardSection({ tournamentId }: LeaderboardSectionProps) {
                             <>
                                 <div className="min-w-[640px] border-t-2 border-dashed border-yellow-400/40 bg-surface/30 px-4 py-1.5">
                                     <span className="text-[10px] font-bold uppercase tracking-wider text-yellow-400/70">
-                                        Your position
+                                        {t("leaderboard.yourPosition")}
                                     </span>
                                 </div>
                                 <div
@@ -215,7 +217,7 @@ export function LeaderboardSection({ tournamentId }: LeaderboardSectionProps) {
                                         <LeaderboardPlayerHoverCard player={meEntry} sizeClass="h-8 w-8" iconClass="h-4 w-4" />
                                         <span className="text-sm font-bold text-white">{meEntry.displayName}</span>
                                         <span className="rounded bg-yellow-400/20 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-yellow-400">
-                                            You
+                                            {t("leaderboard.you")}
                                         </span>
                                     </div>
                                     <div className="col-span-2 text-center text-sm text-foreground/80">

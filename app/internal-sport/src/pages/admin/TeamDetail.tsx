@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import {
     ArrowLeft,
     Plus,
@@ -73,6 +74,7 @@ function roleBadgeVariant(role: string) {
 export function TeamDetail() {
     const { teamId } = useParams<{ teamId: string }>();
     const navigate = useNavigate();
+    const { t } = useTranslation();
 
     const [team, setTeam] = useState<AdminTeam | null>(null);
     const [members, setMembers] = useState<AdminTeamMember[]>([]);
@@ -150,7 +152,7 @@ export function TeamDetail() {
     async function handleSaveMember() {
         if (!teamId) return;
         if (!memberForm.name.trim()) {
-            toast.error("Member name is required");
+            toast.error(t("admin.teamDetail.nameRequired"));
             return;
         }
 
@@ -167,10 +169,10 @@ export function TeamDetail() {
 
             if (editingMember) {
                 await teamMembersApi.update(editingMember.ID, data);
-                toast.success("Member updated");
+                toast.success(t("admin.teamDetail.memberUpdated"));
             } else {
                 await teamMembersApi.create(data);
-                toast.success("Member added");
+                toast.success(t("admin.teamDetail.memberAdded"));
             }
             setMemberDialogOpen(false);
             const membersData = await teamMembersApi.list(teamId);
@@ -184,7 +186,7 @@ export function TeamDetail() {
         if (!deleteMemberId || !teamId) return;
         try {
             await teamMembersApi.delete(deleteMemberId);
-            toast.success("Member removed");
+            toast.success(t("admin.teamDetail.memberRemoved"));
             setDeleteMemberId(null);
             const membersData = await teamMembersApi.list(teamId);
             setMembers(membersData);
@@ -196,7 +198,7 @@ export function TeamDetail() {
     if (loading || !team) {
         return (
             <div className="flex h-64 items-center justify-center text-muted-foreground">
-                Loading team details…
+                {t("admin.teamDetail.loadingDetails")}
             </div>
         );
     }
@@ -211,7 +213,7 @@ export function TeamDetail() {
                     onClick={() => navigate("/admin/teams")}
                 >
                     <ArrowLeft className="mr-2 h-4 w-4" />
-                    Back
+                    {t("common.back")}
                 </Button>
             </div>
 
@@ -238,7 +240,7 @@ export function TeamDetail() {
                         <h1 className="text-2xl font-bold text-white">{team.name}</h1>
                         <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
                             {team.shortName && (
-                                <span>Short: <span className="text-white">{team.shortName}</span></span>
+                                <span>{t("admin.teamDetail.short")}: <span className="text-white">{team.shortName}</span></span>
                             )}
                             {team.tla && (
                                 <Badge variant="secondary" className="font-mono">
@@ -249,9 +251,9 @@ export function TeamDetail() {
                                 <Badge variant="outline">{team.confederation}</Badge>
                             )}
                             {team.fifaRanking && (
-                                <span>FIFA Rank: <span className="text-white font-mono">#{team.fifaRanking}</span></span>
+                                <span>{t("admin.teamDetail.fifaRank")}: <span className="text-white font-mono">#{team.fifaRanking}</span></span>
                             )}
-                            <span>Country: <span className={`fi fi-${team.flagCode} ml-1`} /></span>
+                            <span>{t("admin.teamDetail.country")}: <span className={`fi fi-${team.flagCode} ml-1`} /></span>
                         </div>
                         {/* Tournament participation */}
                         {team.tournaments && team.tournaments.length > 0 && (
@@ -262,7 +264,7 @@ export function TeamDetail() {
                                         variant={tt.isEliminated ? "destructive" : "default"}
                                         className="text-xs"
                                     >
-                                        {tt.tournament?.name || "Tournament"}
+                                        {tt.tournament?.name || t("admin.tournamentManagement.tournament")}
                                     </Badge>
                                 ))}
                             </div>
@@ -275,7 +277,7 @@ export function TeamDetail() {
             <div>
                 <div className="mb-3 flex items-center justify-between">
                     <h2 className="text-lg font-semibold text-white">
-                        Coaching Staff ({coaches.length})
+                        {t("admin.teamDetail.coachingStaff")} ({coaches.length})
                     </h2>
                 </div>
                 {coaches.length > 0 ? (
@@ -320,7 +322,7 @@ export function TeamDetail() {
                         ))}
                     </div>
                 ) : (
-                    <p className="text-sm text-muted-foreground">No coaching staff added</p>
+                    <p className="text-sm text-muted-foreground">{t("admin.teamDetail.noCoaching")}</p>
                 )}
             </div>
 
@@ -328,11 +330,11 @@ export function TeamDetail() {
             <div>
                 <div className="mb-3 flex items-center justify-between">
                     <h2 className="text-lg font-semibold text-white">
-                        Squad ({players.length})
+                        {t("admin.teamDetail.squad")} ({players.length})
                     </h2>
                     <Button size="sm" onClick={openAddMember}>
                         <Plus className="mr-2 h-4 w-4" />
-                        Add Member
+                        {t("admin.teamDetail.addMember")}
                     </Button>
                 </div>
                 <Card className="border-border bg-card">
@@ -341,11 +343,11 @@ export function TeamDetail() {
                             <thead>
                                 <tr className="border-b border-border text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
                                     <th className="px-4 py-3 w-12">#</th>
-                                    <th className="px-4 py-3">Name</th>
-                                    <th className="px-4 py-3">Position</th>
-                                    <th className="px-4 py-3">Role</th>
-                                    <th className="px-4 py-3">Status</th>
-                                    <th className="px-4 py-3">Actions</th>
+                                    <th className="px-4 py-3">{t("common.name")}</th>
+                                    <th className="px-4 py-3">{t("admin.teamDetail.positionLabel")}</th>
+                                    <th className="px-4 py-3">{t("admin.teamDetail.role")}</th>
+                                    <th className="px-4 py-3">{t("admin.teamDetail.status")}</th>
+                                    <th className="px-4 py-3">{t("common.actions")}</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -372,7 +374,7 @@ export function TeamDetail() {
                                         </td>
                                         <td className="px-4 py-3">
                                             <Badge variant={roleBadgeVariant(member.role)} className="text-xs">
-                                                {member.isCaptain ? "Captain" : roleLabel(member.role)}
+                                                {member.isCaptain ? t("admin.teamDetail.captain") : roleLabel(member.role)}
                                             </Badge>
                                         </td>
                                         <td className="px-4 py-3">
@@ -380,7 +382,7 @@ export function TeamDetail() {
                                                 variant={member.isActive ? "default" : "destructive"}
                                                 className="text-xs"
                                             >
-                                                {member.isActive ? "Active" : "Inactive"}
+                                                {member.isActive ? t("common.status.active") : t("common.status.inactive")}
                                             </Badge>
                                         </td>
                                         <td className="px-4 py-3">
@@ -411,7 +413,7 @@ export function TeamDetail() {
                                             colSpan={6}
                                             className="px-4 py-8 text-center text-muted-foreground"
                                         >
-                                            No players added yet
+                                            {t("admin.teamDetail.noPlayers")}
                                         </td>
                                     </tr>
                                 )}
@@ -426,13 +428,13 @@ export function TeamDetail() {
                 <DialogContent className="border-border bg-card text-white sm:max-w-md">
                     <DialogHeader>
                         <DialogTitle>
-                            {editingMember ? "Edit Member" : "Add Team Member"}
+                            {editingMember ? t("admin.teamDetail.editMember") : t("admin.teamDetail.addTeamMember")}
                         </DialogTitle>
                     </DialogHeader>
                     <div className="grid gap-4 py-4">
                         <div className="space-y-2">
                             <label className="text-xs font-medium text-muted-foreground">
-                                Name *
+                                {t("common.name")} *
                             </label>
                             <Input
                                 value={memberForm.name}
@@ -445,7 +447,7 @@ export function TeamDetail() {
                         <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-2">
                                 <label className="text-xs font-medium text-muted-foreground">
-                                    Role
+                                    {t("admin.teamDetail.role")}
                                 </label>
                                 <Select
                                     value={memberForm.role}
@@ -467,7 +469,7 @@ export function TeamDetail() {
                             </div>
                             <div className="space-y-2">
                                 <label className="text-xs font-medium text-muted-foreground">
-                                    Position
+                                    {t("admin.teamDetail.positionLabel")}
                                 </label>
                                 <Select
                                     value={memberForm.position}
@@ -491,7 +493,7 @@ export function TeamDetail() {
                         <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-2">
                                 <label className="text-xs font-medium text-muted-foreground">
-                                    Jersey Number
+                                    {t("admin.teamDetail.jerseyNumber")}
                                 </label>
                                 <Input
                                     type="number"
@@ -518,7 +520,7 @@ export function TeamDetail() {
                                         }
                                         className="rounded"
                                     />
-                                    Active
+                                    {t("common.status.active")}
                                 </label>
                             </div>
                         </div>
@@ -528,10 +530,10 @@ export function TeamDetail() {
                             variant="outline"
                             onClick={() => setMemberDialogOpen(false)}
                         >
-                            Cancel
+                            {t("common.cancel")}
                         </Button>
                         <Button onClick={handleSaveMember}>
-                            {editingMember ? "Update" : "Add"} Member
+                            {editingMember ? t("common.update") : t("admin.teamDetail.add")} {t("admin.teamDetail.member")}
                         </Button>
                     </DialogFooter>
                 </DialogContent>
@@ -544,18 +546,18 @@ export function TeamDetail() {
             >
                 <AlertDialogContent className="border-border bg-card text-white">
                     <AlertDialogHeader>
-                        <AlertDialogTitle>Remove Member</AlertDialogTitle>
+                        <AlertDialogTitle>{t("admin.teamDetail.removeMember")}</AlertDialogTitle>
                         <AlertDialogDescription>
-                            Are you sure you want to remove this team member?
+                            {t("admin.teamDetail.removeMemberConfirm")}
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
                         <AlertDialogAction
                             onClick={handleDeleteMember}
                             className="bg-destructive text-white hover:bg-destructive/90"
                         >
-                            Remove
+                            {t("admin.teamDetail.remove")}
                         </AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>

@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import {
     ArrowLeft,
     Save,
@@ -68,6 +69,7 @@ function statusVariant(status: string) {
 export function TournamentDetail() {
     const { tournamentId } = useParams<{ tournamentId: string }>();
     const navigate = useNavigate();
+    const { t } = useTranslation();
 
     const [tournament, setTournament] = useState<AdminTournament | null>(null);
     const [loading, setLoading] = useState(true);
@@ -130,7 +132,7 @@ export function TournamentDetail() {
                 championBettingStatus,
                 championLockDate,
             } as Partial<AdminTournament>);
-            toast.success("Tournament configuration saved");
+            toast.success(t("admin.tournamentDetail.configSaved"));
         } catch (e: any) {
             toast.error(e.message);
         } finally {
@@ -173,7 +175,7 @@ export function TournamentDetail() {
     if (loading || !tournament) {
         return (
             <div className="flex h-64 items-center justify-center text-muted-foreground">
-                Loading tournament details…
+                {t("admin.tournamentDetail.loadingDetails")}
             </div>
         );
     }
@@ -189,7 +191,7 @@ export function TournamentDetail() {
                         onClick={() => navigate("/admin/tournaments")}
                     >
                         <ArrowLeft className="mr-2 h-4 w-4" />
-                        Back
+                        {t("common.back")}
                     </Button>
                     <div>
                         <h1 className="text-2xl font-bold text-white flex items-center gap-3">
@@ -208,7 +210,7 @@ export function TournamentDetail() {
                 </div>
                 <Button onClick={handleSave} disabled={saving || isTournamentLocked}>
                     <Save className="mr-2 h-4 w-4" />
-                    {saving ? "Saving…" : "Save Changes"}
+                    {saving ? t("common.saving") : t("admin.tournamentDetail.saveChanges")}
                 </Button>
             </div>
 
@@ -218,12 +220,10 @@ export function TournamentDetail() {
                         {championBettingStatus === "locked" && (
                             <div className="mb-3 flex items-center gap-2 rounded-lg border border-yellow-500/30 bg-yellow-500/10 px-3 py-2 text-xs text-yellow-400">
                                 <AlertTriangle className="h-3.5 w-3.5 flex-shrink-0" />
-                                Prize fields are read-only while champion betting is{" "}
-                                <strong>locked</strong>. Set status to{" "}
-                                <strong>Open</strong> to edit.
+                                {t("admin.tournamentDetail.prizeLockedWarning")}
                             </div>
                         )}
-                        <ConfigRow label="Prize for Outcome Prediction" description="Description of the prize for the outcome prediction leaderboard winner">
+                        <ConfigRow label={t("admin.tournamentDetail.outcomePrize")} description={t("admin.tournamentDetail.outcomePrizeDesc")}>
                             <Input
                                 className="w-56"
                                 value={outcomePrize}
@@ -232,7 +232,7 @@ export function TournamentDetail() {
                             />
                         </ConfigRow>
 
-                        <ConfigRow label="Prize Pool for Champion Prediction" description="Description of the champion prediction prize">
+                        <ConfigRow label={t("admin.tournamentDetail.championPrize")} description={t("admin.tournamentDetail.championPrizeDesc")}>
                             <Input
                                 className="w-56"
                                 value={championPrizePool}
@@ -240,7 +240,7 @@ export function TournamentDetail() {
                                 disabled={championBettingStatus === "locked" || isTournamentLocked}
                             />
                         </ConfigRow>
-                        <ConfigRow label="Betting Status" description="Current status of champion betting">
+                        <ConfigRow label={t("admin.tournamentDetail.bettingStatus")} description={t("admin.tournamentDetail.bettingStatusDesc")}>
                             <select
                                 className="rounded border border-border bg-surface-dark px-3 py-1.5 text-sm text-white"
                                 value={championBettingStatus}
@@ -249,8 +249,8 @@ export function TournamentDetail() {
                                 }
                                 disabled={isTournamentLocked}
                             >
-                                <option value="open">Open</option>
-                                <option value="locked">Locked</option>
+                                <option value="open">{t("common.status.open")}</option>
+                                <option value="locked">{t("common.status.locked")}</option>
                             </select>
                         </ConfigRow>
                     </div>
@@ -263,7 +263,7 @@ export function TournamentDetail() {
                                 disabled={isTournamentLocked}
                             >
                                 <Lock className="mr-2 h-4 w-4" />
-                                Lock Champion Predictions
+                                {t("admin.tournamentDetail.lockChampionPredictions")}
                             </Button>
                         </div>
                     )}
@@ -273,16 +273,16 @@ export function TournamentDetail() {
                 <Card className="border-border bg-card p-5">
                     <h3 className="mb-4 flex items-center gap-2 text-sm font-semibold uppercase text-muted-foreground">
                         <Users className="h-4 w-4" />
-                        Champion Picks ({championPicks.length} total)
+                        {t("admin.tournamentDetail.championPicks")} ({t("admin.tournamentDetail.totalPicks", { count: championPicks.length })})
                     </h3>
 
                     {/* Manual resolve champion (if not yet resolved) */}
                     {!hasChampionResults && championPicks.length > 0 && championBettingStatus === "locked" && (
                         <div className="mb-4 rounded-lg border border-blue-500/30 bg-blue-500/10 p-4">
                             <p className="mb-2 text-sm text-blue-400">
-                                <strong>Resolve champion picks:</strong> Select the winning team and resolve all picks.
+                                <strong>{t("admin.tournamentDetail.resolveChampion")}</strong> {t("admin.tournamentDetail.resolveChampionDesc")}
                                 {championTeam && (
-                                    <span className="ml-1">(Detected champion from bracket: <strong>{championTeam.team?.name}</strong>)</span>
+                                    <span className="ml-1">({t("admin.tournamentDetail.detectedChampion", { team: championTeam.team?.name })})</span>
                                 )}
                             </p>
                             <div className="flex items-center gap-2">
@@ -291,7 +291,7 @@ export function TournamentDetail() {
                                     value={selectedChampionTeam}
                                     onChange={(e) => setSelectedChampionTeam(e.target.value)}
                                 >
-                                    <option value="">Select champion team…</option>
+                                    <option value="">{t("admin.tournamentDetail.selectChampionTeam")}</option>
                                     {tournamentTeams
                                         .filter((tt) => tt.team)
                                         .sort((a, b) => (a.team?.name ?? "").localeCompare(b.team?.name ?? ""))
@@ -307,7 +307,7 @@ export function TournamentDetail() {
                                     size="sm"
                                 >
                                     <Crown className="mr-2 h-4 w-4" />
-                                    {resolving ? "Resolving…" : "Resolve"}
+                                    {resolving ? t("common.resolving") : t("admin.tournamentDetail.resolve")}
                                 </Button>
                             </div>
                         </div>
@@ -315,7 +315,7 @@ export function TournamentDetail() {
 
                     {championPicks.length === 0 ? (
                         <p className="py-6 text-center text-sm text-muted-foreground">
-                            No champion picks submitted yet.
+                            {t("admin.tournamentDetail.noPicksYet")}
                         </p>
                     ) : (
                         <>
@@ -341,12 +341,12 @@ export function TournamentDetail() {
                                             <div className="rounded-lg border border-green-500/30 bg-green-500/10 p-4">
                                                 <div className="mb-2 flex items-center gap-2 text-sm font-bold text-green-400">
                                                     <Trophy className="h-4 w-4" />
-                                                    UC3 Champion Prize — {winners.length} Winner{winners.length !== 1 && "s"}
+                                                    {t("admin.tournamentDetail.uc3Prize", { count: winners.length })}{winners.length !== 1 && "s"}
                                                 </div>
                                                 <div className="mb-2 text-xs text-green-400/80">
-                                                    Prize: <strong>{championPrizePool || "—"}</strong>
+                                                    {t("admin.tournamentDetail.prize")}: <strong>{championPrizePool || "—"}</strong>
                                                     {winners.length > 1 && (
-                                                        <span> (split {winners.length} ways)</span>
+                                                        <span> ({t("admin.tournamentDetail.split", { count: winners.length })})</span>
                                                     )}
                                                 </div>
                                                 <div className="flex flex-wrap gap-2">
@@ -364,7 +364,7 @@ export function TournamentDetail() {
 
                                         {hasChampionResults && winners.length === 0 && (
                                             <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-400">
-                                                No correct champion picks.
+                                                {t("admin.tournamentDetail.noCorrectPicks")}
                                             </div>
                                         )}
 
@@ -417,7 +417,7 @@ export function TournamentDetail() {
                     <Card className="border-border bg-card p-5">
                         <h3 className="mb-4 flex items-center gap-2 text-sm font-semibold uppercase text-muted-foreground">
                             <Award className="h-4 w-4" />
-                            UC2 Outcome Prediction — Tournament Leaderboard
+                            {t("admin.tournamentDetail.uc2Title")}
                         </h3>
 
                         {/* Winner banner */}
@@ -425,7 +425,7 @@ export function TournamentDetail() {
                             <div className="mb-4 rounded-lg border border-primary/30 bg-primary/10 p-4">
                                 <div className="mb-1 flex items-center gap-2 text-sm font-bold text-primary">
                                     <Trophy className="h-4 w-4" />
-                                    UC2 Winner — Prize: {outcomePrize || "—"}
+                                    {t("admin.tournamentDetail.uc2Winner", { prize: outcomePrize || "—" })}
                                 </div>
                                 <div className="flex items-center gap-3 mt-2">
                                     {uc2Leader.player?.avatarUrl && (

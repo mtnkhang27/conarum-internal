@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { useTranslation } from "react-i18next";
 import type { Match } from "@/types";
 import { playerActionsApi } from "@/services/playerApi";
 import {
@@ -53,6 +54,7 @@ interface MatchCardProps {
 }
 
 export function MatchCard({ match, isCompleted = false, onPredictionChange }: MatchCardProps) {
+    const { t } = useTranslation();
     const maxBets = match.maxBets ?? 3;
     const isSlotBet = match.betTarget === "slot";
     const slotId = match.slotId || match.id;
@@ -143,8 +145,8 @@ export function MatchCard({ match, isCompleted = false, onPredictionChange }: Ma
             const res = isSlotBet
                 ? await playerActionsApi.cancelSlotPrediction(slotId)
                 : await playerActionsApi.cancelMatchPrediction(match.id);
-            toast.success("Prediction removed", {
-                description: res.message || `Prediction removed for ${match.home.name} vs ${match.away.name}.`,
+            toast.success(t("matchCard.predictionRemoved"), {
+                description: res.message || t("matchCard.predictionRemovedDesc", { home: match.home.name, away: match.away.name }),
             });
             // Clear all local state
             setSelectedOption("");
@@ -157,8 +159,8 @@ export function MatchCard({ match, isCompleted = false, onPredictionChange }: Ma
             // Notify parent to refresh predictions list
             onPredictionChange?.();
         } catch (e: any) {
-            toast.error("Failed to remove prediction", {
-                description: e.message || "Please try again.",
+            toast.error(t("matchCard.failedToRemove"), {
+                description: e.message || t("matchCard.pleaseTryAgain"),
             });
         } finally {
             setIsSaving(false);
@@ -179,8 +181,8 @@ export function MatchCard({ match, isCompleted = false, onPredictionChange }: Ma
             const res = isSlotBet
                 ? await playerActionsApi.submitSlotPrediction(slotId, apiPick, scoresToSend)
                 : await playerActionsApi.submitMatchPrediction(match.id, apiPick, scoresToSend);
-            toast.success("Prediction saved", {
-                description: res.message || `Pick & scores saved for ${match.home.name} vs ${match.away.name}.`,
+            toast.success(t("matchCard.predictionSaved"), {
+                description: res.message || t("matchCard.predictionSavedDesc", { home: match.home.name, away: match.away.name }),
             });
             // Update initial state to reflect saved prediction
             setInitialOption(selectedOption);
@@ -188,8 +190,8 @@ export function MatchCard({ match, isCompleted = false, onPredictionChange }: Ma
             // Notify parent to refresh predictions list
             onPredictionChange?.();
         } catch (e: any) {
-            toast.error("Failed to save", {
-                description: e.message || "Please try again.",
+            toast.error(t("matchCard.failedToSave"), {
+                description: e.message || t("matchCard.pleaseTryAgain"),
             });
         } finally {
             setIsSaving(false);
@@ -203,7 +205,7 @@ export function MatchCard({ match, isCompleted = false, onPredictionChange }: Ma
                     <div className="mb-4 flex items-center justify-between">
                         <div className="flex items-center gap-2">
                             <span className="rounded bg-success/15 px-2 py-1 text-[10px] font-bold text-success">
-                                {match.outcomePoints} pts
+                                {match.outcomePoints} {t("common.pts")}
                             </span>
                             {match.stage && (
                                 <span className="rounded border border-border bg-surface-dark px-2 py-1 text-[10px] font-bold text-foreground/80">
@@ -212,7 +214,7 @@ export function MatchCard({ match, isCompleted = false, onPredictionChange }: Ma
                             )}
                             {isSlotBet && (
                                 <span className="rounded border border-warning/40 bg-warning/15 px-2 py-1 text-[10px] font-bold text-warning">
-                                    Future Round
+                                    {t("matchCard.futureRound")}
                                 </span>
                             )}
                         </div>
@@ -258,7 +260,7 @@ export function MatchCard({ match, isCompleted = false, onPredictionChange }: Ma
                                 ))
                             ) : (
                                 <span className="text-2xl font-black tracking-widest text-muted-foreground">
-                                    VS
+                                    {t("common.vs")}
                                 </span>
                             )}
                         </div>
@@ -278,13 +280,13 @@ export function MatchCard({ match, isCompleted = false, onPredictionChange }: Ma
                     <div className="mb-1 flex items-center justify-between">
                         <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
                             {isCompleted
-                                ? "Final Pick"
+                                ? t("matchCard.finalPick")
                                 : match.scoreBettingEnabled
-                                    ? "Pick Winner & Score"
-                                    : "Pick Outcome"}
+                                    ? t("matchCard.pickWinnerAndScore")
+                                    : t("matchCard.pickOutcome")}
                         </span>
                         {isSaving && (
-                            <span className="text-[10px] font-bold text-primary animate-pulse">Saving…</span>
+                            <span className="text-[10px] font-bold text-primary animate-pulse">{t("common.saving")}</span>
                         )}
                     </div>
                     <div className="grid grid-cols-3 gap-2">
@@ -312,7 +314,7 @@ export function MatchCard({ match, isCompleted = false, onPredictionChange }: Ma
                                 disabled={cancelDisabled}
                                 className="rounded-lg border border-border bg-surface-dark px-4 py-2.5 text-sm font-bold text-muted-foreground transition-colors hover:border-red-500 hover:text-red-400 disabled:opacity-50 disabled:pointer-events-none"
                             >
-                                Cancel Submission
+                                {t("matchCard.cancelSubmission")}
                             </button>
                             {/* Submit button */}
                             <button
@@ -324,7 +326,7 @@ export function MatchCard({ match, isCompleted = false, onPredictionChange }: Ma
                                     : "bg-primary/40"
                                     }`}
                             >
-                                {isSaving ? "Saving…" : "Submit Prediction"}
+                                {isSaving ? t("common.saving") : t("matchCard.submitPrediction")}
                             </button>
                         </div>
                     )}
@@ -335,22 +337,20 @@ export function MatchCard({ match, isCompleted = false, onPredictionChange }: Ma
             <AlertDialog open={cancelConfirmOpen} onOpenChange={setCancelConfirmOpen}>
                 <AlertDialogContent className="border-border bg-card">
                     <AlertDialogHeader>
-                        <AlertDialogTitle>Remove Prediction?</AlertDialogTitle>
+                        <AlertDialogTitle>{t("matchCard.removePrediction")}</AlertDialogTitle>
                         <AlertDialogDescription>
-                            Are you sure you want to remove your prediction for{" "}
-                            <strong>{match.home.name} vs {match.away.name}</strong>?
-                            This will clear your pick and any score bets for this match.
+                            {t("matchCard.removePredictionDesc", { home: match.home.name, away: match.away.name })}
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
                         <AlertDialogCancel className="border-border bg-surface text-foreground hover:bg-surface-dark">
-                            Keep
+                            {t("matchCard.keepPrediction")}
                         </AlertDialogCancel>
                         <AlertDialogAction
                             onClick={onConfirmCancelPrediction}
                             className="bg-red-600 text-white hover:bg-red-700"
                         >
-                            Yes, Remove
+                            {t("matchCard.yesRemove")}
                         </AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>

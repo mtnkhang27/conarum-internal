@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import {
   ArrowLeft,
   Save,
@@ -86,22 +87,22 @@ function statusVariant(status: string) {
 }
 
 const STAGES = [
-  { value: "group", label: "Group Stage" },
-  { value: "roundOf16", label: "Round of 16" },
-  { value: "quarterFinal", label: "Quarter Final" },
-  { value: "semiFinal", label: "Semi Final" },
-  { value: "thirdPlace", label: "Third Place" },
-  { value: "final", label: "Final" },
-  { value: "regular", label: "Regular Season" },
-  { value: "playoff", label: "Playoff" },
-  { value: "relegation", label: "Relegation" },
+  { value: "group", label: "admin.matchManagement.stages.group" },
+  { value: "roundOf16", label: "admin.matchManagement.stages.roundOf16" },
+  { value: "quarterFinal", label: "admin.matchManagement.stages.quarterFinal" },
+  { value: "semiFinal", label: "admin.matchManagement.stages.semiFinal" },
+  { value: "thirdPlace", label: "admin.matchManagement.stages.thirdPlace" },
+  { value: "final", label: "admin.matchManagement.stages.final" },
+  { value: "regular", label: "admin.matchManagement.stages.regular" },
+  { value: "playoff", label: "admin.matchManagement.stages.playoff" },
+  { value: "relegation", label: "admin.matchManagement.stages.relegation" },
 ];
 
 const MATCH_STATUSES: { value: AdminMatch["status"]; label: string }[] = [
-  { value: "upcoming", label: "Upcoming" },
-  { value: "live", label: "Live" },
-  { value: "finished", label: "Finished" },
-  { value: "cancelled", label: "Cancelled" },
+  { value: "upcoming", label: "common.status.upcoming" },
+  { value: "live", label: "common.status.live" },
+  { value: "finished", label: "common.status.finished" },
+  { value: "cancelled", label: "common.status.cancelled" },
 ];
 
 const DEFAULT_SCORE_BET_CONFIG: Omit<MatchScoreBetConfig, "ID" | "match_ID"> = {
@@ -117,6 +118,7 @@ type Tab = "config" | "predictions" | "scoreBets" | "edit";
 export function MatchDetail() {
   const { matchId } = useParams<{ matchId: string }>();
   const navigate = useNavigate();
+  const { t } = useTranslation();
 
   const [match, setMatch] = useState<AdminMatch | null>(null);
   const [scoreBetCfg, setScoreBetCfg] = useState<MatchScoreBetConfig | null>(null);
@@ -292,7 +294,7 @@ export function MatchDetail() {
         setScoreBetCfgExists(false);
         setScoreBetCfg(null);
       }
-      toast.success("Match configuration saved");
+      toast.success(t("admin.matchDetail.configSaved"));
     } catch (e: any) {
       toast.error(e.message);
     } finally {
@@ -320,7 +322,7 @@ export function MatchDetail() {
         updatePayload.awayScore = 0;
       }
       await matchesApi.update(matchId, updatePayload);
-      toast.success("Match updated");
+      toast.success(t("admin.matchManagement.matchUpdated"));
       load();
     } catch (e: any) {
       toast.error(e.message);
@@ -350,10 +352,10 @@ export function MatchDetail() {
     if (!match?.bracketSlot_ID) return;
     const h = parseInt(penHome);
     const a = parseInt(penAway);
-    if (isNaN(h) || isNaN(a)) { toast.error("Please enter valid penalty scores."); return; }
-    if (h === a) { toast.error("Penalty scores cannot be equal \u2014 there must be a winner."); return; }
+    if (isNaN(h) || isNaN(a)) { toast.error(t("admin.matchManagement.invalidPenaltyScores")); return; }
+    if (h === a) { toast.error(t("admin.matchManagement.penaltyScoresEqual")); return; }
     const winnerId = h > a ? match.homeTeam_ID : match.awayTeam_ID;
-    if (!winnerId) { toast.error("Winner team is not resolved yet."); return; }
+    if (!winnerId) { toast.error(t("admin.matchManagement.winnerNotResolved")); return; }
     try {
       const res = await matchesApi.setPenaltyWinner(match.bracketSlot_ID, winnerId, h, a);
       toast.success(res.message);
@@ -386,7 +388,7 @@ export function MatchDetail() {
   if (loading || !match) {
     return (
       <div className="flex h-64 items-center justify-center text-muted-foreground">
-        Loading match details…
+        {t("admin.matchDetail.loadingDetails")}
       </div>
     );
   }
@@ -409,10 +411,10 @@ export function MatchDetail() {
   const correctScoreBets = scoreBets.filter((sb) => sb.isCorrect === true);
 
   const tabs: { key: Tab; label: string; count?: number }[] = [
-    { key: "config", label: "Config" },
-    { key: "predictions", label: "Predictions", count: predictions.length },
-    { key: "scoreBets", label: "Score Bets", count: scoreBets.length },
-    { key: "edit", label: "Edit Match" },
+    { key: "config", label: t("admin.matchDetail.configTab") },
+    { key: "predictions", label: t("admin.matchDetail.predictionsTab"), count: predictions.length },
+    { key: "scoreBets", label: t("admin.matchDetail.scoreBetsTab"), count: scoreBets.length },
+    { key: "edit", label: t("admin.matchDetail.editTab") },
   ];
 
   return (
@@ -422,7 +424,7 @@ export function MatchDetail() {
         <div className="flex items-center gap-4">
           <Button variant="ghost" size="sm" onClick={() => navigate("/admin/matches")}>
             <ArrowLeft className="mr-2 h-4 w-4" />
-            Back
+            {t("common.back")}
           </Button>
           <div>
             <h1 className="text-2xl font-bold text-white">
@@ -468,18 +470,18 @@ export function MatchDetail() {
           {canEnterResult && (
             <Button variant="outline" onClick={() => { setIsCorrection(false); setResultHome(""); setResultAway(""); setResultDialogOpen(true); }}>
               <Target className="mr-2 h-4 w-4" />
-              Enter Result
+              {t("admin.matchManagement.enterResult")}
             </Button>
           )}
           {isFinished && (
             <Button variant="outline" onClick={() => { setIsCorrection(true); setResultHome(String(match.homeScore ?? "")); setResultAway(String(match.awayScore ?? "")); setResultDialogOpen(true); }}>
               <Edit className="mr-2 h-4 w-4" />
-              Correct Result
+              {t("admin.matchManagement.correctResult")}
             </Button>
           )}
           {showPenaltyButton && (
             <Button variant="outline" className="border-amber-500/50 text-amber-400 hover:bg-amber-500/10" onClick={() => { setPenHome(""); setPenAway(""); setPenaltyDialogOpen(true); }}>
-              Penalty Shootout
+              {t("admin.matchManagement.penaltyShootout")}
             </Button>
           )}
         </div>
@@ -525,13 +527,13 @@ export function MatchDetail() {
       {activeTab === "config" && (
         <Card className="border-border bg-card p-5">
           <div className="mb-4 flex items-center justify-between">
-            <h3 className="text-sm font-semibold uppercase text-muted-foreground">Betting Configuration</h3>
+            <h3 className="text-sm font-semibold uppercase text-muted-foreground">{t("admin.matchDetail.bettingConfig")}</h3>
             <Button size="sm" onClick={handleSaveConfig} disabled={saving}>
               <Save className="mr-2 h-4 w-4" />
-              {saving ? "Saving…" : "Save Config"}
+              {saving ? t("common.saving") : t("admin.matchDetail.saveConfig")}
             </Button>
           </div>
-          <ConfigRow label="Points for Correct" description="Points awarded for a correct outcome prediction">
+          <ConfigRow label={t("admin.matchDetail.pointsForCorrect")} description={t("admin.matchDetail.pointsForCorrectDesc")}>
             <Input
               type="number"
               step="0.5"
@@ -541,7 +543,7 @@ export function MatchDetail() {
               onChange={(e) => setOutcomePoints(parseFloat(e.target.value) || 0)}
             />
           </ConfigRow>
-          <ConfigRow label="Hot Match" description="Mark this match as featured in player filters">
+          <ConfigRow label={t("admin.matchManagement.hotMatch")} description={t("admin.matchDetail.hotMatchDesc")}>
             <div className="flex items-center gap-4">
               <label className="inline-flex items-center gap-2 text-sm text-white">
                 <input
@@ -551,7 +553,7 @@ export function MatchDetail() {
                   onChange={() => setIsHotMatch(true)}
                   className="h-4 w-4 accent-primary"
                 />
-                Hot
+                {t("common.hot")}
               </label>
               <label className="inline-flex items-center gap-2 text-sm text-white">
                 <input
@@ -561,11 +563,11 @@ export function MatchDetail() {
                   onChange={() => setIsHotMatch(false)}
                   className="h-4 w-4 accent-primary"
                 />
-                Normal
+                {t("common.normal")}
               </label>
             </div>
           </ConfigRow>
-          <ConfigRow label="Enable Score Betting" description="Create score bet config for this match">
+          <ConfigRow label={t("admin.matchDetail.enableScoreBetting")} description={t("admin.matchDetail.enableScoreBettingDesc")}>
             <Checkbox
               checked={scoreBettingEnabled}
               onCheckedChange={(v) => setScoreBettingEnabled(!!v)}
@@ -574,14 +576,14 @@ export function MatchDetail() {
           </ConfigRow>
           {scoreBettingEnabled && (
             <>
-              <ConfigRow label="Enabled" description="Activate betting">
+              <ConfigRow label={t("admin.matchDetail.enabled")} description={t("admin.matchDetail.enabledDesc")}>
                 <Checkbox
                   checked={sbCfg.enabled}
                   onCheckedChange={(v) => setSbCfg({ ...sbCfg, enabled: !!v })}
                   className="border-white"
                 />
               </ConfigRow>
-              <ConfigRow label="Max Bets" description="Maximum score bets per player">
+              <ConfigRow label={t("admin.matchDetail.maxBets")} description={t("admin.matchDetail.maxBetsDesc")}>
                 <Input
                   type="number"
                   className="w-20 text-right border-white"
@@ -589,7 +591,7 @@ export function MatchDetail() {
                   onChange={(e) => setSbCfg({ ...sbCfg, maxBets: parseInt(e.target.value) || 0 })}
                 />
               </ConfigRow>
-              <ConfigRow label="Prize (VND)" description="Prize per correct score bet">
+              <ConfigRow label={t("admin.matchDetail.prizeVND")} description={t("admin.matchDetail.prizeVNDDesc")}>
                 <Input
                   type="number"
                   className="w-28 text-right border-white"
@@ -609,41 +611,41 @@ export function MatchDetail() {
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             <Card className="border-border bg-card p-3 text-center">
               <p className="text-lg font-bold text-white">{predictions.length}</p>
-              <p className="text-[11px] text-muted-foreground">Total</p>
+              <p className="text-[11px] text-muted-foreground">{t("admin.matchDetail.total")}</p>
             </Card>
             <Card className="border-border bg-card p-3 text-center">
               <p className="text-lg font-bold text-blue-400">{homePicks.length}</p>
-              <p className="text-[11px] text-muted-foreground">Home ({homeTeamName})</p>
+              <p className="text-[11px] text-muted-foreground">{t("common.home")} ({homeTeamName})</p>
             </Card>
             <Card className="border-border bg-card p-3 text-center">
               <p className="text-lg font-bold text-yellow-400">{drawPicks.length}</p>
-              <p className="text-[11px] text-muted-foreground">Draw</p>
+              <p className="text-[11px] text-muted-foreground">{t("admin.matchDetail.draw")}</p>
             </Card>
             <Card className="border-border bg-card p-3 text-center">
               <p className="text-lg font-bold text-red-400">{awayPicks.length}</p>
-              <p className="text-[11px] text-muted-foreground">Away ({awayTeamName})</p>
+              <p className="text-[11px] text-muted-foreground">{t("common.away")} ({awayTeamName})</p>
             </Card>
           </div>
           {isFinished && correctPredictions.length > 0 && (
             <div className="flex items-center gap-2 rounded-lg border border-green-500/30 bg-green-500/10 px-3 py-2 text-sm text-green-400">
               <CheckCircle2 className="h-4 w-4" />
-              <strong>{correctPredictions.length}</strong> correct prediction{correctPredictions.length !== 1 && "s"}
+              <strong>{correctPredictions.length}</strong> {t("admin.matchDetail.correctPrediction")}{correctPredictions.length !== 1 && "s"}
             </div>
           )}
 
           {loadingPredictions ? (
-            <div className="flex h-32 items-center justify-center text-muted-foreground">Loading predictions…</div>
+            <div className="flex h-32 items-center justify-center text-muted-foreground">{t("admin.matchDetail.loadingPredictions")}</div>
           ) : predictions.length === 0 ? (
-            <p className="py-8 text-center text-sm text-muted-foreground">No predictions for this match.</p>
+            <p className="py-8 text-center text-sm text-muted-foreground">{t("admin.matchDetail.noPredictions")}</p>
           ) : (
             <Card className="border-border bg-card">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-border text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                    <th className="px-4 py-3">Player</th>
-                    <th className="px-4 py-3">Pick</th>
-                    <th className="px-4 py-3">Points</th>
-                    <th className="px-4 py-3 text-center">Result</th>
+                    <th className="px-4 py-3">{t("admin.matchDetail.player")}</th>
+                    <th className="px-4 py-3">{t("admin.matchDetail.pick")}</th>
+                    <th className="px-4 py-3">{t("admin.matchDetail.points")}</th>
+                    <th className="px-4 py-3 text-center">{t("admin.matchManagement.result")}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -662,7 +664,7 @@ export function MatchDetail() {
                           variant={p.pick === "home" ? "default" : p.pick === "draw" ? "secondary" : "destructive"}
                           className="text-xs"
                         >
-                          {p.pick === "home" ? homeTeamName : p.pick === "away" ? awayTeamName : "Draw"}
+                          {p.pick === "home" ? homeTeamName : p.pick === "away" ? awayTeamName : t("admin.matchDetail.draw")}
                         </Badge>
                       </td>
                       <td className="px-4 py-2.5 font-mono text-muted-foreground">
@@ -688,25 +690,25 @@ export function MatchDetail() {
           {isFinished && correctScoreBets.length > 0 && (
             <div className="flex items-center gap-2 rounded-lg border border-green-500/30 bg-green-500/10 px-3 py-2 text-sm text-green-400">
               <CheckCircle2 className="h-4 w-4" />
-              <strong>{correctScoreBets.length}</strong> correct score bet{correctScoreBets.length !== 1 && "s"} — Payout:{" "}
+              <strong>{correctScoreBets.length}</strong> {t("admin.matchDetail.correctScoreBet")}{correctScoreBets.length !== 1 && "s"} — {t("admin.matchDetail.payout")}:{" "}}
               <strong>{correctScoreBets.reduce((s, b) => s + b.payout, 0).toLocaleString()} VND</strong> each
             </div>
           )}
 
           {loadingScoreBets ? (
-            <div className="flex h-32 items-center justify-center text-muted-foreground">Loading score bets…</div>
+            <div className="flex h-32 items-center justify-center text-muted-foreground">{t("admin.matchDetail.loadingScoreBets")}</div>
           ) : scoreBets.length === 0 ? (
-            <p className="py-8 text-center text-sm text-muted-foreground">No score bets for this match.</p>
+            <p className="py-8 text-center text-sm text-muted-foreground">{t("admin.matchDetail.noScoreBets")}</p>
           ) : (
             <Card className="border-border bg-card">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-border text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                    <th className="px-4 py-3">Player</th>
-                    <th className="px-4 py-3 text-center">Predicted Score</th>
-                    <th className="px-4 py-3">Status</th>
-                    <th className="px-4 py-3 text-right">Payout</th>
-                    <th className="px-4 py-3 text-center">Result</th>
+                    <th className="px-4 py-3">{t("admin.matchDetail.player")}</th>
+                    <th className="px-4 py-3 text-center">{t("admin.matchDetail.predictedScore")}</th>
+                    <th className="px-4 py-3">{t("admin.matchDetail.status")}</th>
+                    <th className="px-4 py-3 text-right">{t("admin.matchDetail.payout")}</th>
+                    <th className="px-4 py-3 text-center">{t("admin.matchManagement.result")}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -747,18 +749,18 @@ export function MatchDetail() {
       {activeTab === "edit" && (
         <Card className="border-border bg-card p-5">
           <div className="mb-4 flex items-center justify-between">
-            <h3 className="text-sm font-semibold uppercase text-muted-foreground">Edit Match Details</h3>
+            <h3 className="text-sm font-semibold uppercase text-muted-foreground">{t("admin.matchDetail.editDetails")}</h3>
             <Button size="sm" onClick={handleSaveEdit} disabled={saving}>
               <Save className="mr-2 h-4 w-4" />
-              {saving ? "Saving…" : "Save Changes"}
+              {saving ? t("common.saving") : t("admin.tournamentDetail.saveChanges")}
             </Button>
           </div>
           <div className="grid gap-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <label className="text-xs font-medium text-muted-foreground">Home Team</label>
+                <label className="text-xs font-medium text-muted-foreground">{t("admin.matchManagement.homeTeam")}</label>
                 <Select value={editForm.homeTeam_ID} onValueChange={(v) => setEditForm({ ...editForm, homeTeam_ID: v })}>
-                  <SelectTrigger><SelectValue placeholder="Select team" /></SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder={t("admin.matchManagement.selectTeam")} /></SelectTrigger>
                   <SelectContent>
                     {allTeams.map((t) => (
                       <SelectItem key={t.ID} value={t.ID}>{t.name}</SelectItem>
@@ -767,9 +769,9 @@ export function MatchDetail() {
                 </Select>
               </div>
               <div className="space-y-2">
-                <label className="text-xs font-medium text-muted-foreground">Away Team</label>
+                <label className="text-xs font-medium text-muted-foreground">{t("admin.matchManagement.awayTeam")}</label>
                 <Select value={editForm.awayTeam_ID} onValueChange={(v) => setEditForm({ ...editForm, awayTeam_ID: v })}>
-                  <SelectTrigger><SelectValue placeholder="Select team" /></SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder={t("admin.matchManagement.selectTeam")} /></SelectTrigger>
                   <SelectContent>
                     {allTeams.map((t) => (
                       <SelectItem key={t.ID} value={t.ID}>{t.name}</SelectItem>
@@ -780,7 +782,7 @@ export function MatchDetail() {
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <label className="text-xs font-medium text-muted-foreground">Date &amp; Time</label>
+                <label className="text-xs font-medium text-muted-foreground">{t("admin.matchManagement.dateAndTime")}</label>
                 <Input
                   type="datetime-local"
                   value={editForm.kickoff}
@@ -788,12 +790,12 @@ export function MatchDetail() {
                 />
               </div>
               <div className="space-y-2">
-                <label className="text-xs font-medium text-muted-foreground">Stage</label>
+                <label className="text-xs font-medium text-muted-foreground">{t("admin.matchManagement.stage")}</label>
                 <Select value={editForm.stage} onValueChange={(v) => setEditForm({ ...editForm, stage: v })}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {STAGES.map((s) => (
-                      <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                      <SelectItem key={s.value} value={s.value}>{t(s.label)}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -801,15 +803,15 @@ export function MatchDetail() {
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <label className="text-xs font-medium text-muted-foreground">Venue</label>
+                <label className="text-xs font-medium text-muted-foreground">{t("admin.matchManagement.venue")}</label>
                 <Input
                   value={editForm.venue}
                   onChange={(e) => setEditForm({ ...editForm, venue: e.target.value })}
-                  placeholder="Stadium name"
+                  placeholder={t("admin.matchManagement.stadiumPlaceholder")}
                 />
               </div>
               <div className="space-y-2">
-                <label className="text-xs font-medium text-muted-foreground">Matchday</label>
+                <label className="text-xs font-medium text-muted-foreground">{t("admin.matchManagement.matchday")}</label>
                 <Input
                   type="number"
                   min="1"
@@ -821,7 +823,7 @@ export function MatchDetail() {
               </div>
             </div>
             <div className="space-y-2">
-              <label className="text-xs font-medium text-muted-foreground">Status</label>
+              <label className="text-xs font-medium text-muted-foreground">{t("admin.matchManagement.matchStatus")}</label>
               <Select value={editForm.status} onValueChange={(v) => setEditForm({ ...editForm, status: v })}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -832,7 +834,7 @@ export function MatchDetail() {
               </Select>
             </div>
             <div className="space-y-2">
-              <label className="text-xs font-medium text-muted-foreground">Hot Match</label>
+              <label className="text-xs font-medium text-muted-foreground">{t("admin.matchManagement.hotMatch")}</label>
               <div className="flex items-center gap-5 rounded-md border border-border bg-surface-dark/40 px-3 py-2">
                 <label className="inline-flex items-center gap-2 text-sm text-white">
                   <input
@@ -842,7 +844,7 @@ export function MatchDetail() {
                     onChange={() => setEditForm({ ...editForm, isHotMatch: true })}
                     className="h-4 w-4 accent-primary"
                   />
-                  Hot
+                  {t("common.hot")}
                 </label>
                 <label className="inline-flex items-center gap-2 text-sm text-white">
                   <input
@@ -852,7 +854,7 @@ export function MatchDetail() {
                     onChange={() => setEditForm({ ...editForm, isHotMatch: false })}
                     className="h-4 w-4 accent-primary"
                   />
-                  Normal
+                  {t("common.normal")}
                 </label>
               </div>
             </div>
@@ -864,7 +866,7 @@ export function MatchDetail() {
       <Dialog open={resultDialogOpen} onOpenChange={setResultDialogOpen}>
         <DialogContent className="border-border bg-card text-white sm:max-w-sm">
           <DialogHeader>
-            <DialogTitle>{isCorrection ? "Correct Match Result" : "Enter Match Result"}</DialogTitle>
+            <DialogTitle>{isCorrection ? t("admin.matchManagement.correctResult") : t("admin.matchManagement.enterMatchResult")}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <p className="text-center text-sm text-muted-foreground">
@@ -872,12 +874,12 @@ export function MatchDetail() {
             </p>
             {isCorrection && (
               <p className="text-center text-xs text-amber-400">
-                ⚠ Predictions and score bets will be re-scored, and the leaderboard will be recalculated.
+                ⚠ {t("admin.matchManagement.reScoredWarning")}
               </p>
             )}
             <div className="flex items-center justify-center gap-4">
               <div className="space-y-1 text-center">
-                <label className="text-xs text-muted-foreground">Home</label>
+                <label className="text-xs text-muted-foreground">{t("common.home")}</label>
                 <Input
                   type="number"
                   min="0"
@@ -889,7 +891,7 @@ export function MatchDetail() {
               </div>
               <span className="mt-5 text-lg font-bold text-muted-foreground">–</span>
               <div className="space-y-1 text-center">
-                <label className="text-xs text-muted-foreground">Away</label>
+                <label className="text-xs text-muted-foreground">{t("common.away")}</label>
                 <Input
                   type="number"
                   min="0"
@@ -902,9 +904,9 @@ export function MatchDetail() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setResultDialogOpen(false)}>Cancel</Button>
+            <Button variant="outline" onClick={() => setResultDialogOpen(false)}>{t("common.cancel")}</Button>
             <Button onClick={handleEnterResult} disabled={resultHome === "" || resultAway === ""}>
-              {isCorrection ? "Save Correction" : "Submit Result"}
+              {isCorrection ? t("admin.matchManagement.saveCorrection") : t("admin.matchManagement.submitResult")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -914,11 +916,11 @@ export function MatchDetail() {
       <Dialog open={penaltyDialogOpen} onOpenChange={(o) => { if (!o) { setPenHome(""); setPenAway(""); } setPenaltyDialogOpen(o); }}>
         <DialogContent className="border-border bg-card text-white sm:max-w-sm">
           <DialogHeader>
-            <DialogTitle>Penalty Shootout Result</DialogTitle>
+            <DialogTitle>{t("admin.matchDetail.penaltyTitle")}</DialogTitle>
           </DialogHeader>
           <div className="space-y-5 py-4">
             <p className="text-center text-xs text-amber-400">
-              ⚠ Only applicable when aggregate is level and no winner is set yet.
+              ⚠ {t("admin.matchDetail.penaltyWarning")}
             </p>
             <div className="flex items-end justify-center gap-3">
               <div className="space-y-1 text-center">
@@ -945,12 +947,12 @@ export function MatchDetail() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => { setPenHome(""); setPenAway(""); setPenaltyDialogOpen(false); }}>Cancel</Button>
+            <Button variant="outline" onClick={() => { setPenHome(""); setPenAway(""); setPenaltyDialogOpen(false); }}>{t("common.cancel")}</Button>
             <Button
               disabled={penHome === "" || penAway === ""}
               onClick={handleSetPenaltyWinner}
             >
-              Confirm
+              {t("common.confirm")}
             </Button>
           </DialogFooter>
         </DialogContent>

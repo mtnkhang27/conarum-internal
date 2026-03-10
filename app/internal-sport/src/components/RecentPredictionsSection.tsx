@@ -1,29 +1,30 @@
+import { useTranslation } from "react-i18next";
 import { Clock, CheckCircle2, XCircle, MinusCircle, Trophy, Target } from "lucide-react";
 import type { RecentPredictionItem, ScoreBetDetail } from "@/types";
 
 // ─── Helpers ──────────────────────────────────────────────────
 
-function pickLabel(pick: string): string {
-    if (pick === "home") return "Home Win";
-    if (pick === "away") return "Away Win";
-    if (pick === "draw") return "Draw";
+function pickLabel(pick: string, t: (key: string) => string): string {
+    if (pick === "home") return t("sport.picks.homeWin");
+    if (pick === "away") return t("sport.picks.awayWin");
+    if (pick === "draw") return t("sport.picks.draw");
     return pick;
 }
 
-function statusBadge(item: RecentPredictionItem) {
+function statusBadge(item: RecentPredictionItem, t: (key: string) => string) {
     if (item.status === "scored") {
         if (item.isCorrect) {
             return (
                 <span className="inline-flex items-center gap-1 rounded border border-success/40 bg-success/20 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-success">
                     <CheckCircle2 className="h-3 w-3" />
-                    Correct
+                    {t("sport.status.correct")}
                 </span>
             );
         }
         return (
             <span className="inline-flex items-center gap-1 rounded border border-destructive/40 bg-destructive/20 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-destructive">
                 <XCircle className="h-3 w-3" />
-                Wrong
+                {t("sport.status.wrong")}
             </span>
         );
     }
@@ -31,32 +32,32 @@ function statusBadge(item: RecentPredictionItem) {
         return (
             <span className="inline-flex items-center gap-1 rounded border border-warning/40 bg-warning/20 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-warning">
                 <MinusCircle className="h-3 w-3" />
-                Locked
+                {t("sport.status.locked")}
             </span>
         );
     }
     return (
         <span className="inline-flex items-center gap-1 rounded border border-primary/40 bg-primary/20 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-primary">
             <Clock className="h-3 w-3" />
-            Pending
+            {t("sport.status.pending")}
         </span>
     );
 }
 
-function scoreBetBadge(bet: ScoreBetDetail) {
+function scoreBetBadge(bet: ScoreBetDetail, t: (key: string) => string) {
     if (bet.status === "settled" || bet.isCorrect !== null) {
         if (bet.isCorrect) {
             return (
                 <span className="inline-flex items-center gap-1 rounded border border-success/40 bg-success/20 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-success">
                     <CheckCircle2 className="h-3 w-3" />
-                    Hit
+                    {t("sport.status.hit")}
                 </span>
             );
         }
         return (
             <span className="inline-flex items-center gap-1 rounded border border-destructive/40 bg-destructive/20 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-destructive">
                 <XCircle className="h-3 w-3" />
-                Miss
+                {t("sport.status.miss")}
             </span>
         );
     }
@@ -64,14 +65,14 @@ function scoreBetBadge(bet: ScoreBetDetail) {
         return (
             <span className="inline-flex items-center gap-1 rounded border border-warning/40 bg-warning/20 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-warning">
                 <MinusCircle className="h-3 w-3" />
-                Locked
+                {t("sport.status.locked")}
             </span>
         );
     }
     return (
         <span className="inline-flex items-center gap-1 rounded border border-primary/40 bg-primary/20 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-primary">
             <Clock className="h-3 w-3" />
-            Pending
+            {t("sport.status.pending")}
         </span>
     );
 }
@@ -110,12 +111,12 @@ function ScoreBetsSection({
             <div className="mb-2 flex items-center justify-between">
                 <p className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
                     <Target className="h-3 w-3" />
-                    Score Predictions ({bets.length} bet{bets.length > 1 ? "s" : ""})
+                    {t("sport.scorePredictions", { count: bets.length })}
                 </p>
                 {bets.some((b) => b.isCorrect !== null) && (
                     <p className="text-[10px] font-bold text-muted-foreground">
                         <span className={correctCount > 0 ? "text-success" : "text-foreground/50"}>
-                            {correctCount}/{bets.filter((b) => b.isCorrect !== null).length} correct
+                            {correctCount}/{bets.filter((b) => b.isCorrect !== null).length} {t("sport.status.correct").toLowerCase()}
                         </span>
                         {totalPayout > 0 && (
                             <span className="ml-2 text-secondary">
@@ -134,7 +135,7 @@ function ScoreBetsSection({
                             </span>
                             {finalScore.home !== null && finalScore.away !== null && (
                                 <span className="text-[10px] text-muted-foreground">
-                                    vs final{" "}
+                                    {t("sport.vsFinal")}{" "}
                                     <span className="font-bold text-foreground/70">
                                         {finalScore.home}–{finalScore.away}
                                     </span>
@@ -147,7 +148,7 @@ function ScoreBetsSection({
                                     +{formatMoney(bet.payout)}
                                 </span>
                             )}
-                            {scoreBetBadge(bet)}
+                            {scoreBetBadge(bet, t)}
                         </div>
                     </div>
                 ))}
@@ -164,6 +165,7 @@ interface RecentPredictionsSectionProps {
 }
 
 export function RecentPredictionsSection({ predictions, loading }: RecentPredictionsSectionProps) {
+    const { t } = useTranslation();
     const total = predictions.length;
     const correct = predictions.filter((p) => p.isCorrect === true).length;
     const pending = predictions.filter(
@@ -180,7 +182,7 @@ export function RecentPredictionsSection({ predictions, loading }: RecentPredict
 
     // Group by tournament
     const grouped = predictions.reduce<Record<string, RecentPredictionItem[]>>((acc, p) => {
-        const key = p.tournamentName || "Unknown Tournament";
+        const key = p.tournamentName || t("sport.unknownTournament");
         if (!acc[key]) acc[key] = [];
         acc[key].push(p);
         return acc;
@@ -191,10 +193,10 @@ export function RecentPredictionsSection({ predictions, loading }: RecentPredict
             {/* Quick stats */}
             <div className="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
                 {[
-                    { label: "Total", value: total, color: "text-white" },
-                    { label: "Correct Picks", value: correct, color: "text-success" },
-                    { label: "Pending", value: pending, color: "text-primary" },
-                    { label: "Pick Accuracy", value: `${accuracy}%`, color: "text-secondary" },
+                    { label: t("common.total"), value: total, color: "text-white" },
+                    { label: t("sport.correctPicks"), value: correct, color: "text-success" },
+                    { label: t("sport.status.pending"), value: pending, color: "text-primary" },
+                    { label: t("sport.pickAccuracy"), value: `${accuracy}%`, color: "text-secondary" },
                 ].map((card) => (
                     <div
                         key={card.label}
@@ -212,14 +214,14 @@ export function RecentPredictionsSection({ predictions, loading }: RecentPredict
             {allScoreBets.length > 0 && (
                 <div className="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
                     {[
-                        { label: "Score Bets", value: allScoreBets.length, color: "text-white" },
+                        { label: t("sport.scoreBets"), value: allScoreBets.length, color: "text-white" },
                         {
-                            label: "Correct Scores",
+                            label: t("sport.correctScores"),
                             value: correctBets.length,
                             color: "text-success",
                         },
                         {
-                            label: "Score Accuracy",
+                            label: t("sport.scoreAccuracy"),
                             value:
                                 settledBets.length > 0
                                     ? `${Math.round((correctBets.length / settledBets.length) * 100)}%`
@@ -227,7 +229,7 @@ export function RecentPredictionsSection({ predictions, loading }: RecentPredict
                             color: "text-secondary",
                         },
                         {
-                            label: "Total Winnings",
+                            label: t("sport.totalWinnings"),
                             value: totalWinnings > 0 ? `+${formatMoney(totalWinnings)}` : "0",
                             color: totalWinnings > 0 ? "text-secondary" : "text-foreground/50",
                         },
@@ -249,12 +251,12 @@ export function RecentPredictionsSection({ predictions, loading }: RecentPredict
 
             {loading ? (
                 <div className="flex h-48 items-center justify-center text-muted-foreground">
-                    Loading recent predictions…
+                    {t("sport.loadingRecentPredictions")}
                 </div>
             ) : predictions.length === 0 ? (
                 <div className="flex h-48 flex-col items-center justify-center gap-2 text-muted-foreground">
                     <Trophy className="h-10 w-10 text-border" />
-                    <p className="text-sm">No predictions yet. Start predicting matches!</p>
+                    <p className="text-sm">{t("sport.noPredictionsYet")}</p>
                 </div>
             ) : (
                 <div className="space-y-8">
@@ -289,7 +291,7 @@ export function RecentPredictionsSection({ predictions, loading }: RecentPredict
                                                                 className={`fi fi-${item.homeFlag} rounded-sm`}
                                                             />
                                                         )}
-                                                        {item.homeTeam ? item.homeTeam : "TBD"}
+                                                        {item.homeTeam ? item.homeTeam : t("common.tbd")}
                                                     </span>
                                                     {item.homeScore !== null &&
                                                     item.awayScore !== null ? (
@@ -298,7 +300,7 @@ export function RecentPredictionsSection({ predictions, loading }: RecentPredict
                                                         </span>
                                                     ) : (
                                                         <span className="text-[10px] font-black text-muted-foreground">
-                                                            VS
+                                                         {t("common.vs")}
                                                         </span>
                                                     )}
                                                     <span className="flex items-center gap-1.5 text-sm font-bold text-white">
@@ -309,11 +311,11 @@ export function RecentPredictionsSection({ predictions, loading }: RecentPredict
                                                                 className={`fi fi-${item.awayFlag} rounded-sm`}
                                                             />
                                                         )}
-                                                        {item.awayTeam ? item.awayTeam : "TBD"}
+                                                        {item.awayTeam ? item.awayTeam : t("common.tbd")}
                                                     </span>
                                                 </div>
                                                 <p className="mt-1 text-[10px] text-muted-foreground">
-                                                    Kickoff: {formatDate(item.kickoff)}
+                                                    {t("sport.kickoffLabel")}: {formatDate(item.kickoff)}
                                                 </p>
 
                                                 {/* Score bets */}
@@ -330,15 +332,15 @@ export function RecentPredictionsSection({ predictions, loading }: RecentPredict
                                             <div className="flex items-center gap-4 sm:flex-shrink-0">
                                                 <div className="text-right">
                                                     <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                                                        Your Pick
+                                                        {t("sport.yourPick")}
                                                     </p>
                                                     <p className="text-sm font-bold text-primary">
-                                                        {pickLabel(item.pick)}
+                                                        {pickLabel(item.pick, t)}
                                                     </p>
                                                 </div>
                                                 <div className="text-right">
                                                     <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                                                        Points
+                                                        {t("sport.points")}
                                                     </p>
                                                     <p
                                                         className={`text-sm font-extrabold ${
@@ -352,7 +354,7 @@ export function RecentPredictionsSection({ predictions, loading }: RecentPredict
                                                             : "0"}
                                                     </p>
                                                 </div>
-                                                <div>{statusBadge(item)}</div>
+                                                <div>{statusBadge(item, t)}</div>
                                             </div>
                                         </div>
                                     </div>

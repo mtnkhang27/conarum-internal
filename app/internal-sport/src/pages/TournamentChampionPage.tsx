@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useLocation } from "react-router-dom";
 import { toast } from "sonner";
 import { Lock, Users } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import {
     AlertDialog,
     AlertDialogAction,
@@ -19,6 +20,7 @@ import type { TournamentInfo } from "@/types";
 
 export function TournamentChampionPage() {
     const location = useLocation();
+    const { t } = useTranslation();
     const [tournamentId, setTournamentId] = useState("");
     const [tournament, setTournament] = useState<TournamentInfo | null>(null);
     const [teams, setTeams] = useState<ChampionTeam[]>([]);
@@ -43,8 +45,8 @@ export function TournamentChampionPage() {
                 playerPredictionsApi.getChampionPick(tid),
                 playerTournamentQueryApi.getChampionPickCounts(tid),
             ]);
-            const t = allTournaments.find((x) => x.ID === tid) ?? null;
-            setTournament(t);
+            const found = allTournaments.find((x) => x.ID === tid) ?? null;
+            setTournament(found);
             setTeams(
                 teamData.map((team) => ({
                     ...team,
@@ -75,14 +77,12 @@ export function TournamentChampionPage() {
 
     const onSelectChampion = (team: ChampionTeam) => {
         if (isBettingClosed) {
-            toast.error("Champion predictions are closed for this tournament.");
+            toast.error(t("champion.bettingLockedDesc"));
             return;
         }
-        const currentSelection = teams.find((t) => t.selected);
+        const currentSelection = teams.find((tm) => tm.selected);
         if (currentSelection?.name === team.name) {
-            toast.info("Champion unchanged", {
-                description: `${team.name} is already your champion pick.`,
-            });
+            toast.info(t("champion.alreadyPicked", { team: team.name }));
             return;
         }
         setPendingTeam(team);
@@ -95,10 +95,10 @@ export function TournamentChampionPage() {
         try {
             const res = await playerActionsApi.pickChampion(pendingTeam.ID, tournamentId);
             setTeams((prev) =>
-                prev.map((t) => ({ ...t, selected: t.name === pendingTeam.name }))
+                prev.map((tm) => ({ ...tm, selected: tm.name === pendingTeam.name }))
             );
-            toast.success("Champion updated", {
-                description: res.message || `${pendingTeam.name} has been set as your champion pick.`,
+            toast.success(t("predictionSlip.championSaved"), {
+                description: res.message || t("predictionSlip.championSavedDesc", { team: pendingTeam.name }),
             });
         } catch (e: any) {
             toast.error(e.message);
@@ -115,10 +115,10 @@ export function TournamentChampionPage() {
                     <div>
                         <h2 className="flex items-center gap-2 text-lg font-bold text-white">
                             <span className="h-6 w-1 rounded-full bg-secondary" />
-                            Select Your Tournament Champion
+                            {t("champion.title")}
                         </h2>
                         <p className="mt-1 text-xs text-muted-foreground">
-                            Predictions for the final winner. No points are calculated; rewards are issued by admin.
+                            {t("champion.subtitle")}
                         </p>
                     </div>
                     <TournamentSelector
@@ -131,22 +131,21 @@ export function TournamentChampionPage() {
                 {tournament && isBettingClosed && (
                     <div className="mb-4 flex items-center gap-2 rounded-lg border border-yellow-500/30 bg-yellow-500/10 px-4 py-3 text-sm text-yellow-400">
                         <Lock className="h-4 w-4 flex-shrink-0" />
-                        Champion predictions are{" "}
-                        <strong>{tournament.championBettingStatus ?? tournament.status}</strong> for this tournament. You can no longer change your pick.
+                        {t("champion.bettingLocked")} — <strong>{tournament.championBettingStatus ?? tournament.status}</strong>
                     </div>
                 )}
 
                 {!tournamentId ? (
                     <p className="py-12 text-center text-sm text-muted-foreground">
-                        Select a tournament above to view and pick your champion.
+                        {t("champion.selectTeam")}
                     </p>
                 ) : loading ? (
                     <div className="flex h-64 items-center justify-center text-muted-foreground">
-                        Loading teams…
+                        {t("common.loading")}
                     </div>
                 ) : teams.length === 0 ? (
                     <p className="py-12 text-center text-sm text-muted-foreground">
-                        No teams available for selection.
+                        {t("champion.noPick")}
                     </p>
                 ) : (
                     <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
@@ -196,7 +195,7 @@ export function TournamentChampionPage() {
                                             : "border-border bg-surface-dark text-muted-foreground group-hover:border-primary group-hover:bg-primary group-hover:text-white"
                                             }`}
                                     >
-                                        {team.selected ? "Selected" : "Select"}
+                                        {team.selected ? t("champion.yourPick") : t("champion.confirmSelection")}
                                     </button>
                                 </div>
                             </div>
@@ -208,9 +207,9 @@ export function TournamentChampionPage() {
             <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
                 <AlertDialogContent className="border-border bg-card">
                     <AlertDialogHeader>
-                        <AlertDialogTitle>Confirm Champion Selection</AlertDialogTitle>
+                        <AlertDialogTitle>{t("champion.confirmTitle")}</AlertDialogTitle>
                         <AlertDialogDescription>
-                            Set {pendingTeam?.name} as your tournament champion pick?
+                            {t("champion.confirmDesc", { team: pendingTeam?.name })}
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
@@ -218,17 +217,16 @@ export function TournamentChampionPage() {
                             className="border-border bg-surface text-foreground hover:bg-surface-dark"
                             onClick={() => {
                                 setPendingTeam(null);
-                                toast.info("Selection canceled");
                             }}
                         >
-                            Keep Current
+                            {t("champion.cancelConfirm")}
                         </AlertDialogCancel>
                         <AlertDialogAction
                             className="bg-primary text-white hover:bg-primary/80"
                             onClick={onConfirmSelection}
                             disabled={submitting}
                         >
-                            {submitting ? "Saving…" : "Select Champion"}
+                            {submitting ? t("common.saving") : t("champion.confirmSelection")}
                         </AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>

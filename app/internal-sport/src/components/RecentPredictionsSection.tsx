@@ -97,9 +97,11 @@ function formatMoney(amount: number): string {
 function ScoreBetsSection({
     bets,
     finalScore,
+    t,
 }: {
     bets: ScoreBetDetail[];
     finalScore: { home: number | null; away: number | null };
+    t: (key: string, options?: Record<string, any>) => string;
 }) {
     if (bets.length === 0) return null;
 
@@ -325,6 +327,7 @@ export function RecentPredictionsSection({ predictions, loading }: RecentPredict
                                                         home: item.homeScore,
                                                         away: item.awayScore,
                                                     }}
+                                                    t={t}
                                                 />
                                             </div>
 

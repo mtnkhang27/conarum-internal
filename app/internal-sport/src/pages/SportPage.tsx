@@ -148,33 +148,7 @@ export function SportPage() {
             {/* ── Scrollable content ── */}
             <div className="p-4 pb-24 xl:pb-6">
 
-                {/* ══════════════════════════════════════════
-                    SECTION 1 — Leaderboard
-                ══════════════════════════════════════════ */}
-                <section className="mb-14">
-                    <SectionHeading
-                        id={SECTION.leaderboard}
-                        color="bg-yellow-400"
-                        title={t("sport.sections.leaderboard")}
-                        subtitle={t("sport.sections.leaderboardSubtitle")}
-                    />
-                    <LeaderboardSection tournamentId={tournamentId} />
-                </section>
-
-                <section className="mb-14">
-                    <SectionHeading
-                        id={SECTION.bracket}
-                        color="bg-primary"
-                        title={t("sport.sections.bracket")}
-                        subtitle={t("sport.sections.bracketSubtitle")}
-                    />
-                     <TournamentBracket
-                     
-                    //  subtitle="Tournament bracket — 1 point per correct prediction. Ties broken by name (A→Z)." 
-                     tournamentId={tournamentId} />
-                </section>
-
-                {/* ══════════════════════════════════════════
+{/* ══════════════════════════════════════════
                     SECTION 2 — Matches (Available + Live + Upcoming)
                 ══════════════════════════════════════════ */}
                 <section className="mb-14">
@@ -212,6 +186,50 @@ export function SportPage() {
                 </section>
 
                 {/* ══════════════════════════════════════════
+                    SECTION 1 — Leaderboard
+                ══════════════════════════════════════════ */}
+                <section className="mb-14">
+                    <SectionHeading
+                        id={SECTION.leaderboard}
+                        color="bg-yellow-400"
+                        title={t("sport.sections.leaderboard")}
+                        subtitle={t("sport.sections.leaderboardSubtitle")}
+                    />
+                    <LeaderboardSection tournamentId={tournamentId} />
+                </section>
+
+                {/* ══════════════════════════════════════════
+                    SECTION 4 — Recent Predictions
+                ══════════════════════════════════════════ */}
+                <section>
+                    <SectionHeading
+                        id={SECTION.recent}
+                        color="bg-secondary"
+                        title={t("sport.sections.recent")}
+                        subtitle={t("sport.sections.recentSubtitle")}
+                    />
+                    <RecentPredictionsSection
+                        predictions={predictions}
+                        loading={loadingPredictions}
+                    />
+                </section>
+
+                <section className="mb-14">
+                    <SectionHeading
+                        id={SECTION.bracket}
+                        color="bg-primary"
+                        title={t("sport.sections.bracket")}
+                        subtitle={t("sport.sections.bracketSubtitle")}
+                    />
+                     <TournamentBracket
+                     
+                    //  subtitle="Tournament bracket — 1 point per correct prediction. Ties broken by name (A→Z)." 
+                     tournamentId={tournamentId} />
+                </section>
+
+                
+
+                {/* ══════════════════════════════════════════
                     SECTION 3 — Completed matches
                 ══════════════════════════════════════════ */}
                 <section className="mb-14">
@@ -231,21 +249,7 @@ export function SportPage() {
                     )}
                 </section>
 
-                {/* ══════════════════════════════════════════
-                    SECTION 4 — Recent Predictions
-                ══════════════════════════════════════════ */}
-                <section>
-                    <SectionHeading
-                        id={SECTION.recent}
-                        color="bg-secondary"
-                        title={t("sport.sections.recent")}
-                        subtitle={t("sport.sections.recentSubtitle")}
-                    />
-                    <RecentPredictionsSection
-                        predictions={predictions}
-                        loading={loadingPredictions}
-                    />
-                </section>
+                
             </div>
         </div>
     );

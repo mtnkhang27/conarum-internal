@@ -43,19 +43,15 @@ import { teamsApi, teamMembersApi } from "@/services/adminApi";
 import type { AdminTeam, AdminTeamMember } from "@/types/admin";
 
 const ROLES = [
-    { value: "headCoach", label: "Head Coach" },
-    { value: "assistantCoach", label: "Assistant Coach" },
-    { value: "goalkeepingCoach", label: "GK Coach" },
-    { value: "fitnessCoach", label: "Fitness Coach" },
-    { value: "player", label: "Player" },
-    { value: "captain", label: "Captain" },
+    { value: "headCoach", label: "admin.teamDetail.roles.headCoach" },
+    { value: "assistantCoach", label: "admin.teamDetail.roles.assistantCoach" },
+    { value: "goalkeepingCoach", label: "admin.teamDetail.roles.goalkeepingCoach" },
+    { value: "fitnessCoach", label: "admin.teamDetail.roles.fitnessCoach" },
+    { value: "player", label: "admin.teamDetail.roles.player" },
+    { value: "captain", label: "admin.teamDetail.roles.captain" },
 ];
 
 const POSITIONS = ["GK", "CB", "LB", "RB", "LWB", "RWB", "CDM", "CM", "AM", "LW", "RW", "LM", "RM", "ST", "CF"];
-
-function roleLabel(role: string) {
-    return ROLES.find((r) => r.value === role)?.label || role;
-}
 
 function roleBadgeVariant(role: string) {
     switch (role) {
@@ -295,7 +291,7 @@ export function TeamDetail() {
                                         <div>
                                             <p className="font-medium text-white">{member.name}</p>
                                             <Badge variant={roleBadgeVariant(member.role)} className="text-xs">
-                                                {roleLabel(member.role)}
+                                                {t(ROLES.find((r) => r.value === member.role)?.label || "admin.teamDetail.role.player")}
                                             </Badge>
                                         </div>
                                     </div>
@@ -374,7 +370,7 @@ export function TeamDetail() {
                                         </td>
                                         <td className="px-4 py-3">
                                             <Badge variant={roleBadgeVariant(member.role)} className="text-xs">
-                                                {member.isCaptain ? t("admin.teamDetail.captain") : roleLabel(member.role)}
+                                                {member.isCaptain ? t("admin.teamDetail.role.captain") : t(ROLES.find((r) => r.value === member.role)?.label || "admin.teamDetail.role.player")}
                                             </Badge>
                                         </td>
                                         <td className="px-4 py-3">
@@ -461,7 +457,7 @@ export function TeamDetail() {
                                     <SelectContent>
                                         {ROLES.map((r) => (
                                             <SelectItem key={r.value} value={r.value}>
-                                                {r.label}
+                                                {t(r.label)}
                                             </SelectItem>
                                         ))}
                                     </SelectContent>
@@ -478,7 +474,7 @@ export function TeamDetail() {
                                     }
                                 >
                                     <SelectTrigger>
-                                        <SelectValue placeholder="Select" />
+                                        <SelectValue placeholder={t("common.select")} />
                                     </SelectTrigger>
                                     <SelectContent>
                                         {POSITIONS.map((p) => (
@@ -504,7 +500,7 @@ export function TeamDetail() {
                                             jerseyNumber: e.target.value,
                                         })
                                     }
-                                    placeholder="e.g., 7"
+                                    placeholder={t("admin.teamDetail.placeholderJerseyNumber")}
                                 />
                             </div>
                             <div className="flex items-end pb-1">

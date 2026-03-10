@@ -28,6 +28,8 @@
     "away": "Auswärts",
     "draw": "Unentschieden",
     "pts": "Pkt",
+    "preview": "Vorschau",
+    "select": "Wählen",
     "status": {
       "upcoming": "Bevorstehend",
       "active": "Aktiv",
@@ -35,7 +37,9 @@
       "cancelled": "Abgesagt",
       "open": "Offen",
       "locked": "Gesperrt",
-      "inactive": "Inaktiv"
+      "inactive": "Inaktiv",
+      "live": "Live",
+      "finished": "Abgeschlossen"
     },
     "stage": {
       "group": "Gruppenphase",
@@ -251,6 +255,7 @@
   },
   "admin": {
     "matchManagement": {
+      "finished": "Abgeschlossen",
       "title": "Spielverwaltung",
       "subtitle": "Alle Spiele und Ergebnisse verwalten",
       "addMatch": "Spiel hinzufügen",
@@ -297,7 +302,41 @@
       "bettingLocked": "Wetten gesperrt",
       "invalidPenaltyScores": "Bitte gültige Elfmeterergebnisse eingeben.",
       "penaltyScoresEqual": "Elfmeterergebnisse dürfen nicht gleich sein — es muss einen Sieger geben.",
-      "winnerNotResolved": "Siegerteam ist noch nicht bestimmt."
+      "winnerNotResolved": "Siegerteam ist noch nicht bestimmt.",
+      "stages": {
+        "group": "Gruppenphase",
+        "roundOf32": "Achtelfinale",
+        "roundOf16": "Achtelfinale",
+        "quarterFinal": "Viertelfinale",
+        "semiFinal": "Halbfinale",
+        "thirdPlace": "Spiel um Platz 3",
+        "final": "Finale",
+        "regular": "Reguläre Saison",
+        "playoff": "Playoff",
+        "relegation": "Abstiegsrunde"
+      },
+      "filterByTournament": "Nach Turnier filtern…",
+      "filterByStatus": "Nach Status filtern…",
+      "filterByStage": "Nach Phase filtern…",
+      "allStages": "Alle Phasen",
+      "filterHotMatch": "Topspiele filtern…",
+      "allHotFilter": "Alle Spiele",
+      "hotMatches": "Nur Topspiele",
+      "normalMatches": "Normale Spiele",
+      "tbd": "TBD",
+      "kickoffPending": "Anstoß ausstehend",
+      "no": "Nein",
+      "configure": "Konfigurieren",
+      "unlockBetting": "Wetten entsperren",
+      "lockBetting": "Wetten sperren",
+      "updateResult": "Ergebnis aktualisieren",
+      "match": "Spiel",
+      "selectTournament": "Turnier wählen",
+      "syncResults": "Ergebnisse synchronisieren",
+      "syncTitle": "Spielergebnisse synchronisieren",
+      "selectTeamToSync": "Bitte wählen Sie ein Turnier zum Synchronisieren von Ergebnissen.",
+      "stadiumPlaceholder": "Stadionnamen eingeben",
+      "placeholderMatchday": "z.B. 1-38"
     },
     "matchDetail": {
       "title": "Spieldetail",
@@ -405,7 +444,16 @@
       "teamCreated": "Team erstellt",
       "teamDeleted": "Team gelöscht",
       "deleteTitle": "Team löschen",
-      "deleteDescription": "Das Team wird dauerhaft gelöscht. Spiele, die es verwenden, werden nicht beeinflusst."
+      "deleteDescription": "Das Team wird dauerhaft gelöscht. Spiele, die es verwenden, werden nicht beeinflusst.",
+      "placeholderTeamName": "Teamname",
+      "placeholderShortName": "Kurzname",
+      "placeholderTLA": "z.B. GER",
+      "placeholderCrestUrl": "https://...",
+      "placeholderFlagCode": "z.B. de",
+      "placeholderFifaRanking": "z.B. 1",
+      "confederation": "Konföderation",
+      "filterByTournament": "Nach Turnier filtern…",
+      "fifaRank":"FIFA-Rang"
     },
     "teamDetail": {
       "title": "Teamdetails",
@@ -457,7 +505,16 @@
       "remove": "Entfernen",
       "nameRequired": "Mitgliedsname ist erforderlich",
       "memberAdded": "Mitglied hinzugefügt",
-      "memberRemoved": "Mitglied entfernt"
+      "memberRemoved": "Mitglied entfernt",
+      "placeholderJerseyNumber": "z.B. 10",
+      "roles": {
+        "headCoach": "Cheftrainer",
+        "assistantCoach": "Co-Trainer",
+        "goalkeepingCoach": "Torwarttrainer",
+        "fitnessCoach": "Fitness-Trainer",
+        "player": "Spieler",
+        "captain": "Kapitän"
+      }
     },
     "tournamentManagement": {
       "title": "Turnierverwaltung",
@@ -557,5 +614,14 @@
       "deleteDescription": "Der Spieler und alle seine Tipps werden entfernt.",
       "playerDeleted": "Spieler gelöscht"
     }
+  },
+  "confederation": {
+    "uefa": "UEFA",
+    "conmebol": "CONMEBOL",
+    "caf": "CAF",
+    "afc": "AFC",
+    "concacaf": "CONCACAF",
+    "ofc": "OFC"
   }
+
 }

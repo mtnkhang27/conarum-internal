@@ -663,7 +663,7 @@ export function MatchManagement() {
                                                         <div>{homeFallbackName}</div>
                                                         {homeFallbackName.startsWith("Winner ") && (
                                                             <div className="text-[10px] font-normal text-muted-foreground">
-                                                                TBD
+                                                                {t("admin.matchManagement.tbd")}
                                                             </div>
                                                         )}
                                                     </div>
@@ -693,7 +693,7 @@ export function MatchManagement() {
                                                         <div>{awayFallbackName}</div>
                                                         {awayFallbackName.startsWith("Winner ") && (
                                                             <div className="text-[10px] font-normal text-muted-foreground">
-                                                                TBD
+                                                                {t("admin.matchManagement.tbd")}
                                                             </div>
                                                         )}
                                                     </div>
@@ -701,14 +701,14 @@ export function MatchManagement() {
                                         </div>
                                     </td>
                                     <td className="px-4 py-3 capitalize text-muted-foreground">
-                                        {m.stage}
+                                        {t(STAGES.find((s) => s.value === m.stage)?.label || "admin.matchManagement.stages.group")}
                                     </td>
                                     <td className="px-4 py-3">
                                         <div className="font-medium text-white">
-                                            {kickoff.date}
+                                            {kickoff.date === "TBD" ? t("admin.matchManagement.tbd") : kickoff.date}
                                         </div>
                                         <div className="text-xs text-muted-foreground">
-                                            {kickoff.time}
+                                            {kickoff.time === "Kickoff pending" ? t("admin.matchManagement.kickoffPending") : kickoff.time}
                                         </div>
                                     </td>
                                     {/* <td className="px-4 py-3 text-muted-foreground">
@@ -733,7 +733,7 @@ export function MatchManagement() {
                                     </td>
                                     <td className="px-4 py-3">
                                         <Badge variant={statusVariant(m.status)}>
-                                            {m.status}
+                                            {t(MATCH_STATUSES.find((s) => s.value === m.status)?.label || "common.status.upcoming")}
                                         </Badge>
                                     </td>
                                     <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
@@ -971,7 +971,7 @@ export function MatchManagement() {
                                     max="99"
                                     value={form.matchday}
                                     onChange={(e) => setForm({ ...form, matchday: e.target.value })}
-                                    placeholder="e.g. 1-38"
+                                    placeholder={t("admin.matchManagement.placeholderMatchday")}
                                 />
                             </div>
                         </div>

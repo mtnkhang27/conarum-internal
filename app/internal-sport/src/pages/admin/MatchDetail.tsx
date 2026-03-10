@@ -435,7 +435,7 @@ export function MatchDetail() {
                   <span className={`fi fi-${homeTeamResolved.flagCode} mr-2`} />
                 ))}
               {homeTeamName}
-              <span className="mx-3 text-muted-foreground">vs</span>
+              <span className="mx-3 text-muted-foreground">{t("admin.matchDetail.vs")}</span>
               {awayTeamResolved &&
                 (awayTeamResolved.crest ? (
                   <img src={awayTeamResolved.crest} alt="" className="mr-2 inline h-6 w-6 object-contain align-middle" />
@@ -818,7 +818,7 @@ export function MatchDetail() {
                   max="99"
                   value={editForm.matchday}
                   onChange={(e) => setEditForm({ ...editForm, matchday: e.target.value })}
-                  placeholder="e.g. 1-38"
+                  placeholder={t("admin.matchManagement.placeholderMatchday")}
                 />
               </div>
             </div>
@@ -828,7 +828,7 @@ export function MatchDetail() {
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   {MATCH_STATUSES.map((statusOption) => (
-                    <SelectItem key={statusOption.value} value={statusOption.value}>{statusOption.label}</SelectItem>
+                    <SelectItem key={statusOption.value} value={statusOption.value}>{t(statusOption.label)}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -870,7 +870,7 @@ export function MatchDetail() {
           </DialogHeader>
           <div className="space-y-4 py-4">
             <p className="text-center text-sm text-muted-foreground">
-              {homeTeamName} vs {awayTeamName}
+              {homeTeamName} {t("admin.matchDetail.vs")} {awayTeamName}
             </p>
             {isCorrection && (
               <p className="text-center text-xs text-amber-400">

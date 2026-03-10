@@ -28,6 +28,8 @@
     "away": "Away",
     "draw": "Draw",
     "pts": "pts",
+    "preview": "Preview",
+    "select": "Select",
     "status": {
       "upcoming": "Upcoming",
       "active": "Active",
@@ -35,7 +37,9 @@
       "cancelled": "Cancelled",
       "open": "Open",
       "locked": "Locked",
-      "inactive": "Inactive"
+      "inactive": "Inactive",
+      "live": "Live",
+      "finished": "Finished"
     },
     "stage": {
       "group": "Group Stage",
@@ -251,6 +255,7 @@
   },
   "admin": {
     "matchManagement": {
+      "finished": "Finished",
       "title": "Match Management",
       "subtitle": "Manage all matches and results",
       "addMatch": "Add Match",
@@ -297,7 +302,41 @@
       "bettingLocked": "Betting Locked",
       "invalidPenaltyScores": "Please enter valid penalty scores.",
       "penaltyScoresEqual": "Penalty scores cannot be equal — there must be a winner.",
-      "winnerNotResolved": "Winner team is not resolved yet."
+      "winnerNotResolved": "Winner team is not resolved yet.",
+      "stages": {
+        "group": "Group Stage",
+        "roundOf32": "Round of 32",
+        "roundOf16": "Round of 16",
+        "quarterFinal": "Quarter-Final",
+        "semiFinal": "Semi-Final",
+        "thirdPlace": "3rd Place",
+        "final": "Final",
+        "regular": "Regular Season",
+        "playoff": "Playoff",
+        "relegation": "Relegation"
+      },
+      "filterByTournament": "Filter by tournament…",
+      "filterByStatus": "Filter by status…",
+      "filterByStage": "Filter by stage…",
+      "allStages": "All Stages",
+      "filterHotMatch": "Filter hot match…",
+      "allHotFilter": "All matches",
+      "hotMatches": "Hot matches only",
+      "normalMatches": "Normal matches",
+      "tbd": "TBD",
+      "kickoffPending": "Kickoff pending",
+      "no": "No",
+      "configure": "Configure",
+      "unlockBetting": "Unlock Betting",
+      "lockBetting": "Lock Betting",
+      "updateResult": "Update Result",
+      "match": "Match",
+      "selectTournament": "Select tournament",
+      "syncResults": "Sync Results",
+      "syncTitle": "Sync Match Results",
+      "selectTeamToSync": "Please select a tournament to sync results.",
+      "stadiumPlaceholder": "Enter stadium name",
+      "placeholderMatchday": "e.g., 1-38"
     },
     "matchDetail": {
       "title": "Match Detail",
@@ -403,7 +442,16 @@
       "teamCreated": "Team created",
       "teamDeleted": "Team deleted",
       "deleteTitle": "Delete Team",
-      "deleteDescription": "This will permanently delete the team. Matches using it will not be affected."
+      "deleteDescription": "This will permanently delete the team. Matches using it will not be affected.",
+      "placeholderTeamName": "Team name",
+      "placeholderShortName": "Short name",
+      "placeholderTLA": "e.g., GER",
+      "placeholderCrestUrl": "https://...",
+      "placeholderFlagCode": "e.g., de",
+      "placeholderFifaRanking": "e.g., 1",
+      "confederation": "Confederation",
+      "filterByTournament": "Filter by tournament…",
+      "fifaRank":"FIFA Rank"
     },
     "teamDetail": {
       "title": "Team Details",
@@ -455,7 +503,16 @@
       "remove": "Remove",
       "nameRequired": "Member name is required",
       "memberAdded": "Member added",
-      "memberRemoved": "Member removed"
+      "memberRemoved": "Member removed",
+      "placeholderJerseyNumber": "e.g., 10",
+      "roles": {
+        "headCoach": "Head Coach",
+        "assistantCoach": "Assistant Coach",
+        "goalkeepingCoach": "Goalkeeper Coach",
+        "fitnessCoach": "Fitness Coach",
+        "player": "Player",
+        "captain": "Captain"
+      }
     },
     "tournamentManagement": {
       "title": "Tournament Management",
@@ -555,5 +612,14 @@
       "deleteDescription": "This will remove the player and all their predictions.",
       "playerDeleted": "Player deleted"
     }
+  },
+  "confederation": {
+    "uefa": "UEFA",
+    "conmebol": "CONMEBOL",
+    "caf": "CAF",
+    "afc": "AFC",
+    "concacaf": "CONCACAF",
+    "ofc": "OFC"
   }
+
 }

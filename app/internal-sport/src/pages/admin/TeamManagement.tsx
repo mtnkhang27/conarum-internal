@@ -34,7 +34,14 @@ import { toast } from "sonner";
 import { teamsApi, tournamentsApi, tournamentTeamsApi } from "@/services/adminApi";
 import type { AdminTeam, AdminTournament, AdminTournamentTeam } from "@/types/admin";
 
-const CONFEDERATIONS = ["UEFA", "CONMEBOL", "CAF", "AFC", "CONCACAF", "OFC"];
+const CONFEDERATIONS = [
+    { value: "UEFA", label: "admin.confederation.uefa" },
+    { value: "CONMEBOL", label: "admin.confederation.conmebol" },
+    { value: "CAF", label: "admin.confederation.caf" },
+    { value: "AFC", label: "admin.confederation.afc" },
+    { value: "CONCACAF", label: "admin.confederation.concacaf" },
+    { value: "OFC", label: "admin.confederation.ofc" },
+];
 
 export function TeamManagement() {
     const navigate = useNavigate();
@@ -222,7 +229,7 @@ export function TeamManagement() {
                         onValueChange={setSelectedTournament}
                     >
                         <SelectTrigger className="w-[260px]">
-                            <SelectValue placeholder="Filter by tournament" />
+                            <SelectValue placeholder={t("admin.teamManagement.filterByTournament")} />
                         </SelectTrigger>
                         <SelectContent>
                             <SelectItem value="all">{t("admin.teamManagement.allTeams")}</SelectItem>
@@ -380,7 +387,7 @@ export function TeamManagement() {
                             <Input
                                 value={form.name}
                                 onChange={(e) => setForm({ ...form, name: e.target.value })}
-                                placeholder="e.g., Arsenal FC"
+                                placeholder={t("admin.teamManagement.placeholderTeamName")}
                             />
                         </div>
                         <div className="grid grid-cols-2 gap-4">
@@ -393,7 +400,7 @@ export function TeamManagement() {
                                     onChange={(e) =>
                                         setForm({ ...form, shortName: e.target.value })
                                     }
-                                    placeholder="e.g., Arsenal"
+                                    placeholder={t("admin.teamManagement.placeholderShortName")}
                                 />
                             </div>
                             <div className="space-y-2">
@@ -405,7 +412,7 @@ export function TeamManagement() {
                                     onChange={(e) =>
                                         setForm({ ...form, tla: e.target.value.toUpperCase() })
                                     }
-                                    placeholder="e.g., ARS"
+                                    placeholder={t("admin.teamManagement.placeholderTLA")}
                                     maxLength={10}
                                 />
                             </div>
@@ -417,7 +424,7 @@ export function TeamManagement() {
                             <Input
                                 value={form.crest}
                                 onChange={(e) => setForm({ ...form, crest: e.target.value })}
-                                placeholder="https://crests.football-data.org/57.png"
+                                placeholder={t("admin.teamManagement.placeholderCrestUrl")}
                             />
                             {form.crest && (
                                 <div className="flex items-center gap-2 pt-1">
@@ -429,7 +436,7 @@ export function TeamManagement() {
                                             ((e.target as HTMLImageElement).style.display = "none")
                                         }
                                     />
-                                    <span className="text-xs text-muted-foreground">Preview</span>
+                                    <span className="text-xs text-muted-foreground">{t("common.preview")}</span>
                                 </div>
                             )}
                         </div>
@@ -443,7 +450,7 @@ export function TeamManagement() {
                                     onChange={(e) =>
                                         setForm({ ...form, flagCode: e.target.value })
                                     }
-                                    placeholder="e.g., gb"
+                                    placeholder={t("admin.teamManagement.placeholderFlagCode")}
                                     maxLength={5}
                                 />
                             </div>
@@ -458,12 +465,12 @@ export function TeamManagement() {
                                     }
                                 >
                                     <SelectTrigger>
-                                        <SelectValue placeholder="Select" />
+                                        <SelectValue placeholder={t("common.select")} />
                                     </SelectTrigger>
                                     <SelectContent>
                                         {CONFEDERATIONS.map((c) => (
-                                            <SelectItem key={c} value={c}>
-                                                {c}
+                                            <SelectItem key={c.value} value={c.value}>
+                                                {t(c.label)}
                                             </SelectItem>
                                         ))}
                                     </SelectContent>
@@ -480,7 +487,7 @@ export function TeamManagement() {
                                 onChange={(e) =>
                                     setForm({ ...form, fifaRanking: e.target.value })
                                 }
-                                placeholder="e.g., 5"
+                                placeholder={t("admin.teamManagement.placeholderFifaRanking")}
                             />
                         </div>
                     </div>

@@ -6,7 +6,7 @@
 
 import { mapExternalAssetUrls } from "@/utils/externalAssetProxy";
 
-const BASE = "/api/player";
+const BASE = "api/player";
 
 async function json<T>(url: string): Promise<T> {
     const res = await fetch(url);
@@ -651,36 +651,36 @@ export const playerMatchesApi = {
 
         const realMatchItems = matches
             .map((m) => {
-            const match = toMatch(m);
-            match.betTarget = "match";
-            match.slotId = m.bracketSlot_ID ?? undefined;
+                const match = toMatch(m);
+                match.betTarget = "match";
+                match.slotId = m.bracketSlot_ID ?? undefined;
 
-            const scoreBetConfigs = m.scoreBetConfig;
-            if (scoreBetConfigs && Array.isArray(scoreBetConfigs) && scoreBetConfigs.length > 0) {
-                const enabledCfg = scoreBetConfigs.find((cfg: any) => cfg.enabled);
-                match.scoreBettingEnabled = !!enabledCfg;
-                if (enabledCfg) {
-                    match.maxBets = enabledCfg.maxBets ?? 3;
+                const scoreBetConfigs = m.scoreBetConfig;
+                if (scoreBetConfigs && Array.isArray(scoreBetConfigs) && scoreBetConfigs.length > 0) {
+                    const enabledCfg = scoreBetConfigs.find((cfg: any) => cfg.enabled);
+                    match.scoreBettingEnabled = !!enabledCfg;
+                    if (enabledCfg) {
+                        match.maxBets = enabledCfg.maxBets ?? 3;
+                    }
                 }
-            }
 
-            const rawPick = pickMap.get(m.ID);
-            const slotRawPick = !rawPick && match.slotId ? slotPickMap.get(match.slotId) : undefined;
-            const effectivePick = rawPick || slotRawPick;
-            if (effectivePick) {
-                match.selectedOption = mapPickToSelectedOption(effectivePick);
-            }
+                const rawPick = pickMap.get(m.ID);
+                const slotRawPick = !rawPick && match.slotId ? slotPickMap.get(match.slotId) : undefined;
+                const effectivePick = rawPick || slotRawPick;
+                if (effectivePick) {
+                    match.selectedOption = mapPickToSelectedOption(effectivePick);
+                }
 
-            const matchScores = scoreMap.get(m.ID) || [];
-            const slotScores = match.slotId ? slotScoreMap.get(match.slotId) || [] : [];
-            match.existingScores = matchScores.length > 0 ? matchScores : slotScores;
-            return {
-                match,
-                stageRank: getStageRank(m.stage),
-                kickoffRank: getKickoffRank(m.kickoff),
-                position: m.matchday ?? Number.MAX_SAFE_INTEGER,
-            };
-        });
+                const matchScores = scoreMap.get(m.ID) || [];
+                const slotScores = match.slotId ? slotScoreMap.get(match.slotId) || [] : [];
+                match.existingScores = matchScores.length > 0 ? matchScores : slotScores;
+                return {
+                    match,
+                    stageRank: getStageRank(m.stage),
+                    kickoffRank: getKickoffRank(m.kickoff),
+                    position: m.matchday ?? Number.MAX_SAFE_INTEGER,
+                };
+            });
 
         const unresolvedSlots = slots
             .filter((slot) =>

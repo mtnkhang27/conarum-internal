@@ -1,0 +1,41 @@
+{
+  "_version": "1.21.0",
+  "sap.app": {
+    "id": "cnma.internalprediction",
+    "type": "application",
+    "i18n": "i18n/i18n.properties",
+    "applicationVersion": {
+      "version": "0.0.1"
+    },
+    "title": "Internal Prediction",
+    "description": "Internal Sport Prediction Application",
+    "crossNavigation": {
+      "inbounds": {
+        "internal_prediction_inbound": {
+          "signature": {
+            "parameters": {},
+            "additionalParameters": "allowed"
+          },
+          "semanticObject": "internal_prediction",
+          "action": "manage"
+        }
+      }
+    }
+  },
+  "sap.cloud": {
+    "public": true,
+    "service": "cnma.internalprediction"
+  },
+  "sap.ui": {
+    "technology": "UI5",
+    "fullWidth": true,
+    "icons": {
+      "icon": "sap-icon://competitor"
+    },
+    "deviceTypes": {
+      "desktop": true,
+      "tablet": true,
+      "phone": true
+    }
+  }
+}

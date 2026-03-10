@@ -1,5 +1,5 @@
 {
-  "name": "conarum-prediction",
+  "name": "cnma_internal_prediction",
   "version": "1.0.0",
   "description": "A simple CAP project.",
   "dependencies": {
@@ -26,7 +26,35 @@
     "@cap-js/cds-typer": ">=0.1"
   },
   "scripts": {
-    "start": "cds-serve"
+    "start": "cds-serve",
+    "watch": "cds watch",
+    "build:cf": "npm run build:cds && npm run cleanup:ts && npm run build:ts",
+    "build:ts": "tsc",
+    "build:cds": "cds build --production",
+    "cleanup:ts": "npx rimraf --glob \"gen/srv/srv/**/*.ts\"",
+    "lint-service": "eslint srv",
+    "lint-ui": "eslint app/internal-sport/src",
+    "ts-typecheck": "tsc --noEmit",
+    "undeploy": "cf undeploy cnma_internal_prediction --delete-services --delete-service-keys",
+    "clean": "npx rimraf gen mta_archives cnma_internal_prediction.mtar app.zip ui_resources .cnma_internal_prediction_mta_build_tmp @cds-models srv-compiled",
+    "build": "cds build --production",
+    "build:db": "cds build --production",
+    "deploy": "cds build --production && mbt build && cf deploy mta_archives/cnma_internal_prediction_1.0.0.mtar --retries 1",
+    "deploy:db": "npm run build:db && cds deploy --to hana",
+    "build:srv": "rimraf resources mta_archives && mbt module-build -m=cnma_internal_prediction_srv -a -g -t mta_archives",
+    "deploy:srv": "npm run build:srv && cf deploy cnma_internal_prediction.mtar -m=cnma_internal_prediction_srv",
+    "build:app": "npm run build:rls",
+    "deploy:app": "npm run build:app && cf deploy mta_archives/cnma_internal_prediction_1.0.0.mtar -m cnma_internal_prediction_ui_deployer",
+    "build:rls": "npm run clean && npm run build && mbt build --mtar cnma_internal_prediction_1.0.0.mtar",
+    "deploy:cf": "cf deploy mta_archives/cnma_internal_prediction_1.0.0.mtar --retries 1",
+    "deploy:full": "npm run build:rls && npm run deploy:cf",
+    "cf:payg": "cf login -a https://api.cf.eu10.hana.ondemand.com",
+    "cf:cpea": "cf login -a https://api.cf.eu10-004.hana.ondemand.com",
+    "cf:dev": "cf target -o proconarum-development-system",
+    "cf:qas": "cf target -o proconarum-quality-system",
+    "cf:logs": "cf logs cnma_internal_prediction_srv",
+    "start:hybrid:backend": "cds watch --profile hybrid",
+    "start:hybrid:frontend": "npm run dev --prefix app/internal-sport"
   },
   "private": true,
   "cds": {
@@ -85,4 +113,3 @@
     "#cds-models/*": "./@cds-models/*/index.js"
   }
 }
-

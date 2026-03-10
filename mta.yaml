@@ -1,5 +1,5 @@
 _schema-version: 3.3.0
-ID: conarum-prediction
+ID: cnma_internal_prediction
 version: 1.0.0
 description: "A simple CAP project."
 parameters:
@@ -14,7 +14,7 @@ build-parameters:
 
 modules:
   # ──────────────── CAP Backend ────────────────
-  - name: conarum-prediction-srv
+  - name: cnma_internal_prediction_srv
     type: nodejs
     path: gen/srv
     parameters:
@@ -30,20 +30,20 @@ modules:
         properties:
           srv-url: ${default-url}
     requires:
-      - name: conarum-prediction-auth
-      - name: conarum-prediction-db
+      - name: cnma_internal_prediction_xsuaa
+      - name: cnma_internal_prediction_db
 
   # ──────────────── HANA DB Deployer ────────────────
-  - name: conarum-prediction-db-deployer
+  - name: cnma_internal_prediction_db_deployer
     type: hdb
     path: gen/db
     parameters:
       buildpack: nodejs_buildpack
     requires:
-      - name: conarum-prediction-db
+      - name: cnma_internal_prediction_db
 
   # ──────────────── Standalone Approuter ────────────────
-  - name: conarum-prediction-approuter
+  - name: cnma_internal_prediction_approuter
     type: approuter.nodejs
     path: app/router
     parameters:
@@ -51,7 +51,7 @@ modules:
       memory: 256M
       disk-quota: 512M
     requires:
-      - name: conarum-prediction-auth
+      - name: cnma_internal_prediction_xsuaa
       - name: srv-api
         group: destinations
         properties:
@@ -62,13 +62,13 @@ modules:
       ignore:
         - "node_modules/"
       requires:
-        - name: conarum-prediction-ui
+        - name: cnma_internal_prediction_ui
           artifacts:
             - ./*
           target-path: resources
 
   # ──────────────── React Frontend Build ────────────────
-  - name: conarum-prediction-ui
+  - name: cnma_internal_prediction_ui
     type: html5
     path: app/internal-sport
     build-parameters:
@@ -79,16 +79,71 @@ modules:
       supported-platforms: []
       build-result: dist
 
+  # ──────────────── UI Deployer (HTML5 Repo) ────────────────
+  - name: cnma_internal_prediction_ui_deployer
+    type: com.sap.application.content
+    path: .
+    requires:
+      - name: cnma_internal_prediction_html5_repo_host
+        parameters:
+          content-target: true
+    build-parameters:
+      build-result: ui_resources
+      ignore:
+        - "*node_modules*"
+      requires:
+        - name: cnma_internal_prediction_ui
+          artifacts:
+            - cnma_internal_prediction_ui.zip
+          target-path: ui_resources/
+
+  # ──────────────── Destination Content ────────────────
+  - name: cnma_internal_prediction_destination_content
+    type: com.sap.application.content
+    requires:
+      - name: srv-api
+      - name: cnma_internal_prediction_connectivity
+      - name: cnma_internal_prediction_destination
+        parameters:
+          content-target: true
+      - name: cnma_internal_prediction_xsuaa
+        parameters:
+          service-key:
+            name: cnma_internal_prediction_xsuaa_key
+      - name: cnma_internal_prediction_html5_repo_host
+        parameters:
+          service-key:
+            name: cnma_internal_prediction_html5_repo_host_key
+    build-parameters:
+      no-source: true
+    parameters:
+      content:
+        instance:
+          existing_destinations_policy: update
+          destinations:
+            # XSUAA Destination
+            - Name: cnma_internal_prediction_xsuaa_dest
+              Authentication: OAuth2UserTokenExchange
+              ServiceInstanceName: cnma_internal_prediction_xsuaa
+              ServiceKeyName: cnma_internal_prediction_xsuaa_key
+              sap.cloud.service: cnma.internalprediction
+            # HTML5 Repo Destination
+            - Name: cnma_internal_prediction_html5_repo_host_dest
+              Authentication: OAuth2UserTokenExchange
+              ServiceInstanceName: cnma_internal_prediction_html5_repo_host
+              ServiceKeyName: cnma_internal_prediction_html5_repo_host_key
+              sap.cloud.service: cnma.internalprediction
+
 resources:
   # ──────────────── XSUAA ────────────────
-  - name: conarum-prediction-auth
+  - name: cnma_internal_prediction_xsuaa
     type: org.cloudfoundry.managed-service
     parameters:
       service: xsuaa
       service-plan: application
       path: ./xs-security.json
       config:
-        xsappname: conarum-prediction-${org}-${space}
+        xsappname: cnma_internal_prediction-${org}-${space}
         tenant-mode: dedicated
         oauth2-configuration:
           credential-types:
@@ -96,8 +151,54 @@ resources:
             - "x509"
 
   # ──────────────── HANA HDI Container ────────────────
-  - name: conarum-prediction-db
+  - name: cnma_internal_prediction_db
     type: com.sap.xs.hdi-container
     parameters:
       service: hana
       service-plan: hdi-shared
+
+  # ──────────────── Destination Service ────────────────
+  - name: cnma_internal_prediction_destination
+    type: org.cloudfoundry.managed-service
+    requires:
+      - name: srv-api
+    parameters:
+      service: destination
+      service-plan: lite
+      config:
+        version: 1.0.0
+        forwardAuthToken: true
+        HTML5Runtime_enabled: true
+        init_data:
+          instance:
+            existing_destinations_policy: update
+            destinations:
+              - Name: cnma_internal_prediction_destination
+                Description: Internal Prediction Service Destination
+                Authentication: NoAuthentication
+                Type: HTTP
+                ProxyType: Internet
+                URL: ~{srv-api/srv-url}
+                HTML5.DynamicDestination: true
+                HTML5.ForwardAuthToken: true
+                HTML5.Timeout: 600000
+
+  # ──────────────── HTML5 Application Repository ────────────────
+  - name: cnma_internal_prediction_html5_repo_host
+    type: org.cloudfoundry.managed-service
+    parameters:
+      service: html5-apps-repo
+      service-plan: app-host
+
+  - name: cnma_internal_prediction_html5_runtime
+    type: org.cloudfoundry.managed-service
+    parameters:
+      service: html5-apps-repo
+      service-plan: app-runtime
+
+  # ──────────────── Connectivity ────────────────
+  - name: cnma_internal_prediction_connectivity
+    type: org.cloudfoundry.managed-service
+    parameters:
+      service: connectivity
+      service-plan: lite

@@ -21,7 +21,7 @@ import { mapExternalAssetUrls } from "@/utils/externalAssetProxy";
 
 // ── Helpers ────────────────────────────────────────────────
 
-const ADMIN_BASE = "/api/admin";
+const ADMIN_BASE = "api/admin";
 
 async function odata<T>(path: string, init?: RequestInit): Promise<T> {
     const res = await fetch(`${ADMIN_BASE}${path}`, {
@@ -218,11 +218,11 @@ export const tournamentActionsApi = {
         odata<ActionResult>("/resolveChampionPicks", {
             method: "POST",
             body: JSON.stringify({ tournamentId, championTeamId }),
-        }),    lockBetting: (tournamentId: string, locked: boolean) =>
-        odata<ActionResult>("/lockTournamentBetting", {
-            method: "POST",
-            body: JSON.stringify({ tournamentId, locked }),
-        }),
+        }), lockBetting: (tournamentId: string, locked: boolean) =>
+            odata<ActionResult>("/lockTournamentBetting", {
+                method: "POST",
+                body: JSON.stringify({ tournamentId, locked }),
+            }),
     syncMatchResults: (tournamentId: string, apiKey?: string) =>
         odata<SyncMatchResult>("/syncMatchResults", {
             method: "POST",

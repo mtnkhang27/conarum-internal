@@ -327,6 +327,7 @@ function toUnresolvedSlotMatch(
         scoreBettingEnabled,
         maxBets,
         outcomePoints,
+        bettingLocked: linkedMatch?.bettingLocked ?? false,
         stage: formatStageLabel(slot.stage),
         betTarget: "slot",
         slotId: slot.ID,
@@ -348,6 +349,7 @@ function toMatch(m: ODataMatch): Match {
         kickoffIso: m.kickoff,
         stage: formatStageLabel(m.stage, m.leg),
         isHotMatch: m.isHotMatch ?? false,
+        bettingLocked: m.bettingLocked ?? false,
     };
 }
 

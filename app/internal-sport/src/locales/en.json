@@ -138,7 +138,33 @@
     "match": "Match",
     "kickoff": "Kickoff",
     "points": "Points",
-    "kickoffSoon": "Kickoff Soon"
+    "kickoffSoon": "Kickoff Soon",
+    "kickoffLabel": "Kickoff",
+    "picks": {
+      "homeWin": "Home Win",
+      "awayWin": "Away Win",
+      "draw": "Draw"
+    },
+    "status": {
+      "correct": "Correct",
+      "wrong": "Wrong",
+      "locked": "Locked",
+      "pending": "Pending",
+      "hit": "Hit",
+      "miss": "Miss"
+    },
+    "scorePredictions": "Score Predictions ({{count}})",
+    "vsFinal": "vs final",
+    "correctPicks": "Correct Picks",
+    "pickAccuracy": "Pick Accuracy",
+    "scoreBets": "Score Bets",
+    "correctScores": "Correct Scores",
+    "scoreAccuracy": "Score Accuracy",
+    "totalWinnings": "Total Winnings",
+    "loadingRecentPredictions": "Loading recent predictions...",
+    "unknownTournament": "Unknown Tournament",
+    "noPredictionsYet": "No predictions yet",
+    "yourPick": "Your Pick"
   },
   "champion": {
     "title": "Tournament Champion",
@@ -224,10 +250,12 @@
   },
   "matchPredictionTable": {
     "allDates": "All dates",
+    "dateRange": "Date range",
     "today": "Today",
     "tomorrow": "Tomorrow",
     "future": "Future",
     "searchTeam": "Search team name...",
+    "allMatches": "All matches",
     "hotMatchOnly": "Hot match only",
     "noMatchesFound": "No matches found for current filters.",
     "empty": "Empty"

@@ -138,7 +138,33 @@
     "match": "Spiel",
     "kickoff": "Anstoß",
     "points": "Punkte",
-    "kickoffSoon": "Anstoß bald"
+    "kickoffSoon": "Anstoß bald",
+    "kickoffLabel": "Anstoß",
+    "picks": {
+      "homeWin": "Heimsieg",
+      "awayWin": "Auswärtssieg",
+      "draw": "Unentschieden"
+    },
+    "status": {
+      "correct": "Richtig",
+      "wrong": "Falsch",
+      "locked": "Gesperrt",
+      "pending": "Anhängig",
+      "hit": "Treffer",
+      "miss": "Verpasst"
+    },
+    "scorePredictions": "Ergebnisprognosen ({{count}})",
+    "vsFinal": "vs Endstand",
+    "correctPicks": "Richtige Tipps",
+    "pickAccuracy": "Trefferquote",
+    "scoreBets": "Ergebniswetten",
+    "correctScores": "Richtige Ergebnisse",
+    "scoreAccuracy": "Ergebniswetten-Quote",
+    "totalWinnings": "Gesamtgewinne",
+    "loadingRecentPredictions": "Letzten Tipps werden geladen...",
+    "unknownTournament": "Unbekanntes Turnier",
+    "noPredictionsYet": "Noch keine Tipps",
+    "yourPick": "Dein Tipp"
   },
   "champion": {
     "title": "Turniersieger",
@@ -224,10 +250,12 @@
   },
   "matchPredictionTable": {
     "allDates": "Alle Termine",
+    "dateRange": "Datumsbereich",
     "today": "Heute",
     "tomorrow": "Morgen",
     "future": "Zukunft",
     "searchTeam": "Teamname suchen...",
+    "allMatches": "Alle Spiele",
     "hotMatchOnly": "Nur heiße Spiele",
     "noMatchesFound": "Keine Spiele für aktuelle Filter gefunden.",
     "empty": "Leer"

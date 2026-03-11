@@ -1,14 +1,44 @@
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { MatchCard } from "@/components/MatchCard";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import type { Match } from "@/types";
+import { ChevronDown } from "lucide-react";
 
 const COLUMNS = 3;
 const ROWS_PER_PAGE = 3;
 const PAGE_SIZE = COLUMNS * ROWS_PER_PAGE;
 type PaginationItem = number | "dots-left" | "dots-right";
-type DateFilter = "all" | "today" | "tomorrow" | "future";
+type DateFilter = "range" | "today" | "tomorrow";
+type HotFilter = "all" | "hot";
+
+const toDateInputValue = (date: Date) => {
+    const year = date.getFullYear();
+    const month = `${date.getMonth() + 1}`.padStart(2, "0");
+    const day = `${date.getDate()}`.padStart(2, "0");
+    return `${year}-${month}-${day}`;
+};
+
+const parseDateInputValue = (value?: string) => {
+    if (!value) return null;
+    const [year, month, day] = value.split("-").map(Number);
+    if (!year || !month || !day) return null;
+    const date = new Date(year, month - 1, day);
+    date.setHours(0, 0, 0, 0);
+    return date;
+};
+
+const formatDateLabel = (value?: string) => {
+    const parsed = parseDateInputValue(value);
+    return parsed ? parsed.toLocaleDateString() : "";
+};
+
+const addDays = (date: Date, amount: number) => {
+    const next = new Date(date);
+    next.setDate(next.getDate() + amount);
+    return next;
+};
 
 interface MatchPredictionTableProps {
     matches: Match[];
@@ -18,20 +48,33 @@ interface MatchPredictionTableProps {
 export function MatchPredictionTable({ matches, onPredictionChange }: MatchPredictionTableProps) {
     const { t } = useTranslation();
     const [page, setPage] = useState(1);
-    const [dateFilter, setDateFilter] = useState<DateFilter>("all");
-    const [teamSearch, setTeamSearch] = useState("");
-    const [onlyHotMatches, setOnlyHotMatches] = useState(false);
+    const [dateFilter, setDateFilter] = useState<DateFilter>("range");
+    const [rangeStart, setRangeStart] = useState(() => toDateInputValue(new Date()));
+    const [rangeEnd, setRangeEnd] = useState(() => toDateInputValue(addDays(new Date(), 1)));
+    const [hotFilter, setHotFilter] = useState<HotFilter>("all");
+
+    const dateFilterLabel = useMemo(() => {
+        if (dateFilter === "today") return t("matchPredictionTable.today");
+        if (dateFilter === "tomorrow") return t("matchPredictionTable.tomorrow");
+        const startLabel = formatDateLabel(rangeStart);
+        const endLabel = formatDateLabel(rangeEnd);
+        if (startLabel && endLabel) return `${startLabel} - ${endLabel}`;
+        if (startLabel) return startLabel;
+        return t("matchPredictionTable.dateRange");
+    }, [dateFilter, rangeStart, rangeEnd, t]);
 
     const filteredMatches = useMemo(() => {
-        const search = teamSearch.trim().toLowerCase();
         const today = new Date();
         today.setHours(0, 0, 0, 0);
 
-        const tomorrow = new Date(today);
-        tomorrow.setDate(tomorrow.getDate() + 1);
-
-        const dayAfterTomorrow = new Date(today);
-        dayAfterTomorrow.setDate(dayAfterTomorrow.getDate() + 2);
+        const tomorrow = addDays(today, 1);
+        const rangeStartDate = parseDateInputValue(rangeStart) ?? today;
+        let rangeEndDate = parseDateInputValue(rangeEnd) ?? tomorrow;
+        if (rangeEndDate.getTime() < rangeStartDate.getTime()) {
+            rangeEndDate = rangeStartDate;
+        }
+        const rangeStartMs = rangeStartDate.getTime();
+        const rangeEndMs = rangeEndDate.getTime();
 
         const getDayStart = (iso?: string) => {
             if (!iso) return null;
@@ -42,32 +85,26 @@ export function MatchPredictionTable({ matches, onPredictionChange }: MatchPredi
         };
 
         return matches.filter((match) => {
-            const byTeam =
-                !search ||
-                match.home.name.toLowerCase().includes(search) ||
-                match.away.name.toLowerCase().includes(search);
+            if (match.bettingLocked) return false;
 
-            if (!byTeam) return false;
-
-            if (onlyHotMatches && !match.isHotMatch) return false;
-
-            if (dateFilter === "all") return true;
+            if (hotFilter === "hot" && !match.isHotMatch) return false;
 
             const kickoffDay = getDayStart(match.kickoffIso);
             if (!kickoffDay) return false;
 
             if (dateFilter === "today") return kickoffDay.getTime() === today.getTime();
             if (dateFilter === "tomorrow") return kickoffDay.getTime() === tomorrow.getTime();
-            return kickoffDay.getTime() >= dayAfterTomorrow.getTime();
+            const kickoffTime = kickoffDay.getTime();
+            return kickoffTime >= rangeStartMs && kickoffTime <= rangeEndMs;
         });
-    }, [matches, dateFilter, teamSearch, onlyHotMatches]);
+    }, [matches, dateFilter, hotFilter, rangeStart, rangeEnd]);
 
     const firstFilteredMatchId = filteredMatches[0]?.id ?? "";
     const totalPages = Math.max(1, Math.ceil(filteredMatches.length / PAGE_SIZE));
 
     useEffect(() => {
         setPage(1);
-    }, [matches.length, firstFilteredMatchId, dateFilter, teamSearch, onlyHotMatches]);
+    }, [matches.length, firstFilteredMatchId, dateFilter, hotFilter, rangeStart, rangeEnd]);
 
     useEffect(() => {
         if (page > totalPages) setPage(totalPages);
@@ -111,33 +148,81 @@ export function MatchPredictionTable({ matches, onPredictionChange }: MatchPredi
                         {t("common.showing", { from, to, total: filteredMatches.length })}
                     </p>
                     <div className="flex flex-wrap items-center justify-end gap-2">
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <button
+                                    type="button"
+                                    className="flex h-9 min-w-[200px] items-center justify-between gap-2 rounded-md border border-border bg-surface-dark px-3 text-xs text-foreground outline-none transition-colors hover:border-primary focus-visible:border-primary"
+                                    aria-label="Filter by date"
+                                >
+                                    <span className="truncate">{dateFilterLabel}</span>
+                                    <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+                                </button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-[300px] p-2">
+                                <div className="space-y-2">
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <button
+                                            type="button"
+                                            onClick={() => setDateFilter("today")}
+                                            className={`h-8 rounded-md border px-2 text-xs font-semibold transition-colors ${
+                                                dateFilter === "today"
+                                                    ? "border-primary bg-primary/15 text-primary"
+                                                    : "border-border bg-surface-dark text-foreground/80 hover:border-primary hover:text-primary"
+                                            }`}
+                                        >
+                                            {t("matchPredictionTable.today")}
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setDateFilter("tomorrow")}
+                                            className={`h-8 rounded-md border px-2 text-xs font-semibold transition-colors ${
+                                                dateFilter === "tomorrow"
+                                                    ? "border-primary bg-primary/15 text-primary"
+                                                    : "border-border bg-surface-dark text-foreground/80 hover:border-primary hover:text-primary"
+                                            }`}
+                                        >
+                                            {t("matchPredictionTable.tomorrow")}
+                                        </button>
+                                    </div>
+                                    <div className="text-[11px] font-semibold text-muted-foreground">
+                                        {t("matchPredictionTable.dateRange")}
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <Input
+                                            type="date"
+                                            value={rangeStart}
+                                            onChange={(e) => {
+                                                setDateFilter("range");
+                                                setRangeStart(e.target.value);
+                                            }}
+                                            className="h-9 flex-1 text-xs [color-scheme:dark] [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:invert"
+                                            aria-label="Filter start date"
+                                        />
+                                        <span className="text-xs text-muted-foreground">-</span>
+                                        <Input
+                                            type="date"
+                                            value={rangeEnd}
+                                            onChange={(e) => {
+                                                setDateFilter("range");
+                                                setRangeEnd(e.target.value);
+                                            }}
+                                            className="h-9 flex-1 text-xs [color-scheme:dark] [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:invert"
+                                            aria-label="Filter end date"
+                                        />
+                                    </div>
+                                </div>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
                         <select
-                            value={dateFilter}
-                            onChange={(e) => setDateFilter(e.target.value as DateFilter)}
-                            className="h-9 min-w-[130px] rounded-md border border-border bg-surface-dark px-3 text-xs text-foreground outline-none transition-colors focus:border-primary"
-                            aria-label="Filter by date"
+                            value={hotFilter}
+                            onChange={(e) => setHotFilter(e.target.value as HotFilter)}
+                            className="h-9 min-w-[150px] rounded-md border border-border bg-surface-dark px-3 text-xs text-foreground outline-none transition-colors focus:border-primary"
+                            aria-label="Filter hot matches"
                         >
-                            <option value="all">{t("matchPredictionTable.allDates")}</option>
-                            <option value="today">{t("matchPredictionTable.today")}</option>
-                            <option value="tomorrow">{t("matchPredictionTable.tomorrow")}</option>
-                            <option value="future">{t("matchPredictionTable.future")}</option>
+                            <option value="all">{t("matchPredictionTable.allMatches")}</option>
+                            <option value="hot">{t("matchPredictionTable.hotMatchOnly")}</option>
                         </select>
-                        <Input
-                            value={teamSearch}
-                            onChange={(e) => setTeamSearch(e.target.value)}
-                            placeholder={t("matchPredictionTable.searchTeam")}
-                            className="h-9 w-[220px] text-xs"
-                            aria-label="Search by team name"
-                        />
-                        <label className="inline-flex h-9 cursor-pointer items-center gap-2 rounded-md border border-border bg-surface-dark px-3 text-xs text-foreground">
-                            <input
-                                type="checkbox"
-                                checked={onlyHotMatches}
-                                onChange={(e) => setOnlyHotMatches(e.target.checked)}
-                                className="h-4 w-4 accent-primary"
-                            />
-                            {t("matchPredictionTable.hotMatchOnly")}
-                        </label>
                     </div>
                 </div>
             </div>

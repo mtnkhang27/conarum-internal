@@ -42,6 +42,8 @@ export interface Match {
     outcomePoints?: number; // Points earned for correct outcome prediction (home/draw/away)
     /** Featured match flag managed by admin */
     isHotMatch?: boolean;
+    /** Whether betting is locked for this match */
+    bettingLocked?: boolean;
 }
 
 export interface UpcomingMatch {

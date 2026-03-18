@@ -164,6 +164,7 @@ export function MatchManagement() {
 
     // Per-match lock state
     const [lockingMatchId, setLockingMatchId] = useState<string | null>(null);
+    const [bulkLockAction, setBulkLockAction] = useState<"lock" | "unlock" | null>(null);
 
     // Form state
     const [form, setForm] = useState({
@@ -367,6 +368,57 @@ export function MatchManagement() {
         }
     }
 
+    async function handleToggleAllMatchLock(locked: boolean) {
+        const targets = filteredMatches.filter(
+            (match) => match.status !== "finished" && match.bettingLocked !== locked,
+        );
+
+        if (targets.length === 0) {
+            toast.info(
+                t(
+                    locked
+                        ? "admin.matchManagement.noMatchesToLock"
+                        : "admin.matchManagement.noMatchesToUnlock",
+                ),
+            );
+            return;
+        }
+
+        setBulkLockAction(locked ? "lock" : "unlock");
+        try {
+            const results = await Promise.allSettled(
+                targets.map((match) => matchesApi.lockBetting(match.ID, locked)),
+            );
+            const successCount = results.filter((result) => result.status === "fulfilled").length;
+            const failedCount = results.length - successCount;
+
+            if (successCount > 0) {
+                toast.success(
+                    t(
+                        locked
+                            ? "admin.matchManagement.lockAllBettingSuccess"
+                            : "admin.matchManagement.unlockAllBettingSuccess",
+                        { count: successCount },
+                    ),
+                );
+                load();
+            }
+
+            if (failedCount > 0) {
+                toast.error(
+                    t("admin.matchManagement.bulkLockBettingPartialFailure", {
+                        success: successCount,
+                        failed: failedCount,
+                    }),
+                );
+            }
+        } catch (e: unknown) {
+            toast.error(e instanceof Error ? e.message : "Request failed");
+        } finally {
+            setBulkLockAction(null);
+        }
+    }
+
     function formatLocalDateKey(value: string) {
         const date = new Date(value);
         const year = date.getFullYear();
@@ -461,6 +513,10 @@ export function MatchManagement() {
             if (a.matchday != null && b.matchday != null && a.matchday !== b.matchday) return a.matchday - b.matchday;
             return (a.homeTeam?.name || "").localeCompare(b.homeTeam?.name || "");
         });
+
+    const lockableMatches = filteredMatches.filter((m) => m.status !== "finished");
+    const canLockAll = lockableMatches.some((m) => !m.bettingLocked);
+    const canUnlockAll = lockableMatches.some((m) => m.bettingLocked);
 
     const upcoming = filteredMatches.filter((m) => m.status === "upcoming").length;
     const live = filteredMatches.filter((m) => m.status === "live").length;
@@ -580,6 +636,22 @@ export function MatchManagement() {
                             {t("admin.matchManagement.syncResults")}
                         </Button>
                     )}
+                    <Button
+                        variant="outline"
+                        disabled={bulkLockAction !== null || !canLockAll}
+                        onClick={() => handleToggleAllMatchLock(true)}
+                    >
+                        <Lock className={`mr-2 h-4 w-4 ${bulkLockAction === "lock" ? "animate-spin" : ""}`} />
+                        {t("admin.matchManagement.lockAllBetting")}
+                    </Button>
+                    <Button
+                        variant="outline"
+                        disabled={bulkLockAction !== null || !canUnlockAll}
+                        onClick={() => handleToggleAllMatchLock(false)}
+                    >
+                        <Unlock className={`mr-2 h-4 w-4 ${bulkLockAction === "unlock" ? "animate-spin" : ""}`} />
+                        {t("admin.matchManagement.unlockAllBetting")}
+                    </Button>
                 </div>
             </div>
 

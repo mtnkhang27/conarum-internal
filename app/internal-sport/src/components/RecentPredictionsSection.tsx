@@ -1,6 +1,10 @@
+import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Clock, CheckCircle2, XCircle, MinusCircle, Trophy, Target } from "lucide-react";
 import type { RecentPredictionItem, ScoreBetDetail } from "@/types";
+
+const ITEMS_PER_PAGE = 10;
+type PaginationItem = number | "dots-left" | "dots-right";
 
 // ─── Helpers ──────────────────────────────────────────────────
 
@@ -101,7 +105,7 @@ function ScoreBetsSection({
 }: {
     bets: ScoreBetDetail[];
     finalScore: { home: number | null; away: number | null };
-    t: (key: string, options?: Record<string, any>) => string;
+    t: (key: string, options?: Record<string, unknown>) => string;
 }) {
     if (bets.length === 0) return null;
 
@@ -168,6 +172,7 @@ interface RecentPredictionsSectionProps {
 
 export function RecentPredictionsSection({ predictions, loading }: RecentPredictionsSectionProps) {
     const { t } = useTranslation();
+    const [page, setPage] = useState(1);
     const total = predictions.length;
     const correct = predictions.filter((p) => p.isCorrect === true).length;
     const pending = predictions.filter(
@@ -182,13 +187,42 @@ export function RecentPredictionsSection({ predictions, loading }: RecentPredict
     const correctBets = allScoreBets.filter((b) => b.isCorrect === true);
     const totalWinnings = allScoreBets.reduce((sum, b) => sum + (b.payout || 0), 0);
 
+    const totalPages = Math.max(1, Math.ceil(predictions.length / ITEMS_PER_PAGE));
+    const currentPage = Math.min(page, totalPages);
+    const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+    const endIndex = startIndex + ITEMS_PER_PAGE;
+    const pagePredictions = useMemo(
+        () => predictions.slice(startIndex, endIndex),
+        [predictions, startIndex, endIndex]
+    );
+
     // Group by tournament
-    const grouped = predictions.reduce<Record<string, RecentPredictionItem[]>>((acc, p) => {
-        const key = p.tournamentName || t("sport.unknownTournament");
-        if (!acc[key]) acc[key] = [];
-        acc[key].push(p);
-        return acc;
-    }, {});
+    const grouped = useMemo(
+        () =>
+            pagePredictions.reduce<Record<string, RecentPredictionItem[]>>((acc, p) => {
+                const key = p.tournamentName || t("sport.unknownTournament");
+                if (!acc[key]) acc[key] = [];
+                acc[key].push(p);
+                return acc;
+            }, {}),
+        [pagePredictions, t]
+    );
+
+    const paginationItems = useMemo<PaginationItem[]>(() => {
+        if (totalPages <= 7) {
+            return Array.from({ length: totalPages }, (_, idx) => idx + 1);
+        }
+
+        if (currentPage <= 4) {
+            return [1, 2, 3, 4, 5, "dots-right", totalPages];
+        }
+
+        if (currentPage >= totalPages - 3) {
+            return [1, "dots-left", totalPages - 4, totalPages - 3, totalPages - 2, totalPages - 1, totalPages];
+        }
+
+        return [1, "dots-left", currentPage - 1, currentPage, currentPage + 1, "dots-right", totalPages];
+    }, [currentPage, totalPages]);
 
     return (
         <>
@@ -365,6 +399,66 @@ export function RecentPredictionsSection({ predictions, loading }: RecentPredict
                             </div>
                         </div>
                     ))}
+                    {totalPages > 1 && (
+                        <div className="flex items-center justify-end gap-2 border-t border-border/70 pt-3">
+                            <button
+                                type="button"
+                                onClick={() => setPage(Math.max(1, currentPage - 1))}
+                                disabled={currentPage === 1}
+                                className="inline-flex h-9 items-center rounded-md border border-border bg-surface-dark px-3 text-xs font-semibold text-foreground/90 transition-colors hover:border-primary hover:text-primary disabled:cursor-not-allowed disabled:opacity-45"
+                                aria-label="Previous page"
+                            >
+                                {t("common.previous")}
+                            </button>
+
+                            <div className="inline-flex items-center rounded-md border border-border bg-surface-dark/85 p-1">
+                                {paginationItems.map((item) => {
+                                    if (item === "dots-left" || item === "dots-right") {
+                                        return (
+                                            <span
+                                                key={item}
+                                                className="inline-flex h-7 min-w-7 items-center justify-center px-1 text-xs font-semibold text-muted-foreground"
+                                            >
+                                                ...
+                                            </span>
+                                        );
+                                    }
+
+                                    const isActive = item === currentPage;
+                                    return (
+                                        <button
+                                            key={item}
+                                            type="button"
+                                            onClick={() => setPage(item)}
+                                            className={`inline-flex h-7 min-w-7 items-center justify-center rounded px-2 text-xs font-semibold transition-colors ${
+                                                isActive
+                                                    ? "bg-primary text-white shadow-[0_0_0_1px_rgba(255,255,255,0.08)_inset]"
+                                                    : "text-foreground/80 hover:bg-surface hover:text-primary"
+                                            }`}
+                                            aria-label={`Go to page ${item}`}
+                                            aria-current={isActive ? "page" : undefined}
+                                        >
+                                            {item}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+
+                            <button
+                                type="button"
+                                onClick={() => setPage(Math.min(totalPages, currentPage + 1))}
+                                disabled={currentPage === totalPages}
+                                className="inline-flex h-9 items-center rounded-md border border-border bg-surface-dark px-3 text-xs font-semibold text-foreground/90 transition-colors hover:border-primary hover:text-primary disabled:cursor-not-allowed disabled:opacity-45"
+                                aria-label="Next page"
+                            >
+                                {t("common.next")}
+                            </button>
+
+                            <div className="ml-1 text-[11px] font-semibold text-muted-foreground">
+                                {t("common.page", { current: currentPage, total: totalPages })}
+                            </div>
+                        </div>
+                    )}
                 </div>
             )}
         </>

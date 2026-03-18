@@ -1509,7 +1509,7 @@ export class AdminHandler {
                     venue: apiMatch.venue ?? null,
                     stage,
                     status: matchStatus,
-                    bettingLocked: true,
+                    bettingLocked: false,
                     matchday: apiMatch.matchday ?? null,
                     externalId: apiMatch.id,
                     homeScore,

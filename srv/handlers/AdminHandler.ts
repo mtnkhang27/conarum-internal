@@ -963,22 +963,36 @@ export class AdminHandler {
                 ? updateData.awayTeam_ID
                 : ourMatch.awayTeam_ID;
 
-            // If upstream tie is unresolved, clear winner/agg and propagated downstream side.
-            if (ourMatch.bracketSlot_ID && (!nowFinished || !homeTeamAfterSync || !awayTeamAfterSync)) {
+            // Always keep bracket slot teams in sync with match teams.
+            // Previously this only ran for unresolved ties, causing
+            // updateBracketProgression to read stale/null team IDs.
+            if (ourMatch.bracketSlot_ID) {
                 const slot = await SELECT.one.from(BracketSlot).where({ ID: ourMatch.bracketSlot_ID });
                 if (slot) {
-                    await UPDATE(BracketSlot).where({ ID: slot.ID }).set({
-                        homeTeam_ID: homeTeamAfterSync ?? null,
-                        awayTeam_ID: awayTeamAfterSync ?? null,
-                        winner_ID: null,
-                        homeAgg: 0,
-                        awayAgg: 0,
-                        homePen: null,
-                        awayPen: null,
-                    });
+                    if (!nowFinished || !homeTeamAfterSync || !awayTeamAfterSync) {
+                        // Unresolved: clear aggregates and downstream propagation
+                        await UPDATE(BracketSlot).where({ ID: slot.ID }).set({
+                            homeTeam_ID: homeTeamAfterSync ?? null,
+                            awayTeam_ID: awayTeamAfterSync ?? null,
+                            winner_ID: null,
+                            homeAgg: 0,
+                            awayAgg: 0,
+                            homePen: null,
+                            awayPen: null,
+                        });
 
-                    if (slot.nextSlot_ID && slot.nextSlotSide) {
-                        await this.clearBracketSide(slot.nextSlot_ID, slot.nextSlotSide);
+                        if (slot.nextSlot_ID && slot.nextSlotSide) {
+                            await this.clearBracketSide(slot.nextSlot_ID, slot.nextSlotSide);
+                        }
+                    } else {
+                        // Finished with both teams: ensure slot has correct team IDs
+                        // so updateBracketProgression can compute aggregates correctly.
+                        const slotTeamPatch: Record<string, any> = {};
+                        if (slot.homeTeam_ID !== homeTeamAfterSync) slotTeamPatch.homeTeam_ID = homeTeamAfterSync;
+                        if (slot.awayTeam_ID !== awayTeamAfterSync) slotTeamPatch.awayTeam_ID = awayTeamAfterSync;
+                        if (Object.keys(slotTeamPatch).length > 0) {
+                            await UPDATE(BracketSlot).where({ ID: slot.ID }).set(slotTeamPatch);
+                        }
                     }
                 }
             }

@@ -338,11 +338,15 @@ export class PredictionHandler {
         if (slot.leg1_ID) {
             const linkedMatch = await SELECT.one.from(Match).where({ ID: slot.leg1_ID });
             if (linkedMatch) {
-                const delegatedReq = {
-                    ...req,
-                    data: { matchId: linkedMatch.ID, pick, scores },
-                } as Request;
-                return this.submitMatchPrediction(delegatedReq);
+                // Preserve the original CDS Request object (with prototype methods
+                // like req.error) — spreading it into a plain object would lose them.
+                const originalData = req.data;
+                try {
+                    req.data = { matchId: linkedMatch.ID, pick, scores };
+                    return await this.submitMatchPrediction(req);
+                } finally {
+                    req.data = originalData;
+                }
             }
         }
 
@@ -433,11 +437,13 @@ export class PredictionHandler {
         if (slot.leg1_ID) {
             const linkedMatch = await SELECT.one.from(Match).where({ ID: slot.leg1_ID });
             if (linkedMatch) {
-                const delegatedReq = {
-                    ...req,
-                    data: { matchId: linkedMatch.ID },
-                } as Request;
-                return this.cancelMatchPrediction(delegatedReq);
+                const originalData = req.data;
+                try {
+                    req.data = { matchId: linkedMatch.ID };
+                    return await this.cancelMatchPrediction(req);
+                } finally {
+                    req.data = originalData;
+                }
             }
         }
 

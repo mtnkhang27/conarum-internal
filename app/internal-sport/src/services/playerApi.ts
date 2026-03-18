@@ -338,6 +338,9 @@ function toUnresolvedSlotMatch(
         stage: formatStageLabel(slot.stage),
         betTarget: "slot",
         slotId: slot.ID,
+        // Propagate kickoff from linked match so downstream date filters can
+        // detect slots whose concrete match has already kicked off.
+        kickoffIso: linkedMatch?.kickoff ?? undefined,
     };
 }
 
@@ -709,6 +712,10 @@ export const playerMatchesApi = {
                 // Slot has a linked match that already started / finished → skip
                 if (slot.leg1_ID && finishedMatchIds.has(slot.leg1_ID)) return false;
                 if (slot.leg2_ID && finishedMatchIds.has(slot.leg2_ID)) return false;
+                // Even if the linked match wasn't in the initial OData result
+                // (e.g. status not yet updated), check the kickoff time directly.
+                if (slot.leg1_ID && isKickoffPast(slot.leg1_kickoff)) return false;
+                if (slot.leg2_ID && isKickoffPast(slot.leg2_kickoff)) return false;
                 return true;
             })
             .sort((a, b) => {

@@ -577,5 +577,35 @@ service AdminService {
         matchesImported : Integer;
     }
 
+    // ── Payout Management ─────────────────────────────────────
+
+    /** Mark score bets as paid out (admin distributed CO). */
+    action markScoreBetsPaid(betIds: many UUID) returns ActionResult;
+
+    /** Revert payout mark (in case of mistake). */
+    action markScoreBetsUnpaid(betIds: many UUID) returns ActionResult;
+
+    /** Get payout summary for a tournament — won score bets grouped by player. */
+    type PayoutItem {
+        betId              : UUID;
+        playerId           : UUID;
+        playerDisplayName  : String;
+        playerEmail        : String;
+        playerAvatarUrl    : String;
+        matchId            : UUID;
+        homeTeam           : String;
+        awayTeam           : String;
+        kickoff            : DateTime;
+        predictedHomeScore : Integer;
+        predictedAwayScore : Integer;
+        actualHomeScore    : Integer;
+        actualAwayScore    : Integer;
+        payout             : Decimal;
+        isPaidOut          : Boolean;
+        submittedAt        : DateTime;
+    }
+
+    function getPayoutSummary(tournamentId: UUID) returns many PayoutItem;
+
     action importTournament(externalCode: String, apiKey: String default '')        returns ImportTournamentResult;
 }

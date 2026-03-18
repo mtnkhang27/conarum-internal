@@ -14,6 +14,7 @@ import {
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { playerProfileApi, playerTeamsApi } from "@/services/playerApi";
+import { LoadingOverlay } from "@/components/LoadingOverlay";
 import type { UserProfile } from "@/types";
 
 const EMPTY_PROFILE: UserProfile = {
@@ -355,9 +356,7 @@ export function AccountPage() {
     if (isLoading) {
         return (
             <div className="p-4 pb-20 xl:pb-4">
-                <div className="rounded-xl border border-border bg-card p-6 text-sm text-muted-foreground">
-                    {t("common.loading")}
-                </div>
+                <LoadingOverlay />
             </div>
         );
     }

@@ -657,6 +657,45 @@
       "deleteTitle": "Spieler löschen",
       "deleteDescription": "Der Spieler und alle seine Tipps werden entfernt.",
       "playerDeleted": "Spieler gelöscht"
+    },
+    "payoutManagement": {
+      "title": "Auszahlungsverwaltung",
+      "subtitle": "CO-Auszahlungen für korrekte Ergebniswetten verfolgen und verwalten",
+      "selectTournament": "Turnier auswählen…",
+      "selectTournamentHint": "Wähle ein Turnier, um Auszahlungen anzuzeigen.",
+      "loading": "Auszahlungen werden geladen…",
+      "noPayout": "Keine gewonnenen Ergebniswetten für dieses Turnier gefunden.",
+      "searchPlaceholder": "Nach Spieler oder Team suchen…",
+      "filter": {
+        "all": "Alle",
+        "unpaid": "Unbezahlt",
+        "paid": "Bezahlt"
+      },
+      "stats": {
+        "totalWinners": "Gewinner gesamt",
+        "unpaid": "Unbezahlt",
+        "paid": "Bezahlt",
+        "totalAmount": "Gesamtbetrag",
+        "remaining": "Verbleibend"
+      },
+      "column": {
+        "player": "Spieler",
+        "match": "Spiel",
+        "prediction": "Vorhersage",
+        "actual": "Tatsächlich",
+        "amount": "Betrag",
+        "status": "Status",
+        "action": "Aktion"
+      },
+      "status": {
+        "paid": "Bezahlt",
+        "unpaid": "Unbezahlt"
+      },
+      "selected": "{{count}} ausgewählt",
+      "markPaid": "Als bezahlt markieren",
+      "markUnpaid": "Als unbezahlt markieren",
+      "pay": "Bezahlen",
+      "revert": "Zurücksetzen"
     }
   },
   "confederation": {

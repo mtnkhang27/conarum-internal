@@ -197,10 +197,17 @@ function formatKickoff(iso: string): string {
     const isTomorrow = d.toDateString() === tomorrow.toDateString();
     const time = d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 
-    if (diff < 0) return "Locked";
+    if (diff < 0) return "Started";
     if (isToday) return `Today / ${time}`;
     if (isTomorrow) return `Tomorrow / ${time}`;
     return `${d.toLocaleDateString("en-US", { month: "short", day: "numeric" })} / ${time}`;
+}
+
+/** Returns true when the kickoff time is in the past. */
+function isKickoffPast(iso?: string | null): boolean {
+    if (!iso) return false;
+    const d = new Date(iso);
+    return !Number.isNaN(d.getTime()) && d.getTime() < Date.now();
 }
 
 const KNOCKOUT_STAGES = new Set([
@@ -306,7 +313,7 @@ function toUnresolvedSlotMatch(
     const outcomePoints = linkedMatch?.outcomePoints ?? 1;
     const timeLabel = linkedMatch?.kickoff
         ? formatKickoff(linkedMatch.kickoff)
-        : "TBD / Waiting previous round";
+        : "TBD";
 
     return {
         id: slot.ID,
@@ -652,6 +659,10 @@ export const playerMatchesApi = {
         const matchById = new Map(matches.map((m) => [m.ID, m]));
 
         const realMatchItems = matches
+            // Filter out matches whose kickoff has already passed
+            .filter((m) => !isKickoffPast(m.kickoff))
+            // Filter out matches that already have a final result
+            .filter((m) => m.homeScore === null || m.awayScore === null)
             .map((m) => {
                 const match = toMatch(m);
                 match.betTarget = "match";
@@ -684,12 +695,22 @@ export const playerMatchesApi = {
                 };
             });
 
+        // Build a set of finished match IDs so we can exclude slots whose matches already ended
+        const finishedMatchIds = new Set(
+            matches.filter((m) => isKickoffPast(m.kickoff) || (m.homeScore !== null && m.awayScore !== null)).map((m) => m.ID)
+        );
+
         const unresolvedSlots = slots
-            .filter((slot) =>
-                KNOCKOUT_STAGES.has(slot.stage)
-                && !slot.winner_ID
-                && !((slot.leg1_ID && matchById.has(slot.leg1_ID)) || (slot.leg2_ID && matchById.has(slot.leg2_ID)))
-            )
+            .filter((slot) => {
+                if (!KNOCKOUT_STAGES.has(slot.stage)) return false;
+                if (slot.winner_ID) return false;
+                // Slot already has a concrete match that is in the real matches list
+                if ((slot.leg1_ID && matchById.has(slot.leg1_ID)) || (slot.leg2_ID && matchById.has(slot.leg2_ID))) return false;
+                // Slot has a linked match that already started / finished → skip
+                if (slot.leg1_ID && finishedMatchIds.has(slot.leg1_ID)) return false;
+                if (slot.leg2_ID && finishedMatchIds.has(slot.leg2_ID)) return false;
+                return true;
+            })
             .sort((a, b) => {
                 const sa = STAGE_ORDER[a.stage] ?? 999;
                 const sb = STAGE_ORDER[b.stage] ?? 999;
@@ -713,7 +734,7 @@ export const playerMatchesApi = {
             };
         });
 
-        return [...realMatchItems, ...unresolvedSlotItems]
+        const allSorted = [...realMatchItems, ...unresolvedSlotItems]
             .sort((a, b) => {
                 if (a.stageRank !== b.stageRank) return a.stageRank - b.stageRank;
                 if (a.kickoffRank !== b.kickoffRank) return a.kickoffRank - b.kickoffRank;
@@ -721,6 +742,66 @@ export const playerMatchesApi = {
                 return a.match.home.name.localeCompare(b.match.home.name);
             })
             .map((item) => item.match);
+
+        // ── Smart date discovery: scan from today forward to find
+        //    the nearest consecutive days that have matches, ensuring
+        //    the user always sees matches.
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const MAX_LOOK_AHEAD_DAYS = 90;
+
+        // Collect distinct kickoff days from today onwards
+        const kickoffDaysSet = new Set<number>();
+        for (const m of allSorted) {
+            if (!m.kickoffIso) continue;
+            const d = new Date(m.kickoffIso);
+            if (Number.isNaN(d.getTime())) continue;
+            d.setHours(0, 0, 0, 0);
+            if (d.getTime() >= today.getTime()) {
+                kickoffDaysSet.add(d.getTime());
+            }
+        }
+
+        if (kickoffDaysSet.size === 0) {
+            // No future matches with dates → return everything (bracket slots, etc.)
+            return allSorted;
+        }
+
+        // Sort the days and find the first consecutive group
+        const sortedDays = Array.from(kickoffDaysSet).sort((a, b) => a - b);
+        const includedDays = new Set<number>();
+        let foundFirst = false;
+        let lastIncluded = 0;
+
+        for (const dayTs of sortedDays) {
+            const daysFromToday = Math.floor((dayTs - today.getTime()) / (24 * 60 * 60 * 1000));
+            if (daysFromToday > MAX_LOOK_AHEAD_DAYS) break;
+
+            if (!foundFirst) {
+                includedDays.add(dayTs);
+                foundFirst = true;
+                lastIncluded = dayTs;
+                continue;
+            }
+
+            // Include consecutive days (gap ≤ 1 day)
+            const gapDays = Math.floor((dayTs - lastIncluded) / (24 * 60 * 60 * 1000));
+            if (gapDays <= 1) {
+                includedDays.add(dayTs);
+                lastIncluded = dayTs;
+            } else {
+                break;
+            }
+        }
+
+        // Filter: include matches on discovered days + items without kickoff
+        return allSorted.filter((m) => {
+            if (!m.kickoffIso) return true;
+            const d = new Date(m.kickoffIso);
+            if (Number.isNaN(d.getTime())) return true;
+            d.setHours(0, 0, 0, 0);
+            return includedDays.has(d.getTime());
+        });
     },
 
     /** Completed (finished) matches, optionally filtered by tournament. */

@@ -1,9 +1,10 @@
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Clock, CheckCircle2, XCircle, MinusCircle, Trophy, Target } from "lucide-react";
+import { LoadingOverlay } from "@/components/LoadingOverlay";
 import type { RecentPredictionItem, ScoreBetDetail } from "@/types";
 
-const ITEMS_PER_PAGE = 10;
+const ITEMS_PER_PAGE = 3;
 type PaginationItem = number | "dots-left" | "dots-right";
 
 // ─── Helpers ──────────────────────────────────────────────────
@@ -168,32 +169,41 @@ function ScoreBetsSection({
 interface RecentPredictionsSectionProps {
     predictions: RecentPredictionItem[];
     loading: boolean;
+    /** When provided, only show predictions matching this tournament name */
+    tournamentName?: string;
 }
 
-export function RecentPredictionsSection({ predictions, loading }: RecentPredictionsSectionProps) {
+export function RecentPredictionsSection({ predictions, loading, tournamentName }: RecentPredictionsSectionProps) {
     const { t } = useTranslation();
     const [page, setPage] = useState(1);
-    const total = predictions.length;
-    const correct = predictions.filter((p) => p.isCorrect === true).length;
-    const pending = predictions.filter(
+
+    // Filter predictions by selected tournament
+    const filteredPredictions = useMemo(() => {
+        if (!tournamentName) return predictions;
+        return predictions.filter((p) => p.tournamentName === tournamentName);
+    }, [predictions, tournamentName]);
+
+    const total = filteredPredictions.length;
+    const correct = filteredPredictions.filter((p) => p.isCorrect === true).length;
+    const pending = filteredPredictions.filter(
         (p) => p.status === "submitted" || p.status === "locked"
     ).length;
     const accuracy =
         total > 0 ? Math.round((correct / Math.max(total - pending, 1)) * 100) : 0;
 
     // Score bet aggregate stats
-    const allScoreBets = predictions.flatMap((p) => p.scoreBets ?? []);
+    const allScoreBets = filteredPredictions.flatMap((p) => p.scoreBets ?? []);
     const settledBets = allScoreBets.filter((b) => b.isCorrect !== null);
     const correctBets = allScoreBets.filter((b) => b.isCorrect === true);
     const totalWinnings = allScoreBets.reduce((sum, b) => sum + (b.payout || 0), 0);
 
-    const totalPages = Math.max(1, Math.ceil(predictions.length / ITEMS_PER_PAGE));
+    const totalPages = Math.max(1, Math.ceil(filteredPredictions.length / ITEMS_PER_PAGE));
     const currentPage = Math.min(page, totalPages);
     const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
     const endIndex = startIndex + ITEMS_PER_PAGE;
     const pagePredictions = useMemo(
-        () => predictions.slice(startIndex, endIndex),
-        [predictions, startIndex, endIndex]
+        () => filteredPredictions.slice(startIndex, endIndex),
+        [filteredPredictions, startIndex, endIndex]
     );
 
     // Group by tournament
@@ -286,10 +296,8 @@ export function RecentPredictionsSection({ predictions, loading }: RecentPredict
             )}
 
             {loading ? (
-                <div className="flex h-48 items-center justify-center text-muted-foreground">
-                    {t("sport.loadingRecentPredictions")}
-                </div>
-            ) : predictions.length === 0 ? (
+                <LoadingOverlay />
+            ) : filteredPredictions.length === 0 ? (
                 <div className="flex h-48 flex-col items-center justify-center gap-2 text-muted-foreground">
                     <Trophy className="h-10 w-10 text-border" />
                     <p className="text-sm">{t("sport.noPredictionsYet")}</p>

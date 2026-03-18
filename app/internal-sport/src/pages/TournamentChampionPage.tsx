@@ -148,6 +148,23 @@ export function TournamentChampionPage() {
                         {t("champion.noPick")}
                     </p>
                 ) : (
+                    <>
+                    {/* Show how many users picked the same champion */}
+                    {(() => {
+                        const myPick = teams.find((tm) => tm.selected);
+                        const samePickCount = myPick ? (pickCounts.get(myPick.name) ?? 0) : 0;
+                        if (myPick && samePickCount > 0) {
+                            return (
+                                <div className="mb-4 flex items-center gap-2.5 rounded-lg border border-primary/30 bg-primary/10 px-4 py-3 text-sm text-primary">
+                                    <Users className="h-4 w-4 flex-shrink-0" />
+                                    <span>
+                                        <strong>{samePickCount}</strong> {t("champion.samePickCount", { team: myPick.name, defaultValue: `người cùng chọn {{team}}` })}
+                                    </span>
+                                </div>
+                            );
+                        }
+                        return null;
+                    })()}
                     <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
                         {teams.map((team) => (
                             <div
@@ -201,6 +218,7 @@ export function TournamentChampionPage() {
                             </div>
                         ))}
                     </div>
+                    </>
                 )}
             </div>
 

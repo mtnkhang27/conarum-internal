@@ -5,6 +5,7 @@ import { playerLeaderboardApi } from "@/services/playerApi";
 import type { TournamentLeaderboardItem } from "@/types";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { LeaderboardPlayerHoverCard } from "@/components/LeaderboardPlayerHoverCard";
+import { LoadingOverlay } from "@/components/LoadingOverlay";
 
 function podiumIcon(rank: number) {
     if (rank === 1) return <Trophy className="h-5 w-5 text-yellow-400" />;
@@ -69,11 +70,7 @@ export function LeaderboardSection({ tournamentId }: LeaderboardSectionProps) {
     }
 
     if (loading) {
-        return (
-            <div className="flex h-32 items-center justify-center text-sm text-muted-foreground">
-                {t("leaderboard.loadingLeaderboard")}
-            </div>
-        );
+        return <LoadingOverlay />;
     }
 
     if (error || entries.length === 0) {

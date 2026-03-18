@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { MatchCard } from "@/components/MatchCard";
-import { DatePicker } from "@/components/ui/date-picker";
+import { DateRangePicker } from "@/components/ui/date-range-picker";
 import type { Match } from "@/types";
 
 const COLUMNS = 3;
@@ -9,8 +9,7 @@ const ROWS_PER_PAGE = 3;
 const PAGE_SIZE = COLUMNS * ROWS_PER_PAGE;
 type PaginationItem = number | "dots-left" | "dots-right";
 type HotFilter = "all" | "hot";
-type DatePreset = "today" | "tomorrow" | "7days" | "14days" | "1month";
-type ActiveDateFilter = "preset" | "calendar";
+type PresetKey = "" | "today" | "tomorrow" | "7days" | "14days" | "1month";
 
 const addDays = (date: Date, amount: number) => {
     const next = new Date(date);
@@ -27,24 +26,6 @@ const parseDateInputValue = (value?: string) => {
     return date;
 };
 
-/** Compute start/end dates from a preset relative to today */
-const getPresetRange = (preset: DatePreset): { start: Date; end: Date } => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    switch (preset) {
-        case "today":
-            return { start: today, end: today };
-        case "tomorrow":
-            return { start: addDays(today, 1), end: addDays(today, 1) };
-        case "7days":
-            return { start: today, end: addDays(today, 6) };
-        case "14days":
-            return { start: today, end: addDays(today, 13) };
-        case "1month":
-            return { start: today, end: addDays(today, 29) };
-    }
-};
-
 interface MatchPredictionTableProps {
     matches: Match[];
     onPredictionChange?: () => void;
@@ -55,44 +36,54 @@ export function MatchPredictionTable({ matches, onPredictionChange }: MatchPredi
     const [page, setPage] = useState(1);
 
     // ── Date filter state ────────────────────────────────────
-    const [activeFilter, setActiveFilter] = useState<ActiveDateFilter>("preset");
-    const [datePreset, setDatePreset] = useState<DatePreset>("today");
+    const [presetKey, setPresetKey] = useState<PresetKey>("");
     const [calendarStart, setCalendarStart] = useState("");
     const [calendarEnd, setCalendarEnd] = useState("");
 
     const [hotFilter, setHotFilter] = useState<HotFilter>("all");
 
-    const parsedCalendarStart = useMemo(() => parseDateInputValue(calendarStart), [calendarStart]);
-    const parsedCalendarEnd = useMemo(() => parseDateInputValue(calendarEnd), [calendarEnd]);
+    // ── Derived date range (from either preset or calendar) ──
+    const resolvedRange = useMemo<{ start: Date | null; end: Date | null }>(() => {
+        if (presetKey) {
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            switch (presetKey) {
+                case "today":
+                    return { start: today, end: today };
+                case "tomorrow":
+                    return { start: addDays(today, 1), end: addDays(today, 1) };
+                case "7days":
+                    return { start: today, end: addDays(today, 6) };
+                case "14days":
+                    return { start: today, end: addDays(today, 13) };
+                case "1month":
+                    return { start: today, end: addDays(today, 29) };
+            }
+        }
+        return {
+            start: parseDateInputValue(calendarStart),
+            end: parseDateInputValue(calendarEnd),
+        };
+    }, [presetKey, calendarStart, calendarEnd]);
 
     // ── Handlers ─────────────────────────────────────────────
 
-    const handlePresetChange = (value: DatePreset) => {
-        setDatePreset(value);
-        setActiveFilter("preset");
-        // Clear calendar values when switching to preset
-        setCalendarStart("");
-        setCalendarEnd("");
-        setPage(1);
-    };
-
-    const handleCalendarStartChange = (value: string) => {
-        setCalendarStart(value);
-        setActiveFilter("calendar");
-        // Reset preset when switching to calendar
-        const nextStart = parseDateInputValue(value);
-        if (nextStart && parsedCalendarEnd && parsedCalendarEnd.getTime() < nextStart.getTime()) {
-            setCalendarEnd(value);
+    const handlePresetChange = (key: PresetKey) => {
+        setPresetKey(key);
+        if (key) {
+            // Clear calendar when a preset is selected
+            setCalendarStart("");
+            setCalendarEnd("");
         }
         setPage(1);
     };
 
-    const handleCalendarEndChange = (value: string) => {
-        setCalendarEnd(value);
-        setActiveFilter("calendar");
-        const nextEnd = parseDateInputValue(value);
-        if (nextEnd && parsedCalendarStart && nextEnd.getTime() < parsedCalendarStart.getTime()) {
-            setCalendarStart(value);
+    const handleRangeChange = (range: { start: string; end: string }) => {
+        setCalendarStart(range.start);
+        setCalendarEnd(range.end);
+        // Clear preset when calendar is used
+        if (range.start || range.end) {
+            setPresetKey("");
         }
         setPage(1);
     };
@@ -100,25 +91,6 @@ export function MatchPredictionTable({ matches, onPredictionChange }: MatchPredi
     // ── Filtered matches ─────────────────────────────────────
 
     const filteredMatches = useMemo(() => {
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-
-        let rangeStart: Date;
-        let rangeEnd: Date;
-
-        if (activeFilter === "preset") {
-            const preset = getPresetRange(datePreset);
-            rangeStart = preset.start;
-            rangeEnd = preset.end;
-        } else {
-            rangeStart = parsedCalendarStart || today;
-            const endCandidate = parsedCalendarEnd || rangeStart;
-            rangeEnd = endCandidate.getTime() < rangeStart.getTime() ? rangeStart : endCandidate;
-        }
-
-        const rangeStartMs = rangeStart.getTime();
-        const rangeEndMsExclusive = addDays(rangeEnd, 1).getTime();
-
         const getDayStart = (iso?: string) => {
             if (!iso) return null;
             const kickoff = new Date(iso);
@@ -127,18 +99,46 @@ export function MatchPredictionTable({ matches, onPredictionChange }: MatchPredi
             return kickoff;
         };
 
+        const now = new Date();
+
         return matches.filter((match) => {
             if (match.bettingLocked) return false;
 
+            // Hide matches whose kickoff is in the past
+            if (match.kickoffIso) {
+                const kickoff = new Date(match.kickoffIso);
+                if (!Number.isNaN(kickoff.getTime()) && kickoff < now) return false;
+            }
+
             if (hotFilter === "hot" && !match.isHotMatch) return false;
 
+            const { start, end } = resolvedRange;
+
+            // If no date filter is active, show all matches
+            if (!start) return true;
+
             const kickoffDay = getDayStart(match.kickoffIso);
-            if (!kickoffDay) return false;
+            if (!kickoffDay) return true; // slots without kickoff
 
             const kickoffTime = kickoffDay.getTime();
-            return kickoffTime >= rangeStartMs && kickoffTime < rangeEndMsExclusive;
+
+            // Only start selected (no end yet) → show only that day
+            if (start && !end) {
+                const rangeStartMs = start.getTime();
+                const rangeEndExclusiveMs = addDays(start, 1).getTime();
+                return kickoffTime >= rangeStartMs && kickoffTime < rangeEndExclusiveMs;
+            }
+
+            // Both start and end selected → show range
+            if (start && end) {
+                const rangeStartMs = start.getTime();
+                const rangeEndExclusiveMs = addDays(end, 1).getTime();
+                return kickoffTime >= rangeStartMs && kickoffTime < rangeEndExclusiveMs;
+            }
+
+            return true;
         });
-    }, [matches, activeFilter, datePreset, parsedCalendarStart, parsedCalendarEnd, hotFilter]);
+    }, [matches, resolvedRange, hotFilter]);
 
     const totalPages = Math.max(1, Math.ceil(filteredMatches.length / PAGE_SIZE));
     const currentPage = Math.min(page, totalPages);
@@ -173,12 +173,6 @@ export function MatchPredictionTable({ matches, onPredictionChange }: MatchPredi
         return [1, "dots-left", currentPage - 1, currentPage, currentPage + 1, "dots-right", totalPages];
     }, [currentPage, totalPages]);
 
-    const presetSelectClasses = `h-9 min-w-[150px] rounded-md border px-3 text-xs outline-none transition-colors ${
-        activeFilter === "preset"
-            ? "border-primary bg-primary/10 text-primary font-semibold"
-            : "border-border bg-surface-dark text-foreground focus:border-primary"
-    }`;
-
     return (
         <div className="overflow-hidden rounded-xl border border-border bg-card shadow-[0_10px_30px_rgba(10,10,30,0.35)]">
             <div className="border-b border-border bg-surface/55 px-4 py-3">
@@ -186,19 +180,15 @@ export function MatchPredictionTable({ matches, onPredictionChange }: MatchPredi
                     <p className="text-xs text-muted-foreground">
                         {t("common.showing", { from, to, total: filteredMatches.length })}
                     </p>
-                    <div className="flex flex-wrap items-center justify-end gap-2">
-                        {/* 1. Preset select */}
+                    <div className="grid grid-cols-3 items-center gap-2">
+                        {/* Preset date select */}
                         <select
-                            value={activeFilter === "preset" ? datePreset : ""}
-                            onChange={(e) => handlePresetChange(e.target.value as DatePreset)}
-                            className={presetSelectClasses}
+                            value={presetKey}
+                            onChange={(e) => handlePresetChange(e.target.value as PresetKey)}
+                            className="h-9 w-full rounded-md border border-border bg-surface-dark px-2 text-xs text-foreground outline-none transition-colors focus:border-primary"
                             aria-label="Quick date filter"
                         >
-                            {activeFilter !== "preset" && (
-                                <option value="" disabled>
-                                    {t("matchPredictionTable.quickSelect")}
-                                </option>
-                            )}
+                            <option value="">{t("matchPredictionTable.allDates")}</option>
                             <option value="today">{t("matchPredictionTable.today")}</option>
                             <option value="tomorrow">{t("matchPredictionTable.tomorrow")}</option>
                             <option value="7days">{t("matchPredictionTable.next7Days")}</option>
@@ -206,42 +196,23 @@ export function MatchPredictionTable({ matches, onPredictionChange }: MatchPredi
                             <option value="1month">{t("matchPredictionTable.next1Month")}</option>
                         </select>
 
-                        {/* Separator */}
-                        <span className="hidden text-[10px] font-bold uppercase tracking-wider text-muted-foreground sm:inline">
-                            {t("matchPredictionTable.or")}
-                        </span>
+                        {/* Date range picker — compact */}
+                        <DateRangePicker
+                            startValue={calendarStart}
+                            endValue={calendarEnd}
+                            onChangeRange={handleRangeChange}
+                            placeholder={t("matchPredictionTable.dateRange")}
+                            className="w-full"
+                        />
 
-                        {/* 2. Calendar date range */}
-                        <div className={`flex items-center gap-1.5 rounded-md border p-0.5 transition-colors ${
-                            activeFilter === "calendar"
-                                ? "border-primary/60 bg-primary/5"
-                                : "border-transparent"
-                        }`}>
-                            <DatePicker
-                                value={calendarStart}
-                                onChange={handleCalendarStartChange}
-                                maxDate={parsedCalendarEnd || undefined}
-                                placeholder={t("matchPredictionTable.startDate")}
-                                className="w-[150px]"
-                            />
-                            <span className="text-[10px] text-muted-foreground">→</span>
-                            <DatePicker
-                                value={calendarEnd}
-                                onChange={handleCalendarEndChange}
-                                minDate={parsedCalendarStart || undefined}
-                                placeholder={t("matchPredictionTable.endDate")}
-                                className="w-[150px]"
-                            />
-                        </div>
-
-                        {/* Hot match filter (unchanged) */}
+                        {/* Hot match filter */}
                         <select
                             value={hotFilter}
                             onChange={(e) => {
                                 setHotFilter(e.target.value as HotFilter);
                                 setPage(1);
                             }}
-                            className="h-9 min-w-[150px] rounded-md border border-border bg-surface-dark px-3 text-xs text-foreground outline-none transition-colors focus:border-primary"
+                            className="h-9 w-full rounded-md border border-border bg-surface-dark px-2 text-xs text-foreground outline-none transition-colors focus:border-primary"
                             aria-label="Filter hot matches"
                         >
                             <option value="all">{t("matchPredictionTable.allMatches")}</option>

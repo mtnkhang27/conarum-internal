@@ -192,6 +192,7 @@ export interface AdminScoreBet {
     status: string;
     isCorrect: boolean | null;
     payout: number;
+    isPaidOut: boolean;
     submittedAt: string | null;
     player?: AdminPlayer;
 }
@@ -219,3 +220,25 @@ export interface AdminPlayerTournamentStats {
     rank: number | null;
     player?: AdminPlayer;
 }
+
+// === Payout Management Types ===
+
+export interface PayoutItem {
+    betId: string;
+    playerId: string;
+    playerDisplayName: string;
+    playerEmail: string;
+    playerAvatarUrl: string;
+    matchId: string;
+    homeTeam: string;
+    awayTeam: string;
+    kickoff: string;
+    predictedHomeScore: number;
+    predictedAwayScore: number;
+    actualHomeScore: number;
+    actualAwayScore: number;
+    payout: number;
+    isPaidOut: boolean;
+    submittedAt: string;
+}
+

@@ -1,6 +1,7 @@
 import { useLocation } from "react-router-dom";
 import { Trophy, BarChart3, Home, Clock } from "lucide-react";
 import { scrollToSection, SECTION } from "@/pages/SportPage";
+import { useActiveSection } from "@/hooks/useActiveSection";
 
 const navItems = [
     { section: SECTION.leaderboard, icon: Trophy, label: "Leaders" },
@@ -10,16 +11,15 @@ const navItems = [
 ];
 
 export function MobileBottomNav() {
-    const { pathname, hash } = useLocation();
+    const { pathname } = useLocation();
+    const { activeSection, setActiveSection } = useActiveSection();
     const isOnSportPage = pathname === "/";
 
     const handleClick = (e: React.MouseEvent, sectionId: string) => {
         if (isOnSportPage) {
             e.preventDefault();
             scrollToSection(sectionId);
-            window.history.replaceState(null, "", `/#${sectionId}`);
-        } else {
-            // Navigate to sport page + hash via standard anchor
+            setActiveSection(sectionId);
         }
     };
 
@@ -28,8 +28,8 @@ export function MobileBottomNav() {
             {navItems.map((item) => {
                 const isActive =
                     isOnSportPage &&
-                    (hash === `#${item.section}` ||
-                        (hash === "" && item.section === SECTION.leaderboard));
+                    (activeSection === item.section ||
+                        (activeSection === "" && item.section === SECTION.matches));
                 return (
                     <a
                         key={item.section}
@@ -47,3 +47,4 @@ export function MobileBottomNav() {
         </div>
     );
 }
+

@@ -78,95 +78,96 @@ export function CompletedMatchesTable({ matches }: CompletedMatchesTableProps) {
     return (
         <div className="overflow-hidden rounded-lg border border-border bg-card">
             <div className="overflow-x-auto">
-                {/* Header */}
-                <div className="grid min-w-[640px] grid-cols-12 gap-2 border-b border-border bg-surface/60 px-4 py-2.5 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                    <div className="col-span-5">{t("completedMatchesTable.match")}</div>
-                    <div className="col-span-2 text-center">{t("completedMatchesTable.score")}</div>
-                    <div className="col-span-2 text-center">{t("completedMatchesTable.yourPick")}</div>
-                    <div className="col-span-3 text-right">{t("completedMatchesTable.date")}</div>
-                </div>
+                <table className="min-w-[640px] w-full border-collapse">
+                    <thead>
+                        <tr className="border-b border-border bg-surface/60 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                            <th className="px-4 py-2.5 text-left font-bold">{t("completedMatchesTable.match")}</th>
+                            <th className="w-[120px] px-4 py-2.5 text-center font-bold">{t("completedMatchesTable.score")}</th>
+                            <th className="w-[180px] px-4 py-2.5 text-center font-bold">{t("completedMatchesTable.yourPick")}</th>
+                            <th className="w-[180px] px-4 py-2.5 text-right font-bold">{t("completedMatchesTable.date")}</th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border">
+                        {pagedMatches.map((match) => {
+                            const hasScore = match.finalScore !== undefined;
+                            const hasPick = !!match.selectedOption;
 
-                {/* Rows */}
-                <div className="min-w-[640px] divide-y divide-border">
-                    {pagedMatches.map((match) => {
-                        const hasScore = match.finalScore !== undefined;
-                        const hasPick = !!match.selectedOption;
+                            // Determine correctness visual: we know outcome only if there's a score
+                            let outcome: "home" | "draw" | "away" | null = null;
+                            if (hasScore) {
+                                const { home, away } = match.finalScore!;
+                                if (home > away) outcome = "home";
+                                else if (away > home) outcome = "away";
+                                else outcome = "draw";
+                            }
+                            const isCorrect = hasPick && outcome !== null && match.selectedOption === outcome;
+                            const isWrong = hasPick && outcome !== null && match.selectedOption !== outcome;
 
-                        // Determine correctness visual: we know outcome only if there's a score
-                        let outcome: "home" | "draw" | "away" | null = null;
-                        if (hasScore) {
-                            const { home, away } = match.finalScore!;
-                            if (home > away) outcome = "home";
-                            else if (away > home) outcome = "away";
-                            else outcome = "draw";
-                        }
-                        const isCorrect = hasPick && outcome !== null && match.selectedOption === outcome;
-                        const isWrong = hasPick && outcome !== null && match.selectedOption !== outcome;
+                            return (
+                                <tr
+                                    key={match.id}
+                                    className="transition-colors hover:bg-surface"
+                                >
+                                    {/* Match teams */}
+                                    <td className="px-4 py-3">
+                                        <div className="flex flex-wrap items-center gap-1.5">
+                                            <span className="flex items-center gap-1 text-sm font-bold text-white">
+                                                {match.home.crest
+                                                    ? <img src={match.home.crest} alt={match.home.name} className="h-4 w-4 object-contain" />
+                                                    : <span className={`fi fi-${match.home.flag} rounded-sm`} />}
+                                                {match.home.name}
+                                            </span>
+                                            <span className="text-[10px] font-black text-muted-foreground">{t("common.vs")}</span>
+                                            <span className="flex items-center gap-1 text-sm font-bold text-white">
+                                                {match.away.crest
+                                                    ? <img src={match.away.crest} alt={match.away.name} className="h-4 w-4 object-contain" />
+                                                    : <span className={`fi fi-${match.away.flag} rounded-sm`} />}
+                                                {match.away.name}
+                                            </span>
+                                        </div>
+                                        {match.stage && (
+                                            <span className="mt-0.5 block text-[10px] uppercase tracking-wide text-muted-foreground">
+                                                {match.stage}
+                                            </span>
+                                        )}
+                                    </td>
 
-                        return (
-                            <div
-                                key={match.id}
-                                className="grid grid-cols-12 items-center gap-2 px-4 py-3 transition-colors hover:bg-surface"
-                            >
-                                {/* Match teams */}
-                                <div className="col-span-5">
-                                    <div className="flex flex-wrap items-center gap-1.5">
-                                        <span className="flex items-center gap-1 text-sm font-bold text-white">
-                                            {match.home.crest
-                                                ? <img src={match.home.crest} alt={match.home.name} className="h-4 w-4 object-contain" />
-                                                : <span className={`fi fi-${match.home.flag} rounded-sm`} />}
-                                            {match.home.name}
-                                        </span>
-                                        <span className="text-[10px] font-black text-muted-foreground">{t("common.vs")}</span>
-                                        <span className="flex items-center gap-1 text-sm font-bold text-white">
-                                            {match.away.crest
-                                                ? <img src={match.away.crest} alt={match.away.name} className="h-4 w-4 object-contain" />
-                                                : <span className={`fi fi-${match.away.flag} rounded-sm`} />}
-                                            {match.away.name}
-                                        </span>
-                                    </div>
-                                    {match.stage && (
-                                        <span className="mt-0.5 block text-[10px] uppercase tracking-wide text-muted-foreground">
-                                            {match.stage}
-                                        </span>
-                                    )}
-                                </div>
+                                    {/* Final score */}
+                                    <td className="px-4 py-3 text-center">
+                                        {hasScore ? (
+                                            <span className="inline-block rounded border border-border bg-surface-dark px-2.5 py-1 font-mono text-sm font-bold text-success">
+                                                {match.finalScore!.home} – {match.finalScore!.away}
+                                            </span>
+                                        ) : (
+                                            <span className="text-xs text-muted-foreground">—</span>
+                                        )}
+                                    </td>
 
-                                {/* Final score */}
-                                <div className="col-span-2 text-center">
-                                    {hasScore ? (
-                                        <span className="inline-block rounded border border-border bg-surface-dark px-2.5 py-1 font-mono text-sm font-bold text-success">
-                                            {match.finalScore!.home} – {match.finalScore!.away}
-                                        </span>
-                                    ) : (
-                                        <span className="text-xs text-muted-foreground">—</span>
-                                    )}
-                                </div>
+                                    {/* User pick */}
+                                    <td className="px-4 py-3 text-center">
+                                        {hasPick ? (
+                                            <span
+                                                className={`inline-block rounded px-2 py-0.5 text-[10px] font-bold
+                                                    ${isCorrect ? "border border-success/40 bg-success/15 text-success" :
+                                                      isWrong ? "border border-destructive/40 bg-destructive/15 text-destructive" :
+                                                      "border border-border bg-surface text-foreground/70"}`}
+                                            >
+                                                {pickLabel(match.selectedOption, match.home.name, match.away.name)}
+                                            </span>
+                                        ) : (
+                                            <span className="text-xs text-muted-foreground">{t("completedMatchesTable.noPick")}</span>
+                                        )}
+                                    </td>
 
-                                {/* User pick */}
-                                <div className="col-span-2 text-center">
-                                    {hasPick ? (
-                                        <span
-                                            className={`inline-block rounded px-2 py-0.5 text-[10px] font-bold
-                                                ${isCorrect ? "border border-success/40 bg-success/15 text-success" :
-                                                  isWrong ? "border border-destructive/40 bg-destructive/15 text-destructive" :
-                                                  "border border-border bg-surface text-foreground/70"}`}
-                                        >
-                                            {pickLabel(match.selectedOption, match.home.name, match.away.name)}
-                                        </span>
-                                    ) : (
-                                        <span className="text-xs text-muted-foreground">{t("completedMatchesTable.noPick")}</span>
-                                    )}
-                                </div>
-
-                                {/* Date */}
-                                <div className="col-span-3 text-right text-[10px] text-muted-foreground">
-                                    {formatKickoffDisplay(match.kickoffIso)}
-                                </div>
-                            </div>
-                        );
-                    })}
-                </div>
+                                    {/* Date */}
+                                    <td className="px-4 py-3 text-right text-[10px] text-muted-foreground">
+                                        {formatKickoffDisplay(match.kickoffIso)}
+                                    </td>
+                                </tr>
+                            );
+                        })}
+                    </tbody>
+                </table>
             </div>
 
             {totalPages > 1 && (

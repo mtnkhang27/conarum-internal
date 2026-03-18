@@ -16,6 +16,7 @@ import type {
     AdminScoreBet,
     AdminChampionPick,
     AdminBracketSlot,
+    PayoutItem,
 } from "@/types/admin";
 import { mapExternalAssetUrls } from "@/utils/externalAssetProxy";
 
@@ -278,4 +279,23 @@ export const playerTournamentStatsApi = {
         odataList<AdminPlayerTournamentStats>(
             `/PlayerTournamentStats?$filter=tournament_ID eq '${tournamentId}'&$expand=player&$orderby=totalPoints desc`
         ),
+};
+
+// ── Payout Management ──────────────────────────────────────
+
+export const payoutApi = {
+    getByTournament: (tournamentId: string) =>
+        odata<{ value: PayoutItem[] }>(
+            `/getPayoutSummary(tournamentId='${tournamentId}')`
+        ).then((r) => r.value ?? (r as any)),
+    markPaid: (betIds: string[]) =>
+        odata<ActionResult>("/markScoreBetsPaid", {
+            method: "POST",
+            body: JSON.stringify({ betIds }),
+        }),
+    markUnpaid: (betIds: string[]) =>
+        odata<ActionResult>("/markScoreBetsUnpaid", {
+            method: "POST",
+            body: JSON.stringify({ betIds }),
+        }),
 };

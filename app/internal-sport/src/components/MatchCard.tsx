@@ -212,11 +212,12 @@ export function MatchCard({ match, isCompleted = false, onPredictionChange }: Ma
                                     {match.stage}
                                 </span>
                             )}
-                            {isSlotBet && (
+                          
+                            {/* {isSlotBet && (
                                 <span className="rounded border border-warning/40 bg-warning/15 px-2 py-1 text-[10px] font-bold text-warning">
                                     {t("matchCard.futureRound")}
                                 </span>
-                            )}
+                            )} */}
                         </div>
                         <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
                             {match.timeLabel}

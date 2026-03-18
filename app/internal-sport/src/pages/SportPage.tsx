@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { MatchPredictionTable } from "@/components/MatchPredictionTable";
@@ -8,9 +8,12 @@ import { TournamentSelector } from "@/components/TournamentSelector";
 import { LeaderboardSection } from "@/components/LeaderboardSection";
 import { RecentPredictionsSection } from "@/components/RecentPredictionsSection";
 import { TournamentBracket } from "@/components/TournamentBracket";
+import { LoadingOverlay } from "@/components/LoadingOverlay";
+import { useActiveSection } from "@/hooks/useActiveSection";
 import {
     playerMatchesApi,
     playerTournamentQueryApi,
+    playerTournamentsApi,
 } from "@/services/playerApi";
 import type {
     Match,
@@ -61,6 +64,7 @@ export function SportPage() {
     const location = useLocation();
     const { t } = useTranslation();
     const [tournamentId, setTournamentId] = useState("");
+    const [tournamentName, setTournamentName] = useState("");
 
     // Matches data
     const [matches, setMatches] = useState<Match[]>([]);
@@ -114,6 +118,18 @@ export function SportPage() {
         loadPredictions();
     }, [loadPredictions, location.key]);
 
+    // Resolve tournament name when tournamentId changes
+    useEffect(() => {
+        if (!tournamentId) {
+            setTournamentName("");
+            return;
+        }
+        playerTournamentsApi.getAll().then((list) => {
+            const found = list.find((t) => t.ID === tournamentId);
+            setTournamentName(found?.name ?? "");
+        }).catch(() => setTournamentName(""));
+    }, [tournamentId]);
+
     // Callback for MatchCard to trigger refresh after submit/cancel
     const refreshAll = useCallback(() => {
         loadMatchData(tournamentId);
@@ -121,12 +137,60 @@ export function SportPage() {
     }, [tournamentId, loadMatchData, loadPredictions]);
 
     // Scroll to hash section on mount / navigation
+    const programmaticScroll = useRef(false);
     useEffect(() => {
         const hash = location.hash.replace("#", "");
         if (hash) {
+            programmaticScroll.current = true;
             setTimeout(() => scrollToSection(hash), 100);
+            // Reset flag after the smooth scroll completes (~600ms)
+            setTimeout(() => { programmaticScroll.current = false; }, 800);
         }
     }, [location.hash]);
+
+    // ── Scroll spy: sync sidebar with visible section ─────────
+    const { setActiveSection } = useActiveSection();
+    useEffect(() => {
+        const SECTION_IDS = [
+            SECTION.matches,
+            SECTION.leaderboard,
+            SECTION.recent,
+            SECTION.bracket,
+            SECTION.completed,
+        ];
+
+        const elements = SECTION_IDS
+            .map((id) => document.getElementById(id))
+            .filter((el): el is HTMLElement => el !== null);
+
+        if (elements.length === 0) return;
+
+        const observer = new IntersectionObserver(
+            (entries) => {
+                // Skip if a programmatic scroll is in progress
+                if (programmaticScroll.current) return;
+
+                // Find the topmost visible section
+                const visible = entries
+                    .filter((e) => e.isIntersecting)
+                    .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
+
+                if (visible.length > 0) {
+                    const activeId = visible[0].target.id;
+                    setActiveSection(activeId);
+                }
+            },
+            {
+                // Trigger when heading is in the upper ~30% of the viewport
+                rootMargin: "-10% 0px -70% 0px",
+                threshold: 0,
+            }
+        );
+
+        for (const el of elements) observer.observe(el);
+
+        return () => observer.disconnect();
+    }, [setActiveSection]); // setActiveSection is stable via useCallback
 
     return (
         <div className="flex flex-col">
@@ -161,9 +225,7 @@ export function SportPage() {
 
                     {/* Available match table */}
                     {loadingMatches ? (
-                        <div className="flex h-48 items-center justify-center text-muted-foreground">
-                            {t("common.loading")}
-                        </div>
+                        <LoadingOverlay />
                     ) : matches.length === 0 ? (
                         <p className="py-10 text-center text-sm text-muted-foreground">
                             {t("matchPredictionTable.noMatchesFound")}
@@ -211,6 +273,7 @@ export function SportPage() {
                     <RecentPredictionsSection
                         predictions={predictions}
                         loading={loadingPredictions}
+                        tournamentName={tournamentName}
                     />
                 </section>
 
@@ -241,9 +304,7 @@ export function SportPage() {
                     />
 
                     {loadingMatches ? (
-                        <div className="flex h-32 items-center justify-center text-muted-foreground">
-                            {t("common.loading")}
-                        </div>
+                        <LoadingOverlay />
                     ) : (
                         <CompletedMatchesTable matches={completed} />
                     )}

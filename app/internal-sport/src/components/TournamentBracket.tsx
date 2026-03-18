@@ -193,7 +193,7 @@ function SlotCard({ slot, showLegs }: { slot: BracketSlot; showLegs: boolean }) 
                 isWinner={homeIsWinner}
                 isEmpty={homeEmpty}
                 leg1Score={slot.leg1HomeScore}
-                leg2Score={slot.leg2AwayScore}
+                leg2Score={slot.leg2HomeScore}
                 showLegs={showLegs}
                 hasPen={hasPen}
                 penScore={hasPen ? (slot.homePen ?? null) : null}
@@ -210,7 +210,7 @@ function SlotCard({ slot, showLegs }: { slot: BracketSlot; showLegs: boolean }) 
                 isWinner={awayIsWinner}
                 isEmpty={awayEmpty}
                 leg1Score={slot.leg1AwayScore}
-                leg2Score={slot.leg2HomeScore}
+                leg2Score={slot.leg2AwayScore}
                 showLegs={showLegs}
                 hasPen={hasPen}
                 penScore={hasPen ? (slot.awayPen ?? null) : null}

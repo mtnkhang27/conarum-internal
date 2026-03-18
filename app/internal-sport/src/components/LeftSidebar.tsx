@@ -2,6 +2,7 @@ import { Link, NavLink, useLocation } from "react-router-dom";
 import { Info } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { scrollToSection, SECTION } from "@/pages/SportPage";
+import { useActiveSection } from "@/hooks/useActiveSection";
 
 function sectionLinkClass(active: boolean) {
     return active
@@ -16,8 +17,9 @@ function pageLink(active: boolean) {
 }
 
 export function LeftSidebar() {
-    const { pathname, hash } = useLocation();
+    const { pathname } = useLocation();
     const { t } = useTranslation();
+    const { activeSection, setActiveSection } = useActiveSection();
     const isOnSportPage = pathname === "/";
 
     const SECTIONS = [
@@ -43,7 +45,7 @@ export function LeftSidebar() {
 
                     {/* Sport page sections */}
                     {SECTIONS.map((s) => {
-                        const isActive = isOnSportPage && (hash === `#${s.id}` || (hash === "" && s.id === SECTION.leaderboard));
+                        const isActive = isOnSportPage && (activeSection === s.id || (activeSection === "" && s.id === SECTION.matches));
                         return (
                             <Link
                                 key={s.id}
@@ -52,8 +54,7 @@ export function LeftSidebar() {
                                     if (isOnSportPage) {
                                         e.preventDefault();
                                         scrollToSection(s.id);
-                                        // Update hash without full navigation
-                                        window.history.replaceState(null, "", `/#${s.id}`);
+                                        setActiveSection(s.id);
                                     }
                                 }}
                                 className={sectionLinkClass(isActive)}
@@ -84,3 +85,4 @@ export function LeftSidebar() {
         </aside>
     );
 }
+

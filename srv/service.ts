@@ -79,6 +79,9 @@ export class AdminService extends cds.ApplicationService {
         this.on('lockTournamentBetting', this.adminHandler.lockTournamentBetting.bind(this.adminHandler));
         this.on('getAvailableCompetitions', this.adminHandler.getAvailableCompetitions.bind(this.adminHandler));
         this.on('importTournament', this.adminHandler.importTournament.bind(this.adminHandler));
+        this.on('markScoreBetsPaid', this.adminHandler.markScoreBetsPaid.bind(this.adminHandler));
+        this.on('markScoreBetsUnpaid', this.adminHandler.markScoreBetsUnpaid.bind(this.adminHandler));
+        this.on('getPayoutSummary', this.adminHandler.getPayoutSummary.bind(this.adminHandler));
 
         // ── Guard: block match creation/update for completed/cancelled tournaments ──
         this.before(['CREATE', 'UPDATE'], 'Matches', async (req: any) => {

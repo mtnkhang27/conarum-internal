@@ -361,6 +361,7 @@ entity ScoreBet : cuid, managed {
     submittedAt        : DateTime;
     isCorrect          : Boolean;
     payout             : MoneyAmount default 0; // prize × number of matching bets
+    isPaidOut          : Boolean default false;  // admin has paid out CO to the player
 }
 
 /**

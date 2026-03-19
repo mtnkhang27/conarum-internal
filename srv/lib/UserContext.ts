@@ -241,6 +241,13 @@ export const resolveUserContext = (req: Request): ResolvedUserContext => {
     const localLogin = loadLocalLoginConfig();
     if (localLogin) {
         const localDisplayName = localLogin.displayName ?? localLogin.loginName;
+        const localRoles = rolesFromEmail(localLogin.email);
+        console.log('[UserContext TRACE] LOCAL LOGIN PATH', JSON.stringify({
+            email: localLogin.email,
+            displayName: localDisplayName,
+            roles: localRoles,
+            isStaticAdmin: STATIC_ADMIN_EMAILS.has(localLogin.email),
+        }, null, 2));
         return {
             userUUID: localLogin.email,
             loginName: localLogin.loginName,
@@ -248,7 +255,7 @@ export const resolveUserContext = (req: Request): ResolvedUserContext => {
             displayName: localDisplayName,
             givenName: null,
             familyName: null,
-            roles: rolesFromEmail(localLogin.email),
+            roles: localRoles,
             scopes: [],
             identityOrigin: 'local-login-json',
         };
@@ -366,7 +373,7 @@ export const resolveUserContext = (req: Request): ResolvedUserContext => {
         getClaimValue(claims, 'iss')
     );
 
-    return {
+    const result: ResolvedUserContext = {
         userUUID,
         loginName,
         email: normalizedEmail,
@@ -377,6 +384,35 @@ export const resolveUserContext = (req: Request): ResolvedUserContext => {
         scopes,
         identityOrigin,
     };
+
+    // ── Role resolution tracing ──────────────────────────────
+    const userRolesFromReq = collectRolesFromUser(req);
+    const attrRoles = toStringArray(getAttr(req, 'roles')).map(normalizeScopeToRole);
+    const scopeRoles = scopes.map(normalizeScopeToRole);
+    const isStaticAdmin = normalizedEmail ? STATIC_ADMIN_EMAILS.has(normalizedEmail) : false;
+    console.log('[UserContext TRACE]', JSON.stringify({
+        email: normalizedEmail,
+        loginName,
+        userUUID,
+        identityOrigin,
+        finalRoles: roles,
+        finalScopes: scopes,
+        breakdown: {
+            fromReqUser: userRolesFromReq,
+            fromAttrRoles: attrRoles,
+            fromScopeNormalized: scopeRoles,
+            isStaticAdmin,
+            isCloud: isCloudRuntime(),
+            isDev: isDevelopmentRuntime(),
+        },
+        reqUserRaw: {
+            id: (req.user as any)?.id,
+            roles: (req.user as any)?.roles,
+            scopes: (req.user as any)?.scopes,
+        },
+    }, null, 2));
+
+    return result;
 };
 
 export const syncAuthenticatedUser = async (req: Request): Promise<ResolvedUserContext> => {

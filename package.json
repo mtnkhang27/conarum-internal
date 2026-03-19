@@ -70,7 +70,7 @@
       "auth": {
         "strategy": "xsuaa",
         "[development]": {
-          "strategy": "mock",
+          "strategy": "dummy",
           "users": {
             "admin": {
               "password": "admin",
@@ -102,6 +102,18 @@
               ],
               "attr": {
                 "name": "Tran Thi B"
+              }
+            },
+            "nam.vu@conarum.com": {
+              "password": "admin",
+              "roles": [
+                "PredictionAdmin",
+                "PredictionUser",
+                "admin",
+                "authenticated-user"
+              ],
+              "attr": {
+                "name": "Nam Vu"
               }
             }
           }

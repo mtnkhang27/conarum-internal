@@ -778,8 +778,8 @@ export class PredictionHandler {
         });
 
         // Enrich with team names (batch-fetch)
-        const teamIds = [...new Set(Object.values(standingsMap).map((s: any) => s.teamId).filter(Boolean))];
-        const teams = teamIds.length > 0 ? await SELECT.from(Team).where({ ID: { in: teamIds } }) : [];
+        const enrichTeamIds = [...new Set(Object.values(standingsMap).map((s: any) => s.teamId).filter(Boolean))];
+        const teams = enrichTeamIds.length > 0 ? await SELECT.from(Team).where({ ID: { in: enrichTeamIds } }) : [];
         const teamMap = new Map(teams.map((t: any) => [t.ID, t]));
 
         const result = standings.map((s: any) => {

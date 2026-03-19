@@ -224,6 +224,14 @@ export class ProfileHandler {
 
         const roles = context.roles.length > 0 ? context.roles : this.parseStoredRoles(player.roles);
         const isAdmin = roles.includes('admin') || roles.includes('PredictionAdmin');
+        console.log('[ProfileHandler TRACE] getMyProfile isAdmin check', JSON.stringify({
+            email: player.email,
+            contextRoles: context.roles,
+            storedRoles: this.parseStoredRoles(player.roles),
+            usedRoles: roles,
+            isAdmin,
+            identityOrigin: context.identityOrigin,
+        }));
         const preferredDisplayName = this.composeDisplayName(player.givenName, player.familyName);
 
         return {

@@ -1,8 +1,11 @@
 import cds, { Request } from '@sap/cds';
 import { ScoringEngine } from '../lib/ScoringEngine';
 import { materializeSlotBetsForMatch } from '../lib/SlotBetMaterializer';
+import { STAGE_MAP, STATUS_MAP, OUTCOME_MAP } from '../lib/constants';
+import { PayoutManager } from '../lib/PayoutManager';
+import { BracketBuilder } from '../lib/BracketBuilder';
 
-/** Default football-data.org API token — used when no apiKey is provided. */
+/** football-data.org API token — read from env, falls back to empty string. */
 const FOOTBALL_DATA_API_TOKEN = 'f96dc87cc7b54da08321475e744a52f2';
 
 /**
@@ -12,10 +15,14 @@ const FOOTBALL_DATA_API_TOKEN = 'f96dc87cc7b54da08321475e744a52f2';
 export class AdminHandler {
     private srv: cds.ApplicationService;
     private scoringEngine: ScoringEngine;
+    private payoutManager: PayoutManager;
+    private bracketBuilder: BracketBuilder;
 
     constructor(srv: cds.ApplicationService) {
         this.srv = srv;
         this.scoringEngine = new ScoringEngine();
+        this.payoutManager = new PayoutManager();
+        this.bracketBuilder = new BracketBuilder();
     }
 
     /**
@@ -28,14 +35,7 @@ export class AdminHandler {
      */
     async enterMatchResult(req: Request) {
         const { matchId, homeScore, awayScore } = req.data;
-        const {
-            Match,
-            Prediction,
-            ScoreBet,
-            Player,
-            MatchScoreBetConfig,
-            PlayerTournamentStats
-        } = cds.entities('cnma.prediction');
+        const { Match } = cds.entities('cnma.prediction');
 
         // Validate match
         const match = await SELECT.one.from(Match).where({ ID: matchId });
@@ -44,6 +44,40 @@ export class AdminHandler {
         if (match.status === 'finished') {
             return req.error(400, 'Match result has already been entered. Use correctMatchResult to fix it.');
         }
+
+        const result = await this._scoreMatch(matchId, homeScore, awayScore);
+
+        return {
+            success: true,
+            message: `Match result ${homeScore}-${awayScore} entered. ${result.predictionsScored} predictions, ${result.scoreBetsScored} score bets scored.`,
+            predictionsScored: result.predictionsScored,
+            scoreBetsScored: result.scoreBetsScored,
+        };
+    }
+
+    /**
+     * Core scoring logic — no Request object needed.
+     * 1. Materialize slot bets
+     * 2. Update match with result
+     * 3. Score UC2 predictions
+     * 4. Score UC1 score bets
+     * 5. Lock remaining predictions
+     * 6. Trigger bracket progression
+     */
+    private async _scoreMatch(
+        matchId: string,
+        homeScore: number,
+        awayScore: number
+    ): Promise<{ predictionsScored: number; scoreBetsScored: number }> {
+        const {
+            Match,
+            Prediction,
+            ScoreBet,
+            MatchScoreBetConfig,
+        } = cds.entities('cnma.prediction');
+
+        const match = await SELECT.one.from(Match).where({ ID: matchId });
+        if (!match) throw new Error(`Match ${matchId} not found`);
 
         // Determine outcome
         const outcome = ScoringEngine.determineOutcome(homeScore, awayScore);
@@ -109,8 +143,6 @@ export class AdminHandler {
                 const isCorrect = bet.predictedHomeScore === homeScore
                     && bet.predictedAwayScore === awayScore;
 
-                // Each correct bet wins 1×prize.
-                // If player placed N identical bets and all are correct, each pays 1×prize (total N×prize).
                 const payout = isCorrect ? prize : 0;
 
                 await UPDATE(ScoreBet).where({ ID: bet.ID }).set({
@@ -128,17 +160,11 @@ export class AdminHandler {
             .set({ status: 'locked', lockedAt: new Date().toISOString() });
 
         // ── Bracket Progression ──────────────────────────────
-        // If this match belongs to a bracket slot, update aggregates & advance winner
         if (match.bracketSlot_ID) {
             await this.updateBracketProgression(match.bracketSlot_ID, matchId);
         }
 
-        return {
-            success: true,
-            message: `Match result ${homeScore}-${awayScore} entered. ${predictionsScored} predictions, ${scoreBetsScored} score bets scored.`,
-            predictionsScored,
-            scoreBetsScored
-        };
+        return { predictionsScored, scoreBetsScored };
     }
 
     /**
@@ -166,31 +192,22 @@ export class AdminHandler {
             .where({ match_ID: matchId, status: { in: ['won', 'lost'] } })
             .set({ status: 'pending', isCorrect: null, payout: 0 });
 
-        // Re-open the match so enterMatchResult accepts it
+        // Re-open the match so _scoreMatch accepts it
         await UPDATE(Match).where({ ID: matchId }).set({ status: 'live' });
 
-        // Re-enter with new scores (this scores predictions, bets, triggers bracket)
-        const fakeReq = {
-            data: { matchId, homeScore, awayScore },
-            error: (code: number, msg: string) => { throw new Error(msg); }
-        } as unknown as Request;
-
-        const result: any = await this.enterMatchResult(fakeReq);
+        // Re-score with new result — no fake Request needed
+        const result = await this._scoreMatch(matchId, homeScore, awayScore);
 
         // Recalculate leaderboard for the tournament
         if (match.tournament_ID) {
-            const fakeRecalcReq = {
-                data: { tournamentId: match.tournament_ID },
-                error: (code: number, msg: string) => { throw new Error(msg); }
-            } as unknown as Request;
-            await this.recalculateLeaderboard(fakeRecalcReq);
+            await this._recalculateTournamentLeaderboard(match.tournament_ID);
         }
 
         return {
             success: true,
-            message: `Match result corrected to ${homeScore}-${awayScore}. ${result?.predictionsScored ?? 0} predictions and ${result?.scoreBetsScored ?? 0} score bets re-scored.`,
-            predictionsScored: result?.predictionsScored ?? 0,
-            scoreBetsScored: result?.scoreBetsScored ?? 0,
+            message: `Match result corrected to ${homeScore}-${awayScore}. ${result.predictionsScored} predictions and ${result.scoreBetsScored} score bets re-scored.`,
+            predictionsScored: result.predictionsScored,
+            scoreBetsScored: result.scoreBetsScored,
         };
     }
 
@@ -230,63 +247,17 @@ export class AdminHandler {
      */
     async recalculateLeaderboard(req: Request) {
         const { tournamentId } = req.data;
-        const { Player, Prediction, PlayerTournamentStats } = cds.entities('cnma.prediction');
 
         if (tournamentId) {
-            // Per-tournament recalculation
-            const stats = await SELECT.from(PlayerTournamentStats)
-                .where({ tournament_ID: tournamentId });
-
-            for (const stat of stats) {
-                const preds = await SELECT.from(Prediction)
-                    .where({ player_ID: stat.player_ID, tournament_ID: tournamentId, status: 'scored' });
-
-                const totalPoints = preds.reduce((sum: number, p: any) => sum + (Number(p.pointsEarned) || 0), 0);
-                const totalCorrect = preds.filter((p: any) => p.isCorrect).length;
-                const totalPredictions = preds.length;
-                const { currentStreak, bestStreak } = this.scoringEngine.calculateStreaks(preds);
-
-                await UPDATE(PlayerTournamentStats).where({ ID: stat.ID }).set({
-                    totalPoints,
-                    totalCorrect,
-                    totalPredictions,
-                    currentStreak,
-                    bestStreak
-                });
-            }
-
-            // Assign ranks — sort by points desc then name asc
-            const updatedStats = await SELECT.from(PlayerTournamentStats)
-                .where({ tournament_ID: tournamentId });
-
-            // Enrich with player names for tiebreak
-            const enriched = [];
-            for (const s of updatedStats) {
-                const player = await SELECT.one.from(Player).where({ ID: s.player_ID });
-                enriched.push({
-                    id: s.ID,
-                    totalPoints: Number(s.totalPoints),
-                    name: (player?.displayName ?? '').toLowerCase(),
-                });
-            }
-            enriched.sort((a, b) => {
-                if (b.totalPoints !== a.totalPoints) return b.totalPoints - a.totalPoints;
-                return a.name.localeCompare(b.name);
-            });
-
-            for (let i = 0; i < enriched.length; i++) {
-                await UPDATE(PlayerTournamentStats).where({ ID: enriched[i].id }).set({
-                    rank: i + 1
-                });
-            }
-
+            const count = await this._recalculateTournamentLeaderboard(tournamentId);
             return {
                 success: true,
-                message: `Tournament leaderboard recalculated for ${stats.length} players`
+                message: `Tournament leaderboard recalculated for ${count} players`
             };
         }
 
         // Global recalculation
+        const { Player, Prediction } = cds.entities('cnma.prediction');
         const players = await SELECT.from(Player);
 
         for (const player of players) {
@@ -319,6 +290,61 @@ export class AdminHandler {
             success: true,
             message: `Global leaderboard recalculated for ${players.length} players`
         };
+    }
+
+    /**
+     * Recalculate leaderboard for a specific tournament.
+     * Extracted so it can be called without a Request object.
+     */
+    private async _recalculateTournamentLeaderboard(tournamentId: string): Promise<number> {
+        const { Player, Prediction, PlayerTournamentStats } = cds.entities('cnma.prediction');
+
+        const stats = await SELECT.from(PlayerTournamentStats)
+            .where({ tournament_ID: tournamentId });
+
+        for (const stat of stats) {
+            const preds = await SELECT.from(Prediction)
+                .where({ player_ID: stat.player_ID, tournament_ID: tournamentId, status: 'scored' });
+
+            const totalPoints = preds.reduce((sum: number, p: any) => sum + (Number(p.pointsEarned) || 0), 0);
+            const totalCorrect = preds.filter((p: any) => p.isCorrect).length;
+            const totalPredictions = preds.length;
+            const { currentStreak, bestStreak } = this.scoringEngine.calculateStreaks(preds);
+
+            await UPDATE(PlayerTournamentStats).where({ ID: stat.ID }).set({
+                totalPoints,
+                totalCorrect,
+                totalPredictions,
+                currentStreak,
+                bestStreak
+            });
+        }
+
+        // Assign ranks — sort by points desc then name asc
+        const updatedStats = await SELECT.from(PlayerTournamentStats)
+            .where({ tournament_ID: tournamentId });
+
+        const enriched = [];
+        for (const s of updatedStats) {
+            const player = await SELECT.one.from(Player).where({ ID: s.player_ID });
+            enriched.push({
+                id: s.ID,
+                totalPoints: Number(s.totalPoints),
+                name: (player?.displayName ?? '').toLowerCase(),
+            });
+        }
+        enriched.sort((a, b) => {
+            if (b.totalPoints !== a.totalPoints) return b.totalPoints - a.totalPoints;
+            return a.name.localeCompare(b.name);
+        });
+
+        for (let i = 0; i < enriched.length; i++) {
+            await UPDATE(PlayerTournamentStats).where({ ID: enriched[i].id }).set({
+                rank: i + 1
+            });
+        }
+
+        return stats.length;
     }
 
     /**
@@ -700,46 +726,10 @@ export class AdminHandler {
 
         const externalMatches: any[] = apiData.matches ?? [];
 
-        // Stage mapping from football-data.org to schema
-        const stageMap: Record<string, string> = {
-            LEAGUE_STAGE: 'regular',
-            GROUP_STAGE: 'group',
-            REGULAR_SEASON: 'regular',
-            LAST_32: 'roundOf32',
-            LAST_16: 'roundOf16',
-            QUARTER_FINALS: 'quarterFinal',
-            SEMI_FINALS: 'semiFinal',
-            THIRD_PLACE: 'thirdPlace',
-            FINAL: 'final',
-            PLAY_OFF_ROUND: 'playoff',
-            REGULAR: 'regular',
-            PLAYOFF: 'playoff',
-            RELEGATION: 'relegation',
-        };
-
-        // Status mapping
-        const statusMap: Record<string, string> = {
-            SCHEDULED: 'upcoming',
-            TIMED: 'upcoming',
-            IN_PLAY: 'live',
-            PAUSED: 'live',
-            HALFTIME: 'live',
-            EXTRA_TIME: 'live',
-            PENALTY_SHOOTOUT: 'live',
-            FINISHED: 'finished',
-            AWARDED: 'finished',
-            INTERRUPTED: 'live',
-            SUSPENDED: 'cancelled',
-            POSTPONED: 'cancelled',
-            CANCELLED: 'cancelled',
-        };
-
-        // Outcome mapping
-        const outcomeMap: Record<string, string> = {
-            HOME_TEAM: 'home',
-            AWAY_TEAM: 'away',
-            DRAW: 'draw',
-        };
+        // Use shared mapping constants
+        const stageMap = STAGE_MAP;
+        const statusMap = STATUS_MAP;
+        const outcomeMap = OUTCOME_MAP;
 
         // Build crest→Team ID lookup for resolving teams by API crest URL
         const allTeams = await SELECT.from(Team).columns('ID', 'crest');
@@ -993,19 +983,10 @@ export class AdminHandler {
                 }
             }
 
-            // Auto-score if newly finished
+            // Auto-score if newly finished — call _scoreMatch directly (no fake Request)
             if (!wasFinished && nowFinished && homeScore !== null && awayScore !== null) {
                 try {
-                    const fakeReq = {
-                        data: {
-                            matchId: ourMatch.ID,
-                            homeScore: homeScore,
-                            awayScore: awayScore,
-                        },
-                        error: (code: number, msg: string) => { throw new Error(msg); }
-                    } as unknown as Request;
-
-                    await this.enterMatchResult(fakeReq);
+                    await this._scoreMatch(ourMatch.ID, homeScore, awayScore);
                     scored++;
                 } catch (_) {
                     // already finished or error — skip scoring
@@ -1441,36 +1422,9 @@ export class AdminHandler {
             return req.error(500, `Team import failed: ${err.message}`);
         }
 
-        // 8. Fetch & create matches
-        const stageMap: Record<string, string> = {
-            LEAGUE_STAGE: 'regular',
-            GROUP_STAGE: 'group',
-            LAST_16: 'roundOf16',
-            LAST_32: 'roundOf32',
-            QUARTER_FINALS: 'quarterFinal',
-            SEMI_FINALS: 'semiFinal',
-            THIRD_PLACE: 'thirdPlace',
-            FINAL: 'final',
-            PLAY_OFF_ROUND: 'playoff',
-            REGULAR: 'regular',
-            PLAYOFF: 'playoff',
-            RELEGATION: 'relegation',
-        };
-        const statusMap: Record<string, string> = {
-            SCHEDULED: 'upcoming',
-            TIMED: 'upcoming',
-            IN_PLAY: 'live',
-            PAUSED: 'live',
-            HALFTIME: 'live',
-            EXTRA_TIME: 'live',
-            PENALTY_SHOOTOUT: 'live',
-            FINISHED: 'finished',
-            AWARDED: 'finished',
-            INTERRUPTED: 'live',
-            SUSPENDED: 'cancelled',
-            POSTPONED: 'cancelled',
-            CANCELLED: 'cancelled',
-        };
+        // Use shared mapping constants
+        const stageMap = STAGE_MAP;
+        const statusMap = STATUS_MAP;
 
         let apiMatches: any[] = [];
         try {
@@ -1478,12 +1432,7 @@ export class AdminHandler {
             apiMatches = matchesData.matches ?? [];
         } catch (_) { /* no matches available */ }
 
-        // Outcome mapping for finished matches
-        const outcomeMap: Record<string, string> = {
-            HOME_TEAM: 'home',
-            AWAY_TEAM: 'away',
-            DRAW: 'draw',
-        };
+        const outcomeMap = OUTCOME_MAP;
 
         let matchesImported = 0;
         let finishedMatchesImported = 0;
@@ -1553,461 +1502,32 @@ export class AdminHandler {
         };
     }
 
-    /**
-     * Create bracket slots from knockout-stage matches already imported for this tournament.
-     * Groups two-leg matches into ties, creates BracketSlot entries, and links the bracket tree.
-     *
-     * Bracket ordering uses externalId (from football-data.org) to preserve the actual
-     * bracket structure. Team-based cross-referencing is then used when next-stage matches
-     * have known team assignments to correctly link the bracket tree. Sequential pairing
-     * (by externalId order) is used as a fallback for stages where teams are still TBD.
-     */
+    // ── Bracket & Format (delegated to BracketBuilder) ─────
+
     private async _createBracketFromMatches(
         tournamentId: string,
         knockoutStages: string[],
         format: string
     ): Promise<number> {
-        const { Match, BracketSlot } = cds.entities('cnma.prediction');
-
-        // Fetch all matches for this tournament
-        const allMatches = await SELECT.from(Match).where({ tournament_ID: tournamentId });
-
-        // Filter knockout matches
-        const knockoutMatches = allMatches.filter((m: any) => knockoutStages.includes(m.stage));
-        if (knockoutMatches.length === 0) return 0;
-
-        // Group by stage
-        const matchesByStage = new Map<string, any[]>();
-        for (const m of knockoutMatches) {
-            if (!matchesByStage.has(m.stage)) matchesByStage.set(m.stage, []);
-            matchesByStage.get(m.stage)!.push(m);
-        }
-
-        const expectedTiesPerStage: Record<string, number> = {
-            roundOf32: 16,
-            roundOf16: 8,
-            quarterFinal: 4,
-            semiFinal: 2,
-            final: 1,
-        };
-
-        type Tie = { leg1: any; leg2: any | null; homeTeamId: string | null; awayTeamId: string | null };
-        const sortTiesByExternalOrder = (ties: Tie[]): Tie[] =>
-            ties.sort((a, b) => {
-                const aId = Math.min(a.leg1.externalId ?? Infinity, a.leg2?.externalId ?? Infinity);
-                const bId = Math.min(b.leg1.externalId ?? Infinity, b.leg2?.externalId ?? Infinity);
-                return aId - bId;
-            });
-
-        /**
-         * Pair matches into bracket ties.
-         * Preferred strategy is team-based (home/away swapped across legs).
-         * For TBD two-leg stages, infer pairings by matchday or ordered split.
-         */
-        const createTiesFromMatches = (matches: any[], stage: string): Tie[] => {
-            const orderedMatches = [...matches].sort((a: any, b: any) => (a.externalId ?? 0) - (b.externalId ?? 0));
-
-            const pairByKnownTeams = (): Tie[] => {
-                const ties: Tie[] = [];
-                const used = new Set<string>();
-
-                for (let i = 0; i < orderedMatches.length; i++) {
-                    if (used.has(orderedMatches[i].ID)) continue;
-                    const m1 = orderedMatches[i];
-                    let paired = false;
-
-                    for (let j = i + 1; j < orderedMatches.length; j++) {
-                        if (used.has(orderedMatches[j].ID)) continue;
-                        const m2 = orderedMatches[j];
-
-                        if (
-                            m1.homeTeam_ID && m1.awayTeam_ID &&
-                            m1.homeTeam_ID === m2.awayTeam_ID &&
-                            m1.awayTeam_ID === m2.homeTeam_ID
-                        ) {
-                            used.add(m1.ID);
-                            used.add(m2.ID);
-                            const [leg1, leg2] = new Date(m1.kickoff).getTime() <= new Date(m2.kickoff).getTime()
-                                ? [m1, m2]
-                                : [m2, m1];
-                            ties.push({
-                                leg1,
-                                leg2,
-                                homeTeamId: leg1.homeTeam_ID,
-                                awayTeamId: leg1.awayTeam_ID,
-                            });
-                            paired = true;
-                            break;
-                        }
-                    }
-
-                    if (!paired) {
-                        used.add(m1.ID);
-                        ties.push({
-                            leg1: m1,
-                            leg2: null,
-                            homeTeamId: m1.homeTeam_ID ?? null,
-                            awayTeamId: m1.awayTeam_ID ?? null,
-                        });
-                    }
-                }
-
-                return sortTiesByExternalOrder(ties);
-            };
-
-            const expectedTies = expectedTiesPerStage[stage] ?? 0;
-            const isLikelyTwoLegStage =
-                stage !== 'final' &&
-                expectedTies > 0 &&
-                orderedMatches.length === expectedTies * 2;
-
-            const teamPaired = pairByKnownTeams();
-            if (!isLikelyTwoLegStage || teamPaired.length === expectedTies) {
-                return teamPaired;
-            }
-
-            const byMatchday = new Map<number, any[]>();
-            for (const m of orderedMatches) {
-                if (m.matchday != null) {
-                    if (!byMatchday.has(m.matchday)) byMatchday.set(m.matchday, []);
-                    byMatchday.get(m.matchday)!.push(m);
-                }
-            }
-
-            let leg1Candidates: any[] = [];
-            let leg2Candidates: any[] = [];
-            const matchdayKeys = Array.from(byMatchday.keys()).sort((a, b) => a - b);
-            if (
-                matchdayKeys.length === 2 &&
-                (byMatchday.get(matchdayKeys[0])?.length ?? 0) === expectedTies &&
-                (byMatchday.get(matchdayKeys[1])?.length ?? 0) === expectedTies
-            ) {
-                leg1Candidates = [...(byMatchday.get(matchdayKeys[0]) ?? [])]
-                    .sort((a: any, b: any) => (a.externalId ?? 0) - (b.externalId ?? 0));
-                leg2Candidates = [...(byMatchday.get(matchdayKeys[1]) ?? [])]
-                    .sort((a: any, b: any) => (a.externalId ?? 0) - (b.externalId ?? 0));
-            } else {
-                const half = Math.floor(orderedMatches.length / 2);
-                leg1Candidates = orderedMatches.slice(0, half);
-                leg2Candidates = orderedMatches.slice(half);
-            }
-
-            const inferred: Tie[] = [];
-            for (let i = 0; i < expectedTies; i++) {
-                const legA = leg1Candidates[i];
-                const legB = leg2Candidates[i];
-                if (!legA || !legB) break;
-
-                const [leg1, leg2] = new Date(legA.kickoff).getTime() <= new Date(legB.kickoff).getTime()
-                    ? [legA, legB]
-                    : [legB, legA];
-
-                inferred.push({
-                    leg1,
-                    leg2,
-                    homeTeamId: leg1.homeTeam_ID ?? leg2.awayTeam_ID ?? null,
-                    awayTeamId: leg1.awayTeam_ID ?? leg2.homeTeam_ID ?? null,
-                });
-            }
-
-            return inferred.length === expectedTies
-                ? sortTiesByExternalOrder(inferred)
-                : teamPaired;
-        };
-
-        // Define stages in bracket order
-        const stageOrder = ['roundOf32', 'roundOf16', 'quarterFinal', 'semiFinal', 'final']
-            .filter(s => knockoutStages.includes(s));
-        const stageLabels: Record<string, string> = {
-            roundOf32: 'R32',
-            roundOf16: 'R16',
-            quarterFinal: 'QF',
-            semiFinal: 'SF',
-            final: 'Final',
-            playoff: 'PO',
-        };
-
-        // Create bracket slots for each stage, keeping track of ties per stage for cross-referencing
-        const bracketSlotsByStage = new Map<string, string[]>(); // stage → slot IDs
-        const tiesByStage = new Map<string, { leg1: any; leg2: any | null; homeTeamId: string | null; awayTeamId: string | null }[]>();
-        let totalCreated = 0;
-
-        for (const stage of stageOrder) {
-            const stageMatches = matchesByStage.get(stage) ?? [];
-            const ties = stageMatches.length > 0 ? createTiesFromMatches(stageMatches, stage) : [];
-
-            // Use actual tie count or expected count, whichever is larger
-            // (create placeholder slots for stages where matches don't exist yet)
-            const numTies = ties.length > 0 ? ties.length : (expectedTiesPerStage[stage] ?? 0);
-
-            // Only create placeholder slots for stages that logically follow existing ones
-            // e.g., if we have R16 matches, also create QF/SF/Final placeholders
-            const hasEarlierStage = stageOrder.some(
-                (s, idx) => idx < stageOrder.indexOf(stage) && (matchesByStage.get(s)?.length ?? 0) > 0
-            );
-            if (ties.length === 0 && !hasEarlierStage && stage !== 'final') continue;
-
-            tiesByStage.set(stage, ties);
-            const slotIds: string[] = [];
-
-            for (let pos = 1; pos <= numTies; pos++) {
-                const tie = ties[pos - 1] ?? null;
-                const slotId = cds.utils.uuid();
-
-                const slotData: Record<string, any> = {
-                    ID: slotId,
-                    tournament_ID: tournamentId,
-                    stage,
-                    position: pos,
-                    label: stage === 'final' ? 'Final' : `${stageLabels[stage] ?? stage}-${pos}`,
-                };
-
-                if (tie) {
-                    slotData.homeTeam_ID = tie.homeTeamId ?? null;
-                    slotData.awayTeam_ID = tie.awayTeamId ?? null;
-                    slotData.leg1_ID = tie.leg1.ID;
-                    slotData.leg1ExternalId = tie.leg1.externalId ?? null;
-                    if (tie.leg2) slotData.leg2_ID = tie.leg2.ID;
-                    if (tie.leg2) slotData.leg2ExternalId = tie.leg2.externalId ?? null;
-
-                    // Compute aggregate scores for finished legs
-                    // In two-leg: homeAgg = leg1.homeScore + leg2.awayScore
-                    //             awayAgg = leg1.awayScore + leg2.homeScore
-                    let homeAgg = 0;
-                    let awayAgg = 0;
-                    let hasScore = false;
-
-                    if (tie.leg1.status === 'finished' && tie.leg1.homeScore != null) {
-                        homeAgg += tie.leg1.homeScore ?? 0;
-                        awayAgg += tie.leg1.awayScore ?? 0;
-                        hasScore = true;
-                    }
-                    if (tie.leg2?.status === 'finished' && tie.leg2.homeScore != null) {
-                        // leg2 home is tie's away team, leg2 away is tie's home team
-                        awayAgg += tie.leg2.homeScore ?? 0;
-                        homeAgg += tie.leg2.awayScore ?? 0;
-                        hasScore = true;
-                    }
-
-                    if (hasScore) {
-                        slotData.homeAgg = homeAgg;
-                        slotData.awayAgg = awayAgg;
-                    }
-
-                    // Determine winner if both legs finished (or single-leg tie)
-                    const bothFinished = tie.leg2
-                        ? (tie.leg1.status === 'finished' && tie.leg2.status === 'finished')
-                        : (tie.leg1.status === 'finished');
-                    if (bothFinished && hasScore) {
-                        if (homeAgg > awayAgg) {
-                            slotData.winner_ID = tie.homeTeamId;
-                        } else if (awayAgg > homeAgg) {
-                            slotData.winner_ID = tie.awayTeamId;
-                        }
-                        // Tied aggregate → admin decides (penalties)
-                    }
-                }
-
-                await INSERT.into(BracketSlot).entries(slotData);
-                slotIds.push(slotId);
-                totalCreated++;
-
-                // Link matches back to their bracket slot
-                if (tie) {
-                    await UPDATE(Match).where({ ID: tie.leg1.ID }).set({ bracketSlot_ID: slotId, leg: 1 });
-                    if (tie.leg2) {
-                        await UPDATE(Match).where({ ID: tie.leg2.ID }).set({ bracketSlot_ID: slotId, leg: 2 });
-                    }
-                }
-            }
-
-            bracketSlotsByStage.set(stage, slotIds);
-        }
-
-        // Link bracket tree: use team-based cross-referencing when next-stage ties
-        // have known teams, fall back to sequential pairing (now correct due to externalId ordering).
-        // This ensures the bracket matches the actual draw (e.g., PSG/Chelsea → QF-1 with
-        // Galatasaray/Liverpool, not with Atalanta/Bayern).
-        for (let si = 0; si < stageOrder.length - 1; si++) {
-            const currentStage = stageOrder[si];
-            const nextStage = stageOrder[si + 1];
-            const currentSlots = bracketSlotsByStage.get(currentStage) ?? [];
-            const nextSlots = bracketSlotsByStage.get(nextStage) ?? [];
-            const currentTies = tiesByStage.get(currentStage) ?? [];
-            const nextTies = tiesByStage.get(nextStage) ?? [];
-
-            // Try team-based matching: for each next-stage tie that has known teams,
-            // find the current-stage tie whose teams match and link them correctly.
-            const linkedSlots = new Map<string, { nextSlotId: string; side: string }>();
-
-            for (let ni = 0; ni < nextSlots.length && ni < nextTies.length; ni++) {
-                const nextTie = nextTies[ni];
-                const nextSlotId = nextSlots[ni];
-
-                // Collect teams known in this next-stage tie
-                const nextHomeTeam = nextTie.homeTeamId ?? nextTie.leg1.homeTeam_ID ?? null;
-                const nextAwayTeam = nextTie.awayTeamId ?? nextTie.leg1.awayTeam_ID ?? null;
-
-                // Find current-stage slots whose teams match the next-stage home/away
-                for (let ci = 0; ci < currentSlots.length && ci < currentTies.length; ci++) {
-                    if (linkedSlots.has(currentSlots[ci])) continue;
-                    const currentTie = currentTies[ci];
-                    const currentTeams = new Set<string>();
-                    if (currentTie.homeTeamId) currentTeams.add(currentTie.homeTeamId);
-                    if (currentTie.awayTeamId) currentTeams.add(currentTie.awayTeamId);
-
-                    if (nextHomeTeam && currentTeams.has(nextHomeTeam)) {
-                        linkedSlots.set(currentSlots[ci], { nextSlotId, side: 'home' });
-                    } else if (nextAwayTeam && currentTeams.has(nextAwayTeam)) {
-                        linkedSlots.set(currentSlots[ci], { nextSlotId, side: 'away' });
-                    }
-                }
-            }
-
-            // Apply team-based links, then sequential fallback for unmatched slots
-            for (let i = 0; i < currentSlots.length; i++) {
-                const link = linkedSlots.get(currentSlots[i]);
-                if (link) {
-                    await UPDATE(BracketSlot).where({ ID: currentSlots[i] }).set({
-                        nextSlot_ID: link.nextSlotId,
-                        nextSlotSide: link.side,
-                    });
-                } else if (Math.floor(i / 2) < nextSlots.length) {
-                    // Sequential fallback (based on externalId order, which follows the bracket)
-                    const nextSlotId = nextSlots[Math.floor(i / 2)];
-                    const side: string = (i % 2 === 0) ? 'home' : 'away';
-                    await UPDATE(BracketSlot).where({ ID: currentSlots[i] }).set({
-                        nextSlot_ID: nextSlotId,
-                        nextSlotSide: side,
-                    });
-                }
-            }
-        }
-
-        return totalCreated;
+        return this.bracketBuilder.createBracketFromMatches(tournamentId, knockoutStages, format);
     }
 
-    /** Determine tournament format from football-data.org competition type and code. */
     private _determineFormat(type: string, code: string): string {
-        const leagueCodes = ['PL', 'FL1', 'BL1', 'SA', 'DED', 'PPL', 'PD', 'BSA', 'ELC', 'PPL'];
-        if (leagueCodes.includes(code) || type === 'LEAGUE') return 'league';
-        const groupKnockoutCodes = ['WC', 'EC', 'CLI', 'WCQ', 'ECQ', 'AFCON', 'COPA'];
-        if (groupKnockoutCodes.includes(code)) return 'groupKnockout';
-        // CL / EL / ECL use league phase + knockout → 'knockout'
-        if (['CL', 'EL', 'ECL', 'UCOL'].includes(code)) return 'knockout';
-        // Default for remaining CUP types
-        return 'cup';
+        return this.bracketBuilder.determineFormat(type, code);
     }
 
+    // ── Payout Management (delegated to PayoutManager) ─────
 
-    // ── Payout Management ─────────────────────────────────────
-
-    /**
-     * Mark score bets as paid out (admin distributed CO to the players).
-     */
     async markScoreBetsPaid(req: Request) {
-        const { betIds } = req.data;
-        const { ScoreBet } = cds.entities('cnma.prediction');
-
-        if (!betIds || betIds.length === 0) {
-            return req.error(400, 'betIds is required and must not be empty');
-        }
-
-        let updated = 0;
-        for (const betId of betIds) {
-            const bet = await SELECT.one.from(ScoreBet).where({ ID: betId });
-            if (bet && bet.status === 'won') {
-                await UPDATE(ScoreBet).where({ ID: betId }).set({ isPaidOut: true });
-                updated++;
-            }
-        }
-
-        return {
-            success: true,
-            message: `${updated} score bet(s) marked as paid out.`,
-        };
+        return this.payoutManager.markScoreBetsPaid(req);
     }
 
-    /**
-     * Revert payout mark (in case of mistake).
-     */
     async markScoreBetsUnpaid(req: Request) {
-        const { betIds } = req.data;
-        const { ScoreBet } = cds.entities('cnma.prediction');
-
-        if (!betIds || betIds.length === 0) {
-            return req.error(400, 'betIds is required and must not be empty');
-        }
-
-        let updated = 0;
-        for (const betId of betIds) {
-            const bet = await SELECT.one.from(ScoreBet).where({ ID: betId });
-            if (bet && bet.isPaidOut) {
-                await UPDATE(ScoreBet).where({ ID: betId }).set({ isPaidOut: false });
-                updated++;
-            }
-        }
-
-        return {
-            success: true,
-            message: `${updated} score bet(s) reverted to unpaid.`,
-        };
+        return this.payoutManager.markScoreBetsUnpaid(req);
     }
 
-    /**
-     * Get payout summary for a tournament — all won score bets with player & match details.
-     */
     async getPayoutSummary(req: Request) {
-        const { tournamentId } = req.data;
-        const { ScoreBet, Match, Player, Team } = cds.entities('cnma.prediction');
-
-        if (!tournamentId) return req.error(400, 'tournamentId is required');
-
-        const wonBets = await SELECT.from(ScoreBet)
-            .where({ status: 'won' });
-
-        const result: any[] = [];
-
-        for (const bet of wonBets) {
-            const match = await SELECT.one.from(Match)
-                .where({ ID: bet.match_ID, tournament_ID: tournamentId });
-            if (!match) continue;
-
-            const player = await SELECT.one.from(Player).where({ ID: bet.player_ID });
-            const homeTeam = match.homeTeam_ID
-                ? await SELECT.one.from(Team).where({ ID: match.homeTeam_ID })
-                : null;
-            const awayTeam = match.awayTeam_ID
-                ? await SELECT.one.from(Team).where({ ID: match.awayTeam_ID })
-                : null;
-
-            result.push({
-                betId: bet.ID,
-                playerId: bet.player_ID,
-                playerDisplayName: player?.displayName ?? 'Unknown',
-                playerEmail: player?.email ?? '',
-                playerAvatarUrl: player?.avatarUrl ?? '',
-                matchId: bet.match_ID,
-                homeTeam: homeTeam?.name ?? 'TBD',
-                awayTeam: awayTeam?.name ?? 'TBD',
-                kickoff: match.kickoff,
-                predictedHomeScore: bet.predictedHomeScore,
-                predictedAwayScore: bet.predictedAwayScore,
-                actualHomeScore: match.homeScore,
-                actualAwayScore: match.awayScore,
-                payout: Number(bet.payout),
-                isPaidOut: bet.isPaidOut ?? false,
-                submittedAt: bet.submittedAt,
-            });
-        }
-
-        result.sort((a: any, b: any) => {
-            if (a.isPaidOut !== b.isPaidOut) return a.isPaidOut ? 1 : -1;
-            return new Date(b.kickoff).getTime() - new Date(a.kickoff).getTime();
-        });
-
-        return result;
+        return this.payoutManager.getPayoutSummary(req);
     }
 
 }
-

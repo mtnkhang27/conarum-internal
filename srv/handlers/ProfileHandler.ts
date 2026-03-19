@@ -55,8 +55,7 @@ export class ProfileHandler {
         const { Team } = entities;
         const { player, context } = await this.getCurrentPlayer(req);
         if (!player) {
-            req.error(404, 'Player profile not found for current user');
-            return null;
+            return req.reject(404, 'Player profile not found for current user');
         }
         return this.toUserProfile(player, Team, context);
     }
@@ -66,8 +65,7 @@ export class ProfileHandler {
         const { Player, Team } = entities;
         const { player, context } = await this.getCurrentPlayer(req);
         if (!player) {
-            req.error(404, 'Player profile not found for current user');
-            return null;
+            return req.reject(404, 'Player profile not found for current user');
         }
 
         const displayNameInput = normalizeInput(req.data?.displayName, 100);
@@ -156,8 +154,7 @@ export class ProfileHandler {
         if (DATA_IMAGE_REGEX.test(trimmed)) {
             const bytes = estimatedBytesFromDataUrl(trimmed);
             if (bytes > MAX_AVATAR_BYTES) {
-                req.error(400, 'Avatar exceeds 10MB limit');
-                throw new Error('Avatar exceeds 10MB limit');
+                return req.reject(400, 'Avatar exceeds 10MB limit');
             }
             return trimmed;
         }
@@ -166,8 +163,7 @@ export class ProfileHandler {
             return trimmed;
         }
 
-        req.error(400, 'Avatar must be an image data URL or an http(s) URL');
-        throw new Error('Invalid avatar format');
+        return req.reject(400, 'Avatar must be an image data URL or an http(s) URL');
     }
 
     private async resolveTeamIdById(req: Request, Team: any, rawId: string): Promise<string | null> {
@@ -175,8 +171,7 @@ export class ProfileHandler {
         if (!id) return null;
         const team = await SELECT.one.from(Team).columns('ID').where({ ID: id });
         if (!team) {
-            req.error(400, `Favorite team ID not found: ${id}`);
-            throw new Error('Favorite team not found by ID');
+            return req.reject(400, `Favorite team ID not found: ${id}`);
         }
         return team.ID;
     }

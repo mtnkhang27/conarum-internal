@@ -1,7 +1,7 @@
 import cds, { Request } from '@sap/cds';
 import { ScoringEngine } from '../lib/ScoringEngine';
 import { materializeSlotBetsForMatch } from '../lib/SlotBetMaterializer';
-import { syncAuthenticatedUser } from '../lib/UserContext';
+import { PlayerResolver } from '../lib/PlayerResolver';
 
 /**
  * PredictionHandler — Handles user prediction submissions.
@@ -9,11 +9,11 @@ import { syncAuthenticatedUser } from '../lib/UserContext';
  */
 export class PredictionHandler {
     private srv: cds.ApplicationService;
-    private static readonly FALLBACK_USER_EMAIL = (process.env.DEFAULT_PLAYER_EMAIL || 'local.player@conarum.invalid').toLowerCase();
-    private static readonly FALLBACK_USER_NAME = process.env.DEFAULT_PLAYER_NAME || 'Local Player';
+    private playerResolver: PlayerResolver;
 
     constructor(srv: cds.ApplicationService) {
         this.srv = srv;
+        this.playerResolver = new PlayerResolver();
     }
 
     /**
@@ -570,20 +570,22 @@ export class PredictionHandler {
      */
     async getLatestResults(req: Request) {
         const { tournamentId } = req.data;
-        const { Match } = cds.entities('cnma.prediction');
+        const { Match, Team } = cds.entities('cnma.prediction');
 
         const matches = await SELECT.from(Match)
             .where({ tournament_ID: tournamentId, status: 'finished' })
             .orderBy('kickoff desc')
             .limit(50);
 
-        // Expand team names
-        const { Team } = cds.entities('cnma.prediction');
-        const results = [];
-        for (const m of matches) {
-            const home = await SELECT.one.from(Team).where({ ID: m.homeTeam_ID });
-            const away = await SELECT.one.from(Team).where({ ID: m.awayTeam_ID });
-            results.push({
+        // Batch-fetch all teams referenced by these matches
+        const teamIds = [...new Set(matches.flatMap((m: any) => [m.homeTeam_ID, m.awayTeam_ID]).filter(Boolean))];
+        const teams = teamIds.length > 0 ? await SELECT.from(Team).where({ ID: { in: teamIds } }) : [];
+        const teamMap = new Map(teams.map((t: any) => [t.ID, t]));
+
+        return matches.map((m: any) => {
+            const home = teamMap.get(m.homeTeam_ID);
+            const away = teamMap.get(m.awayTeam_ID);
+            return {
                 matchId: m.ID,
                 homeTeam: home?.name ?? '',
                 homeFlag: home?.flagCode ?? '',
@@ -597,9 +599,8 @@ export class PredictionHandler {
                 kickoff: m.kickoff,
                 stage: m.stage,
                 matchday: m.matchday,
-            });
-        }
-        return results;
+            };
+        });
     }
 
     /**
@@ -614,11 +615,15 @@ export class PredictionHandler {
             .orderBy('kickoff asc')
             .limit(50);
 
-        const results = [];
-        for (const m of matches) {
-            const home = await SELECT.one.from(Team).where({ ID: m.homeTeam_ID });
-            const away = await SELECT.one.from(Team).where({ ID: m.awayTeam_ID });
-            results.push({
+        // Batch-fetch all teams
+        const teamIds = [...new Set(matches.flatMap((m: any) => [m.homeTeam_ID, m.awayTeam_ID]).filter(Boolean))];
+        const teams = teamIds.length > 0 ? await SELECT.from(Team).where({ ID: { in: teamIds } }) : [];
+        const teamMap = new Map(teams.map((t: any) => [t.ID, t]));
+
+        return matches.map((m: any) => {
+            const home = teamMap.get(m.homeTeam_ID);
+            const away = teamMap.get(m.awayTeam_ID);
+            return {
                 matchId: m.ID,
                 homeTeam: home?.name ?? '',
                 homeFlag: home?.flagCode ?? '',
@@ -630,9 +635,8 @@ export class PredictionHandler {
                 stage: m.stage,
                 matchday: m.matchday,
                 venue: m.venue ?? '',
-            });
-        }
-        return results;
+            };
+        });
     }
 
     /**
@@ -648,23 +652,27 @@ export class PredictionHandler {
             .where({ tournament_ID: tournamentId })
             .orderBy('totalPoints desc');
 
+        // Batch-fetch all players
+        const playerIds = [...new Set(stats.map((s: any) => s.player_ID).filter(Boolean))];
+        const players = playerIds.length > 0 ? await SELECT.from(Player).where({ ID: { in: playerIds } }) : [];
+        const playerMap = new Map(players.map((p: any) => [p.ID, p]));
+
+        // Batch-fetch favorite teams
+        const favTeamIds = [...new Set(players.map((p: any) => p.favoriteTeam_ID).filter(Boolean))];
+        const favTeams = favTeamIds.length > 0 ? await SELECT.from(Team).columns('ID', 'name').where({ ID: { in: favTeamIds } }) : [];
+        const favTeamMap = new Map(favTeams.map((t: any) => [t.ID, t]));
+
         // Enrich with player details and sort with name tiebreak
-        const enriched = [];
-        for (const s of stats) {
-            const player = await SELECT.one.from(Player).where({ ID: s.player_ID });
-            const displayName = this.resolveDisplayName(player);
-            const email = this.asTrimmedString(player?.email) ?? '';
-            const bio = this.asTrimmedString(player?.bio) ?? '';
-            const country = this.asTrimmedString(player?.country) ?? this.asTrimmedString(player?.country_code) ?? '';
-            const favoriteTeamId = this.asTrimmedString(player?.favoriteTeam_ID);
+        const enriched = stats.map((s: any) => {
+            const player = playerMap.get(s.player_ID);
+            const displayName = this.playerResolver.resolveDisplayName(player);
+            const email = this.playerResolver.asTrimmedString(player?.email) ?? '';
+            const bio = this.playerResolver.asTrimmedString(player?.bio) ?? '';
+            const country = this.playerResolver.asTrimmedString(player?.country) ?? this.playerResolver.asTrimmedString(player?.country_code) ?? '';
+            const favoriteTeamId = this.playerResolver.asTrimmedString(player?.favoriteTeam_ID);
+            const favoriteTeam = favoriteTeamId ? (favTeamMap.get(favoriteTeamId)?.name ?? '') : '';
 
-            let favoriteTeam = '';
-            if (favoriteTeamId) {
-                const team = await SELECT.one.from(Team).columns('name').where({ ID: favoriteTeamId });
-                favoriteTeam = this.asTrimmedString(team?.name) ?? '';
-            }
-
-            enriched.push({
+            return {
                 playerId: s.player_ID,
                 displayName,
                 avatarUrl: player?.avatarUrl ?? '',
@@ -676,16 +684,16 @@ export class PredictionHandler {
                 totalCorrect: s.totalCorrect,
                 totalPredictions: s.totalPredictions,
                 _name: displayName.toLowerCase(),
-            });
-        }
+            };
+        });
 
         // Sort: points desc, then name asc
-        enriched.sort((a, b) => {
+        enriched.sort((a: any, b: any) => {
             if (b.totalPoints !== a.totalPoints) return b.totalPoints - a.totalPoints;
             return a._name.localeCompare(b._name);
         });
 
-        return enriched.map((e, i) => ({
+        return enriched.map((e: any, i: number) => ({
             rank: i + 1,
             playerId: e.playerId,
             displayName: e.displayName,
@@ -769,11 +777,14 @@ export class PredictionHandler {
             return b.goalsFor - a.goalsFor;
         });
 
-        // Enrich with team names
-        const result = [];
-        for (const s of standings) {
-            const team = await SELECT.one.from(Team).where({ ID: s.teamId });
-            result.push({
+        // Enrich with team names (batch-fetch)
+        const teamIds = [...new Set(Object.values(standingsMap).map((s: any) => s.teamId).filter(Boolean))];
+        const teams = teamIds.length > 0 ? await SELECT.from(Team).where({ ID: { in: teamIds } }) : [];
+        const teamMap = new Map(teams.map((t: any) => [t.ID, t]));
+
+        const result = standings.map((s: any) => {
+            const team = teamMap.get(s.teamId);
+            return {
                 teamId: s.teamId,
                 teamName: team?.name ?? '',
                 teamFlag: team?.flagCode ?? '',
@@ -786,8 +797,8 @@ export class PredictionHandler {
                 goalsAgainst: s.goalsAgainst,
                 goalDiff: s.goalDiff,
                 points: s.points,
-            });
-        }
+            };
+        });
 
         return result;
     }
@@ -827,15 +838,25 @@ export class PredictionHandler {
             scoreBetMap.get(sb.match_ID)!.push(sb);
         }
 
+        // Batch-fetch all matches and teams for this batch of predictions
+        const allMatches = matchIds.length > 0 ? await SELECT.from(Match).where({ ID: { in: matchIds } }) : [];
+        const matchMap = new Map(allMatches.map((m: any) => [m.ID, m]));
+
+        const teamIds = [...new Set(allMatches.flatMap((m: any) => [m.homeTeam_ID, m.awayTeam_ID]).filter(Boolean))];
+        const teams = teamIds.length > 0 ? await SELECT.from(Team).where({ ID: { in: teamIds } }) : [];
+        const teamMap = new Map(teams.map((t: any) => [t.ID, t]));
+
+        const tournamentIds = [...new Set(predictions.map((p: any) => p.tournament_ID).filter(Boolean))];
+        const tournaments = tournamentIds.length > 0 ? await SELECT.from(Tournament).where({ ID: { in: tournamentIds } }) : [];
+        const tournamentMap = new Map(tournaments.map((t: any) => [t.ID, t]));
+
         const results = [];
         for (const p of predictions) {
-            const match = await SELECT.one.from(Match).where({ ID: p.match_ID });
+            const match = matchMap.get(p.match_ID);
             if (!match) continue;
-            const home = await SELECT.one.from(Team).where({ ID: match.homeTeam_ID });
-            const away = await SELECT.one.from(Team).where({ ID: match.awayTeam_ID });
-            const tournament = p.tournament_ID
-                ? await SELECT.one.from(Tournament).where({ ID: p.tournament_ID })
-                : null;
+            const home = teamMap.get(match.homeTeam_ID);
+            const away = teamMap.get(match.awayTeam_ID);
+            const tournament = p.tournament_ID ? tournamentMap.get(p.tournament_ID) : null;
 
             const scoreBets = (scoreBetMap.get(match.ID) ?? []).map((sb: any) => ({
                 betId: sb.ID,
@@ -882,39 +903,43 @@ export class PredictionHandler {
             .where({ tournament_ID: tournamentId })
             .orderBy('stage asc', 'position asc');
 
-        const results = [];
-        for (const slot of slots) {
-            const homeTeam = slot.homeTeam_ID
-                ? await SELECT.one.from(Team).where({ ID: slot.homeTeam_ID })
-                : null;
-            const awayTeam = slot.awayTeam_ID
-                ? await SELECT.one.from(Team).where({ ID: slot.awayTeam_ID })
-                : null;
-            const winnerTeam = slot.winner_ID
-                ? await SELECT.one.from(Team).where({ ID: slot.winner_ID })
-                : null;
-            const leg1 = slot.leg1_ID
-                ? await SELECT.one.from(Match).where({ ID: slot.leg1_ID })
-                : (
-                    slot.leg1ExternalId != null
-                        ? await SELECT.one.from(Match).where({
-                            tournament_ID: tournamentId,
-                            externalId: slot.leg1ExternalId,
-                        })
-                        : null
-                );
-            const leg2 = slot.leg2_ID
-                ? await SELECT.one.from(Match).where({ ID: slot.leg2_ID })
-                : (
-                    slot.leg2ExternalId != null
-                        ? await SELECT.one.from(Match).where({
-                            tournament_ID: tournamentId,
-                            externalId: slot.leg2ExternalId,
-                        })
-                        : null
-                );
+        // Batch-fetch all referenced teams
+        const teamIds = [...new Set(slots.flatMap((s: any) => [s.homeTeam_ID, s.awayTeam_ID, s.winner_ID]).filter(Boolean))];
+        const teams = teamIds.length > 0 ? await SELECT.from(Team).where({ ID: { in: teamIds } }) : [];
+        const teamMap = new Map(teams.map((t: any) => [t.ID, t]));
 
-            results.push({
+        // Batch-fetch all referenced matches (by ID and by externalId)
+        const matchIds = [...new Set(slots.flatMap((s: any) => [s.leg1_ID, s.leg2_ID]).filter(Boolean))];
+        const matchExternalIds = [...new Set(
+            slots.flatMap((s: any) => {
+                const ids: number[] = [];
+                if (!s.leg1_ID && s.leg1ExternalId != null) ids.push(s.leg1ExternalId);
+                if (!s.leg2_ID && s.leg2ExternalId != null) ids.push(s.leg2ExternalId);
+                return ids;
+            })
+        )];
+
+        const matchesById = matchIds.length > 0 ? await SELECT.from(Match).where({ ID: { in: matchIds } }) : [];
+        const matchesByExtId = matchExternalIds.length > 0
+            ? await SELECT.from(Match).where({ tournament_ID: tournamentId, externalId: { in: matchExternalIds } })
+            : [];
+
+        const matchMap = new Map(matchesById.map((m: any) => [m.ID, m]));
+        const matchByExtIdMap = new Map(matchesByExtId.map((m: any) => [m.externalId, m]));
+
+        const results = slots.map((slot: any) => {
+            const homeTeam = teamMap.get(slot.homeTeam_ID) ?? null;
+            const awayTeam = teamMap.get(slot.awayTeam_ID) ?? null;
+            const winnerTeam = teamMap.get(slot.winner_ID) ?? null;
+
+            const leg1 = slot.leg1_ID
+                ? matchMap.get(slot.leg1_ID) ?? null
+                : (slot.leg1ExternalId != null ? matchByExtIdMap.get(slot.leg1ExternalId) ?? null : null);
+            const leg2 = slot.leg2_ID
+                ? matchMap.get(slot.leg2_ID) ?? null
+                : (slot.leg2ExternalId != null ? matchByExtIdMap.get(slot.leg2ExternalId) ?? null : null);
+
+            return {
                 slotId: slot.ID,
                 stage: slot.stage,
                 position: slot.position,
@@ -945,8 +970,8 @@ export class PredictionHandler {
                 winnerName: winnerTeam?.name ?? '',
                 nextSlotId: slot.nextSlot_ID,
                 nextSlotSide: slot.nextSlotSide,
-            });
-        }
+            };
+        });
         return results;
     }
 
@@ -966,208 +991,31 @@ export class PredictionHandler {
             countMap.set(teamId, (countMap.get(teamId) ?? 0) + 1);
         }
 
-        const results = [];
-        for (const [teamId, count] of countMap) {
-            const team = await SELECT.one.from(Team).where({ ID: teamId });
-            results.push({
+        // Batch-fetch all teams
+        const teamIds = [...countMap.keys()];
+        const teams = teamIds.length > 0 ? await SELECT.from(Team).where({ ID: { in: teamIds } }) : [];
+        const teamMap = new Map(teams.map((t: any) => [t.ID, t]));
+
+        const results = teamIds.map(teamId => {
+            const team = teamMap.get(teamId);
+            return {
                 teamId,
                 teamName: team?.name ?? '',
                 teamCrest: team?.crest ?? '',
-                count,
-            });
-        }
+                count: countMap.get(teamId) ?? 0,
+            };
+        });
 
         return results.sort((a, b) => b.count - a.count);
     }
 
-    // ── Helpers ──────────────────────────────────────────────
+    // ── Player Resolution (delegated to PlayerResolver) ─────
 
-    /**
-     * Get current user's Player ID from the user context.
-     */
     private async getCurrentPlayerId(req: Request): Promise<string | null> {
-        const player = await this.resolveCurrentPlayer(req, false);
-        return player?.ID ?? null;
+        return this.playerResolver.getCurrentPlayerId(req);
     }
 
-    /**
-     * Get or auto-create Player record for the current user.
-     */
     private async getOrCreatePlayerId(req: Request): Promise<string> {
-        const player = await this.resolveCurrentPlayer(req, true);
-        if (!player?.ID) {
-            throw new Error('Unable to resolve current player');
-        }
-        return player.ID;
-    }
-
-    private asTrimmedString(value: unknown): string | null {
-        if (typeof value !== 'string') return null;
-        const trimmed = value.trim();
-        return trimmed.length > 0 ? trimmed : null;
-    }
-
-    private toLegacySyntheticEmail(loginName: string | null): string | null {
-        const normalizedLogin = this.asTrimmedString(loginName);
-        if (!normalizedLogin) return null;
-
-        const localPart = normalizedLogin.replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 80) || 'user';
-        return `${localPart}@local.user.invalid`.toLowerCase();
-    }
-
-    private resolveDisplayName(player: any): string {
-        const fullName = [this.asTrimmedString(player?.givenName), this.asTrimmedString(player?.familyName)]
-            .filter((value): value is string => Boolean(value))
-            .join(' ');
-        if (fullName) return fullName;
-
-        const explicit = this.asTrimmedString(player?.displayName);
-        if (explicit) return explicit;
-
-        return this.asTrimmedString(player?.email)
-            ?? this.asTrimmedString(player?.loginName)
-            ?? 'Unknown';
-    }
-
-    private async hasPredictionData(playerId: string): Promise<boolean> {
-        const { Prediction, SlotPrediction, PlayerTournamentStats } = cds.entities('cnma.prediction');
-        const [prediction, slotPrediction, stats] = await Promise.all([
-            SELECT.one.from(Prediction).columns('ID').where({ player_ID: playerId }),
-            SELECT.one.from(SlotPrediction).columns('ID').where({ player_ID: playerId }),
-            SELECT.one.from(PlayerTournamentStats).columns('ID').where({ player_ID: playerId }),
-        ]);
-        return Boolean(prediction || slotPrediction || stats);
-    }
-
-    private async resolveCurrentPlayer(req: Request, createIfMissing: boolean): Promise<any | null> {
-        const { Player } = cds.entities('cnma.prediction');
-        const context = await syncAuthenticatedUser(req);
-
-        let primaryPlayer: any | null = null;
-        if (context.userUUID) {
-            primaryPlayer = await SELECT.one.from(Player).where({ userUUID: context.userUUID });
-        }
-        if (!primaryPlayer && context.email) {
-            primaryPlayer = await SELECT.one.from(Player).where({ email: context.email });
-        }
-
-        const legacyEmail = this.toLegacySyntheticEmail(context.loginName);
-        let legacyPlayer: any | null = null;
-        if (legacyEmail && legacyEmail !== context.email) {
-            legacyPlayer = await SELECT.one.from(Player).where({ email: legacyEmail });
-        }
-
-        let player: any | null = primaryPlayer || legacyPlayer;
-
-        if (primaryPlayer && legacyPlayer && primaryPlayer.ID !== legacyPlayer.ID) {
-            const [primaryHasData, legacyHasData] = await Promise.all([
-                this.hasPredictionData(primaryPlayer.ID),
-                this.hasPredictionData(legacyPlayer.ID),
-            ]);
-            player = legacyHasData && !primaryHasData ? legacyPlayer : primaryPlayer;
-
-            const secondaryPlayer = player.ID === primaryPlayer.ID ? legacyPlayer : primaryPlayer;
-            const playerDisplayName = this.asTrimmedString(player.displayName);
-            const secondaryDisplayName = this.asTrimmedString(secondaryPlayer.displayName);
-            const looksLikePlaceholderName = playerDisplayName
-                ? (
-                    (this.asTrimmedString(player.email) && playerDisplayName.toLowerCase() === this.asTrimmedString(player.email)!.toLowerCase())
-                    || (context.loginName ? playerDisplayName.toLowerCase() === context.loginName.toLowerCase() : false)
-                    || playerDisplayName.toLowerCase() === PredictionHandler.FALLBACK_USER_NAME.toLowerCase()
-                )
-                : false;
-
-            if (secondaryDisplayName && (!playerDisplayName || looksLikePlaceholderName)) {
-                await UPDATE(Player).where({ ID: player.ID }).set({ displayName: secondaryDisplayName });
-                player.displayName = secondaryDisplayName;
-            }
-        }
-
-        if (!player && createIfMissing) {
-            const fallbackUser = this.resolveCurrentUser(req);
-            const email = (context.email ?? fallbackUser.email).slice(0, 255);
-            const displayName = (context.displayName ?? fallbackUser.displayName ?? email).slice(0, 100);
-
-            player = await SELECT.one.from(Player).where({ email });
-            if (!player) {
-                const newPlayerEntry: Record<string, unknown> = {
-                    email,
-                    displayName,
-                    userUUID: context.userUUID ?? null,
-                    loginName: context.loginName ?? null,
-                    givenName: context.givenName ?? null,
-                    familyName: context.familyName ?? null,
-                };
-
-                try {
-                    await INSERT.into(Player).entries(newPlayerEntry);
-                } catch {
-                    // Ignore race conditions and unique conflicts; resolve below.
-                }
-
-                if (context.userUUID) {
-                    player = await SELECT.one.from(Player).where({ userUUID: context.userUUID });
-                }
-                if (!player) {
-                    player = await SELECT.one.from(Player).where({ email });
-                }
-            }
-        }
-
-        if (!player) {
-            return null;
-        }
-
-        const patch: Record<string, unknown> = {};
-        const resolvedDisplayName = this.resolveDisplayName(player);
-        if (resolvedDisplayName !== player.displayName) {
-            patch.displayName = resolvedDisplayName.slice(0, 100);
-        }
-        if (context.loginName && context.loginName !== player.loginName) {
-            patch.loginName = context.loginName;
-        }
-
-        if (context.userUUID && context.userUUID !== player.userUUID) {
-            const ownerByUUID = await SELECT.one.from(Player).columns('ID').where({ userUUID: context.userUUID });
-            if (!ownerByUUID || ownerByUUID.ID === player.ID) {
-                patch.userUUID = context.userUUID;
-            }
-        }
-
-        if (context.email && context.email !== player.email) {
-            const ownerByEmail = await SELECT.one.from(Player).columns('ID').where({ email: context.email });
-            if (!ownerByEmail || ownerByEmail.ID === player.ID) {
-                patch.email = context.email;
-            }
-        }
-
-        if (Object.keys(patch).length > 0) {
-            await UPDATE(Player).where({ ID: player.ID }).set(patch);
-            player = { ...player, ...patch };
-        }
-
-        return player;
-    }
-
-    /**
-     * Resolve current user identity with safe fallbacks.
-     * Temporary behavior: if email claim is missing, synthesize one from user id.
-     */
-    private resolveCurrentUser(req: Request): { email: string; displayName: string } {
-        const userObj = req.user as any;
-        const rawId = typeof userObj?.id === 'string' ? userObj.id.trim() : '';
-        const rawName = typeof userObj?.attr?.name === 'string' ? userObj.attr.name.trim() : '';
-        const rawEmailAttr = typeof userObj?.attr?.email === 'string' ? userObj.attr.email.trim() : '';
-
-        const fromAttr = rawEmailAttr.includes('@') ? rawEmailAttr.toLowerCase() : '';
-        const fromId = rawId.includes('@') ? rawId.toLowerCase() : '';
-        const syntheticFromId = rawId
-            ? `${rawId.replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 80) || 'user'}@local.user.invalid`
-            : '';
-
-        const email = (fromAttr || fromId || syntheticFromId || PredictionHandler.FALLBACK_USER_EMAIL).slice(0, 255);
-        const displayName = (rawName || rawId || PredictionHandler.FALLBACK_USER_NAME).slice(0, 100);
-
-        return { email, displayName };
+        return this.playerResolver.getOrCreatePlayerId(req);
     }
 }

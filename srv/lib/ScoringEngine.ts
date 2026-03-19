@@ -1,8 +1,6 @@
 /**
  * ScoringEngine — Pure stateless scoring logic.
  * No DB access, no side effects. Fully testable.
- *
- * UC2 scoring: correct prediction = 1 point, wrong = 0 (no weight).
  */
 export class ScoringEngine {
 
@@ -13,32 +11,6 @@ export class ScoringEngine {
         if (homeScore > awayScore) return 'home';
         if (homeScore < awayScore) return 'away';
         return 'draw';
-    }
-
-    /**
-     * Score a single UC2 prediction.
-     * Returns 1 if correct, 0 if wrong. Simple, no weight.
-     */
-    scorePrediction(
-        pick: string,
-        actualOutcome: string,
-        config: any
-    ): number {
-        const pointsForCorrect = Number(config?.pointsForCorrect ?? 1);
-
-        if (pick === actualOutcome) {
-            return pointsForCorrect;
-        }
-
-        return 0;
-    }
-
-    /**
-     * Calculate UC1 score bet payout.
-     * Simple: if correct, payout = prize from config.
-     */
-    calculateScoreBetPayout(config: any): number {
-        return Number(config?.prize ?? 200000);
     }
 
     /**

@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { NavLink, Link, useLocation } from "react-router-dom";
 import { Trophy, User, Settings, Home } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { scrollToSection, SECTION } from "@/pages/SportPage";
+import { scrollToSection, SECTION } from "@/pages/sport/SportPage";
 import { playerProfileApi } from "@/services/playerApi";
 
 const sportSections = [

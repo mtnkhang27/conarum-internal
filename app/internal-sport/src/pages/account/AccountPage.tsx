@@ -14,7 +14,7 @@ import {
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { playerProfileApi, playerTeamsApi } from "@/services/playerApi";
-import { LoadingOverlay } from "@/components/LoadingOverlay";
+import { LoadingOverlay } from "@/components/shared/LoadingOverlay";
 import type { UserProfile } from "@/types";
 
 const EMPTY_PROFILE: UserProfile = {

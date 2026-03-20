@@ -1,6 +1,6 @@
 import { useLocation } from "react-router-dom";
 import { Trophy, BarChart3, Home, Clock } from "lucide-react";
-import { scrollToSection, SECTION } from "@/pages/SportPage";
+import { scrollToSection, SECTION } from "@/pages/sport/SportPage";
 import { useActiveSection } from "@/hooks/useActiveSection";
 
 const navItems = [

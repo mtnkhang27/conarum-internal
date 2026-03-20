@@ -13,7 +13,7 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { TournamentSelector } from "@/components/TournamentSelector";
+import { TournamentSelector } from "@/components/shared/TournamentSelector";
 import { playerTeamsApi, playerPredictionsApi, playerActionsApi, playerTournamentsApi, playerTournamentQueryApi } from "@/services/playerApi";
 import type { ChampionTeam } from "@/types";
 import type { TournamentInfo } from "@/types";

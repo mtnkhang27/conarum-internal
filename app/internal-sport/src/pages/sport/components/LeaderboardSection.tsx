@@ -4,8 +4,8 @@ import { useTranslation } from "react-i18next";
 import { playerLeaderboardApi } from "@/services/playerApi";
 import type { TournamentLeaderboardItem } from "@/types";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { LeaderboardPlayerHoverCard } from "@/components/LeaderboardPlayerHoverCard";
-import { LoadingOverlay } from "@/components/LoadingOverlay";
+import { LeaderboardPlayerHoverCard } from "./LeaderboardPlayerHoverCard";
+import { LoadingOverlay } from "@/components/shared/LoadingOverlay";
 
 function podiumIcon(rank: number) {
     if (rank === 1) return <Trophy className="h-5 w-5 text-yellow-400" />;

@@ -1,14 +1,14 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { MatchPredictionTable } from "@/components/MatchPredictionTable";
-import { LiveMatchesTable } from "@/components/LiveMatchesTable";
-import { CompletedMatchesTable } from "@/components/CompletedMatchesTable";
-import { TournamentSelector } from "@/components/TournamentSelector";
-import { LeaderboardSection } from "@/components/LeaderboardSection";
-import { RecentPredictionsSection } from "@/components/RecentPredictionsSection";
-import { TournamentBracket } from "@/components/TournamentBracket";
-import { LoadingOverlay } from "@/components/LoadingOverlay";
+import { MatchPredictionTable } from "./components/MatchPredictionTable";
+import { LiveMatchesTable } from "./components/LiveMatchesTable";
+import { CompletedMatchesTable } from "./components/CompletedMatchesTable";
+import { TournamentSelector } from "@/components/shared/TournamentSelector";
+import { LeaderboardSection } from "./components/LeaderboardSection";
+import { RecentPredictionsSection } from "./components/RecentPredictionsSection";
+import { TournamentBracket } from "./components/TournamentBracket";
+import { LoadingOverlay } from "@/components/shared/LoadingOverlay";
 import { useActiveSection } from "@/hooks/useActiveSection";
 import {
     playerMatchesApi,

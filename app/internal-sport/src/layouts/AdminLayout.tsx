@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Navigate, NavLink, Outlet, useLocation } from "react-router-dom";
-import { Header } from "@/components/Header";
-import { MobileBottomNav } from "@/components/MobileBottomNav";
+import { Header } from "@/components/layout/Header";
+import { MobileBottomNav } from "@/components/layout/MobileBottomNav";
 import { playerProfileApi } from "@/services/playerApi";
 import {
     Banknote,

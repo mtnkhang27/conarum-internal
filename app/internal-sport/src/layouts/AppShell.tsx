@@ -1,7 +1,7 @@
 import { Outlet, useLocation } from "react-router-dom";
-import { Header } from "@/components/Header";
-import { LeftSidebar } from "@/components/LeftSidebar";
-import { MobileBottomNav } from "@/components/MobileBottomNav";
+import { Header } from "@/components/layout/Header";
+import { LeftSidebar } from "@/components/layout/LeftSidebar";
+import { MobileBottomNav } from "@/components/layout/MobileBottomNav";
 import { ActiveSectionProvider } from "@/hooks/useActiveSection";
 
 export function AppShell() {

@@ -1,11 +1,7 @@
 import { useEffect, useState } from "react";
 
 const PHRASES = [
-    "đang tày",
-    "xin chờ chút",
-    "đợi xíu nha",
-    "loading...",
-    "chút xíu thôi",
+    "Loading",
 ];
 
 const EMOJIS = ["⚽", "🏆", "🎯", "🥅", "🔥"];

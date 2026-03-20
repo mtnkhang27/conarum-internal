@@ -1,18 +1,11 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import {
-    Banknote,
-    CheckCircle2,
-    Clock,
-    Search,
-    Loader2,
-    Undo2,
-    Trophy,
-} from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { tournamentsApi, payoutApi } from "@/services/adminApi";
 import type { AdminTournament, PayoutItem } from "@/types/admin";
 
 type PayoutFilter = "all" | "unpaid" | "paid";
+type ViewMode = "flat" | "grouped";
 
 const formatDate = (iso: string) => {
     if (!iso) return "—";
@@ -26,8 +19,19 @@ const formatDate = (iso: string) => {
     });
 };
 
-const formatCurrency = (amount: number) =>
-    new Intl.NumberFormat("vi-VN").format(amount) + " ₫";
+const formatCO = (amount: number) =>
+    new Intl.NumberFormat("vi-VN").format(amount) + " CO";
+
+interface PlayerGroup {
+    playerId: string;
+    playerDisplayName: string;
+    playerEmail: string;
+    playerAvatarUrl: string;
+    items: PayoutItem[];
+    totalPayout: number;
+    unpaidCount: number;
+    paidCount: number;
+}
 
 export function PayoutManagement() {
     const { t } = useTranslation();
@@ -39,6 +43,9 @@ export function PayoutManagement() {
     const [search, setSearch] = useState("");
     const [selectedBets, setSelectedBets] = useState<Set<string>>(new Set());
     const [actionLoading, setActionLoading] = useState(false);
+    const [viewMode, setViewMode] = useState<ViewMode>("flat");
+    const [expandedPlayers, setExpandedPlayers] = useState<Set<string>>(new Set());
+    const [playerFilter, setPlayerFilter] = useState("");
 
     useEffect(() => {
         tournamentsApi.list().then(setTournaments).catch(console.error);
@@ -65,10 +72,24 @@ export function PayoutManagement() {
         loadPayouts();
     }, [loadPayouts]);
 
+    // Get unique player list for player filter
+    const uniquePlayers = useMemo(() => {
+        const map = new Map<string, string>();
+        for (const p of payouts) {
+            if (!map.has(p.playerId)) map.set(p.playerId, p.playerDisplayName);
+        }
+        return Array.from(map, ([id, name]) => ({ id, name })).sort((a, b) =>
+            a.name.localeCompare(b.name)
+        );
+    }, [payouts]);
+
     const filteredPayouts = useMemo(() => {
         let items = payouts;
         if (filter === "unpaid") items = items.filter((p) => !p.isPaidOut);
         if (filter === "paid") items = items.filter((p) => p.isPaidOut);
+        if (playerFilter) {
+            items = items.filter((p) => p.playerId === playerFilter);
+        }
         if (search.trim()) {
             const q = search.toLowerCase();
             items = items.filter(
@@ -80,7 +101,35 @@ export function PayoutManagement() {
             );
         }
         return items;
-    }, [payouts, filter, search]);
+    }, [payouts, filter, search, playerFilter]);
+
+    // Group payouts by player
+    const playerGroups = useMemo<PlayerGroup[]>(() => {
+        const map = new Map<string, PlayerGroup>();
+        for (const item of filteredPayouts) {
+            let group = map.get(item.playerId);
+            if (!group) {
+                group = {
+                    playerId: item.playerId,
+                    playerDisplayName: item.playerDisplayName,
+                    playerEmail: item.playerEmail,
+                    playerAvatarUrl: item.playerAvatarUrl,
+                    items: [],
+                    totalPayout: 0,
+                    unpaidCount: 0,
+                    paidCount: 0,
+                };
+                map.set(item.playerId, group);
+            }
+            group.items.push(item);
+            group.totalPayout += item.payout;
+            if (item.isPaidOut) group.paidCount++;
+            else group.unpaidCount++;
+        }
+        return Array.from(map.values()).sort((a, b) =>
+            a.playerDisplayName.localeCompare(b.playerDisplayName)
+        );
+    }, [filteredPayouts]);
 
     const stats = useMemo(() => {
         const total = payouts.length;
@@ -108,6 +157,28 @@ export function PayoutManagement() {
         } else {
             setSelectedBets(new Set(filteredPayouts.map((p) => p.betId)));
         }
+    };
+
+    const toggleSelectPlayer = (group: PlayerGroup) => {
+        setSelectedBets((prev) => {
+            const next = new Set(prev);
+            const allSelected = group.items.every((item) => next.has(item.betId));
+            if (allSelected) {
+                group.items.forEach((item) => next.delete(item.betId));
+            } else {
+                group.items.forEach((item) => next.add(item.betId));
+            }
+            return next;
+        });
+    };
+
+    const toggleExpandPlayer = (playerId: string) => {
+        setExpandedPlayers((prev) => {
+            const next = new Set(prev);
+            if (next.has(playerId)) next.delete(playerId);
+            else next.add(playerId);
+            return next;
+        });
     };
 
     const handleBulkAction = async (action: "paid" | "unpaid") => {
@@ -145,13 +216,26 @@ export function PayoutManagement() {
         }
     };
 
+    const handleResetAll = async () => {
+        if (!selectedTournament) return;
+        if (!confirm("Reset ALL isPaidOut to false for this tournament? This cannot be undone.")) return;
+        setActionLoading(true);
+        try {
+            await payoutApi.resetAllPayoutStatus(selectedTournament);
+            await loadPayouts();
+        } catch (err) {
+            console.error("Failed to reset payout status:", err);
+        } finally {
+            setActionLoading(false);
+        }
+    };
+
     return (
         <div className="p-6 space-y-6">
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
-                        <Banknote className="h-6 w-6 text-emerald-400" />
+                    <h1 className="text-2xl font-bold text-foreground">
                         {t("admin.payoutManagement.title")}
                     </h1>
                     <p className="text-sm text-muted-foreground mt-1">
@@ -160,13 +244,14 @@ export function PayoutManagement() {
                 </div>
             </div>
 
-            {/* Tournament Selector */}
+            {/* Tournament Selector + Filters */}
             <div className="flex flex-wrap items-center gap-3">
                 <select
                     value={selectedTournament}
                     onChange={(e) => {
                         setSelectedTournament(e.target.value);
                         setSelectedBets(new Set());
+                        setPlayerFilter("");
                     }}
                     className="h-10 min-w-[250px] rounded-lg border border-border bg-surface-dark px-3 text-sm text-foreground outline-none transition-colors focus:border-primary"
                 >
@@ -182,42 +267,73 @@ export function PayoutManagement() {
 
                 {selectedTournament && (
                     <>
-                        {/* Filter buttons */}
-                        <div className="flex items-center rounded-lg border border-border bg-surface-dark overflow-hidden">
-                            {(["all", "unpaid", "paid"] as PayoutFilter[]).map(
-                                (f) => (
-                                    <button
-                                        key={f}
-                                        type="button"
-                                        onClick={() => setFilter(f)}
-                                        className={`px-3 py-2 text-xs font-medium transition-colors ${
-                                            filter === f
-                                                ? "bg-primary text-white"
-                                                : "text-muted-foreground hover:text-foreground hover:bg-surface"
-                                        }`}
-                                    >
-                                        {t(`admin.payoutManagement.filter.${f}`)}
-                                        {f === "unpaid" && stats.unpaid > 0 && (
-                                            <span className="ml-1 inline-flex items-center justify-center px-1.5 py-0.5 text-[10px] font-bold rounded-full bg-amber-500/20 text-amber-400">
-                                                {stats.unpaid}
-                                            </span>
-                                        )}
-                                    </button>
-                                )
-                            )}
-                        </div>
+                        {/* Filter select */}
+                        <select
+                            value={filter}
+                            onChange={(e) => {
+                                setFilter(e.target.value as PayoutFilter);
+                                setSelectedBets(new Set());
+                            }}
+                            className="h-10 rounded-lg border border-border bg-surface-dark px-3 text-sm text-foreground outline-none transition-colors focus:border-primary"
+                        >
+                            <option value="all">
+                                {t("admin.payoutManagement.filter.all")} ({stats.total})
+                            </option>
+                            <option value="unpaid">
+                                {t("admin.payoutManagement.filter.unpaid")} ({stats.unpaid})
+                            </option>
+                            <option value="paid">
+                                {t("admin.payoutManagement.filter.paid")} ({stats.paid})
+                            </option>
+                        </select>
+
+                        {/* Player filter */}
+                        <select
+                            value={playerFilter}
+                            onChange={(e) => {
+                                setPlayerFilter(e.target.value);
+                                setSelectedBets(new Set());
+                            }}
+                            className="h-10 min-w-[180px] rounded-lg border border-border bg-surface-dark px-3 text-sm text-foreground outline-none transition-colors focus:border-primary"
+                        >
+                            <option value="">All Players</option>
+                            {uniquePlayers.map((p) => (
+                                <option key={p.id} value={p.id}>
+                                    {p.name}
+                                </option>
+                            ))}
+                        </select>
+
+                        {/* View mode */}
+                        <select
+                            value={viewMode}
+                            onChange={(e) => setViewMode(e.target.value as ViewMode)}
+                            className="h-10 rounded-lg border border-border bg-surface-dark px-3 text-sm text-foreground outline-none transition-colors focus:border-primary"
+                        >
+                            <option value="flat">Flat View</option>
+                            <option value="grouped">Grouped by Player</option>
+                        </select>
 
                         {/* Search */}
                         <div className="relative flex-1 min-w-[200px]">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                             <input
                                 type="text"
                                 value={search}
                                 onChange={(e) => setSearch(e.target.value)}
                                 placeholder={t("admin.payoutManagement.searchPlaceholder")}
-                                className="h-10 w-full rounded-lg border border-border bg-surface-dark pl-9 pr-3 text-sm text-foreground outline-none transition-colors focus:border-primary"
+                                className="h-10 w-full rounded-lg border border-border bg-surface-dark pl-3 pr-3 text-sm text-foreground outline-none transition-colors focus:border-primary"
                             />
                         </div>
+
+                        {/* Reset All button (cheat) */}
+                        <button
+                            type="button"
+                            onClick={handleResetAll}
+                            disabled={actionLoading}
+                            className="h-10 rounded-lg border border-red-500/40 bg-red-500/10 px-4 text-xs font-semibold text-red-400 transition-colors hover:bg-red-500/20 disabled:opacity-50"
+                        >
+                            Reset All Unpaid
+                        </button>
                     </>
                 )}
             </div>
@@ -238,11 +354,11 @@ export function PayoutManagement() {
                         <div className="mt-1 text-2xl font-bold text-emerald-400">{stats.paid}</div>
                     </div>
                     <div className="rounded-xl border border-border bg-surface-dark/60 p-4">
-                        <div className="text-xs text-muted-foreground">{t("admin.payoutManagement.stats.totalAmount")}</div>
-                        <div className="mt-1 text-xl font-bold text-foreground">{formatCurrency(stats.totalAmount)}</div>
+                        <div className="text-xs text-muted-foreground">Total CO</div>
+                        <div className="mt-1 text-xl font-bold text-foreground">{formatCO(stats.totalAmount)}</div>
                         {stats.unpaidAmount > 0 && (
                             <div className="text-xs text-amber-400 mt-1">
-                                {t("admin.payoutManagement.stats.remaining")}: {formatCurrency(stats.unpaidAmount)}
+                                Remaining: {formatCO(stats.unpaidAmount)}
                             </div>
                         )}
                     </div>
@@ -263,7 +379,6 @@ export function PayoutManagement() {
                             disabled={actionLoading}
                             className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-500 px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-emerald-600 disabled:opacity-50"
                         >
-                            <CheckCircle2 className="h-3.5 w-3.5" />
                             {t("admin.payoutManagement.markPaid")}
                         </button>
                     )}
@@ -274,7 +389,6 @@ export function PayoutManagement() {
                             disabled={actionLoading}
                             className="inline-flex items-center gap-1.5 rounded-lg bg-amber-500 px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-amber-600 disabled:opacity-50"
                         >
-                            <Undo2 className="h-3.5 w-3.5" />
                             {t("admin.payoutManagement.markUnpaid")}
                         </button>
                     )}
@@ -284,7 +398,6 @@ export function PayoutManagement() {
             {/* Content */}
             {!selectedTournament ? (
                 <div className="flex flex-col items-center justify-center py-20 text-center">
-                    <Trophy className="h-12 w-12 text-muted-foreground/30 mb-4" />
                     <p className="text-sm text-muted-foreground">
                         {t("admin.payoutManagement.selectTournamentHint")}
                     </p>
@@ -298,12 +411,172 @@ export function PayoutManagement() {
                 </div>
             ) : filteredPayouts.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-20 text-center">
-                    <Banknote className="h-12 w-12 text-muted-foreground/30 mb-4" />
                     <p className="text-sm text-muted-foreground">
                         {t("admin.payoutManagement.noPayout")}
                     </p>
                 </div>
+            ) : viewMode === "grouped" ? (
+                /* ── Grouped by Player View ──────────────────────── */
+                <div className="space-y-3">
+                    {playerGroups.map((group) => {
+                        const isExpanded = expandedPlayers.has(group.playerId);
+                        const allSelected = group.items.every((item) => selectedBets.has(item.betId));
+                        const someSelected = group.items.some((item) => selectedBets.has(item.betId));
+
+                        return (
+                            <div
+                                key={group.playerId}
+                                className="rounded-xl border border-border bg-card shadow-[0_4px_15px_rgba(10,10,30,0.25)] overflow-hidden"
+                            >
+                                {/* Player header */}
+                                <div
+                                    className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-surface/30 transition-colors"
+                                    onClick={() => toggleExpandPlayer(group.playerId)}
+                                >
+                                    <input
+                                        type="checkbox"
+                                        checked={allSelected}
+                                        ref={(el) => {
+                                            if (el) el.indeterminate = someSelected && !allSelected;
+                                        }}
+                                        onChange={(e) => {
+                                            e.stopPropagation();
+                                            toggleSelectPlayer(group);
+                                        }}
+                                        onClick={(e) => e.stopPropagation()}
+                                        className="h-4 w-4 rounded border-border"
+                                    />
+                                    {group.playerAvatarUrl ? (
+                                        <img
+                                            src={group.playerAvatarUrl}
+                                            alt=""
+                                            className="h-8 w-8 rounded-full object-cover"
+                                        />
+                                    ) : (
+                                        <div className="h-8 w-8 rounded-full bg-primary/20 flex items-center justify-center text-xs font-bold text-primary">
+                                            {group.playerDisplayName.charAt(0).toUpperCase()}
+                                        </div>
+                                    )}
+                                    <div className="flex-1">
+                                        <div className="text-sm font-semibold text-foreground">
+                                            {group.playerDisplayName}
+                                        </div>
+                                        <div className="text-[10px] text-muted-foreground">
+                                            {group.playerEmail}
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-4 text-xs">
+                                        <span className="font-bold text-foreground">
+                                            {formatCO(group.totalPayout)}
+                                        </span>
+                                        <span className="text-amber-400">
+                                            {group.unpaidCount} unpaid
+                                        </span>
+                                        <span className="text-emerald-400">
+                                            {group.paidCount} paid
+                                        </span>
+                                        <span className="text-muted-foreground text-lg">
+                                            {isExpanded ? "▾" : "▸"}
+                                        </span>
+                                    </div>
+                                </div>
+
+                                {/* Expanded detail table */}
+                                {isExpanded && (
+                                    <div className="border-t border-border">
+                                        <table className="w-full text-sm">
+                                            <thead>
+                                                <tr className="border-b border-border bg-surface/40">
+                                                    <th className="p-2 pl-12 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                                                        Match
+                                                    </th>
+                                                    <th className="p-2 text-center text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                                                        Prediction
+                                                    </th>
+                                                    <th className="p-2 text-center text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                                                        Actual
+                                                    </th>
+                                                    <th className="p-2 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                                                        CO
+                                                    </th>
+                                                    <th className="p-2 text-center text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                                                        Status
+                                                    </th>
+                                                    <th className="p-2 text-center text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                                                        Action
+                                                    </th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {group.items.map((item) => (
+                                                    <tr
+                                                        key={item.betId}
+                                                        className="border-b border-border/50 transition-colors hover:bg-surface/20"
+                                                    >
+                                                        <td className="p-2 pl-12">
+                                                            <div className="text-xs font-medium text-foreground">
+                                                                {item.homeTeam} vs {item.awayTeam}
+                                                            </div>
+                                                            <div className="text-[10px] text-muted-foreground">
+                                                                {formatDate(item.kickoff)}
+                                                            </div>
+                                                        </td>
+                                                        <td className="p-2 text-center">
+                                                            <span className="inline-flex items-center rounded-md bg-primary/10 px-2 py-1 text-xs font-bold text-primary">
+                                                                {item.predictedHomeScore} - {item.predictedAwayScore}
+                                                            </span>
+                                                        </td>
+                                                        <td className="p-2 text-center">
+                                                            <span className="inline-flex items-center rounded-md bg-emerald-500/10 px-2 py-1 text-xs font-bold text-emerald-400">
+                                                                {item.actualHomeScore} - {item.actualAwayScore}
+                                                            </span>
+                                                        </td>
+                                                        <td className="p-2 text-right">
+                                                            <span className="text-sm font-bold text-foreground">
+                                                                {formatCO(item.payout)}
+                                                            </span>
+                                                        </td>
+                                                        <td className="p-2 text-center">
+                                                            {item.isPaidOut ? (
+                                                                <span className="inline-flex items-center rounded-full bg-emerald-500/10 px-2.5 py-1 text-xs font-semibold text-emerald-400">
+                                                                    {t("admin.payoutManagement.status.paid")}
+                                                                </span>
+                                                            ) : (
+                                                                <span className="inline-flex items-center rounded-full bg-amber-500/10 px-2.5 py-1 text-xs font-semibold text-amber-400">
+                                                                    {t("admin.payoutManagement.status.unpaid")}
+                                                                </span>
+                                                            )}
+                                                        </td>
+                                                        <td className="p-2 text-center">
+                                                            <button
+                                                                type="button"
+                                                                onClick={() =>
+                                                                    handleSingleToggle(item.betId, item.isPaidOut)
+                                                                }
+                                                                disabled={actionLoading}
+                                                                className={`inline-flex items-center rounded-md px-2.5 py-1.5 text-xs font-semibold transition-colors disabled:opacity-50 ${
+                                                                    item.isPaidOut
+                                                                        ? "bg-amber-500/10 text-amber-400 hover:bg-amber-500/20"
+                                                                        : "bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20"
+                                                                }`}
+                                                            >
+                                                                {item.isPaidOut
+                                                                    ? t("admin.payoutManagement.revert")
+                                                                    : t("admin.payoutManagement.pay")}
+                                                            </button>
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                )}
+                            </div>
+                        );
+                    })}
+                </div>
             ) : (
+                /* ── Flat Table View ─────────────────────────────── */
                 <div className="overflow-x-auto rounded-xl border border-border bg-card shadow-[0_10px_30px_rgba(10,10,30,0.35)]">
                     <table className="w-full text-sm">
                         <thead>
@@ -332,7 +605,7 @@ export function PayoutManagement() {
                                     {t("admin.payoutManagement.column.actual")}
                                 </th>
                                 <th className="p-3 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                                    {t("admin.payoutManagement.column.amount")}
+                                    CO
                                 </th>
                                 <th className="p-3 text-center text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                                     {t("admin.payoutManagement.column.status")}
@@ -399,18 +672,16 @@ export function PayoutManagement() {
                                     </td>
                                     <td className="p-3 text-right">
                                         <span className="text-sm font-bold text-foreground">
-                                            {formatCurrency(item.payout)}
+                                            {formatCO(item.payout)}
                                         </span>
                                     </td>
                                     <td className="p-3 text-center">
                                         {item.isPaidOut ? (
-                                            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2.5 py-1 text-xs font-semibold text-emerald-400">
-                                                <CheckCircle2 className="h-3 w-3" />
+                                            <span className="inline-flex items-center rounded-full bg-emerald-500/10 px-2.5 py-1 text-xs font-semibold text-emerald-400">
                                                 {t("admin.payoutManagement.status.paid")}
                                             </span>
                                         ) : (
-                                            <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-2.5 py-1 text-xs font-semibold text-amber-400">
-                                                <Clock className="h-3 w-3" />
+                                            <span className="inline-flex items-center rounded-full bg-amber-500/10 px-2.5 py-1 text-xs font-semibold text-amber-400">
                                                 {t("admin.payoutManagement.status.unpaid")}
                                             </span>
                                         )}
@@ -422,23 +693,15 @@ export function PayoutManagement() {
                                                 handleSingleToggle(item.betId, item.isPaidOut)
                                             }
                                             disabled={actionLoading}
-                                            className={`inline-flex items-center gap-1 rounded-md px-2.5 py-1.5 text-xs font-semibold transition-colors disabled:opacity-50 ${
+                                            className={`inline-flex items-center rounded-md px-2.5 py-1.5 text-xs font-semibold transition-colors disabled:opacity-50 ${
                                                 item.isPaidOut
                                                     ? "bg-amber-500/10 text-amber-400 hover:bg-amber-500/20"
                                                     : "bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20"
                                             }`}
                                         >
-                                            {item.isPaidOut ? (
-                                                <>
-                                                    <Undo2 className="h-3 w-3" />
-                                                    {t("admin.payoutManagement.revert")}
-                                                </>
-                                            ) : (
-                                                <>
-                                                    <CheckCircle2 className="h-3 w-3" />
-                                                    {t("admin.payoutManagement.pay")}
-                                                </>
-                                            )}
+                                            {item.isPaidOut
+                                                ? t("admin.payoutManagement.revert")
+                                                : t("admin.payoutManagement.pay")}
                                         </button>
                                     </td>
                                 </tr>

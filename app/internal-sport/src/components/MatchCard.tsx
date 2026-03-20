@@ -200,7 +200,14 @@ export function MatchCard({ match, isCompleted = false, onPredictionChange }: Ma
 
     return (
         <>
-            <div className="match-card rounded-xl border border-border bg-card p-5 transition-all hover:border-primary/40 hover:shadow-lg">
+            <div className="match-card relative rounded-xl border border-border bg-card p-5 transition-all hover:border-primary/40 hover:shadow-lg">
+                {/* Per-card loading overlay */}
+                {isSaving && (
+                    <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 rounded-xl bg-card/80 backdrop-blur-sm">
+                        <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary/30 border-t-primary" />
+                        <span className="text-xs font-bold text-primary animate-pulse">{t("common.saving")}</span>
+                    </div>
+                )}
                 <div>
                     <div className="mb-4 flex items-center justify-between">
                         <div className="flex items-center gap-2">

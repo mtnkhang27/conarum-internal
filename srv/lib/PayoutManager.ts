@@ -59,6 +59,35 @@ export class PayoutManager {
     }
 
     /**
+     * Reset ALL won score bets' isPaidOut to false for a tournament.
+     * Useful for legacy data where isPaidOut was null.
+     */
+    async resetAllPayoutStatus(req: cds.Request) {
+        const { tournamentId } = req.data;
+        const { ScoreBet, Match } = cds.entities('cnma.prediction');
+
+        if (!tournamentId) return req.error(400, 'tournamentId is required');
+
+        // Find all won score bets for matches in this tournament
+        const wonBets = await SELECT.from(ScoreBet).where({ status: 'won' });
+
+        let updated = 0;
+        for (const bet of wonBets) {
+            const match = await SELECT.one.from(Match)
+                .where({ ID: bet.match_ID, tournament_ID: tournamentId });
+            if (!match) continue;
+
+            await UPDATE(ScoreBet).where({ ID: bet.ID }).set({ isPaidOut: false });
+            updated++;
+        }
+
+        return {
+            success: true,
+            message: `${updated} score bet(s) reset to unpaid.`,
+        };
+    }
+
+    /**
      * Get payout summary for a tournament — all won score bets with player & match details.
      */
     async getPayoutSummary(req: cds.Request) {

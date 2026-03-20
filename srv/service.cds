@@ -585,6 +585,9 @@ service AdminService {
     /** Revert payout mark (in case of mistake). */
     action markScoreBetsUnpaid(betIds: many UUID) returns ActionResult;
 
+    /** Reset ALL isPaidOut flags to false for a tournament (migration fix). */
+    action resetAllPayoutStatus(tournamentId: UUID) returns ActionResult;
+
     /** Get payout summary for a tournament — won score bets grouped by player. */
     type PayoutItem {
         betId              : UUID;

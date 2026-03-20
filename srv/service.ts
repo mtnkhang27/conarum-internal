@@ -87,6 +87,7 @@ export class AdminService extends cds.ApplicationService {
         this.on('importTournament', this.adminHandler.importTournament.bind(this.adminHandler));
         this.on('markScoreBetsPaid', this.adminHandler.markScoreBetsPaid.bind(this.adminHandler));
         this.on('markScoreBetsUnpaid', this.adminHandler.markScoreBetsUnpaid.bind(this.adminHandler));
+        this.on('resetAllPayoutStatus', this.adminHandler.resetAllPayoutStatus.bind(this.adminHandler));
         this.on('getPayoutSummary', this.adminHandler.getPayoutSummary.bind(this.adminHandler));
 
         // ── Guard: block match creation/update for completed/cancelled tournaments ──

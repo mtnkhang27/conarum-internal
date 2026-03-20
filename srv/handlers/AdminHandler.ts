@@ -1530,4 +1530,8 @@ export class AdminHandler {
         return this.payoutManager.getPayoutSummary(req);
     }
 
+    async resetAllPayoutStatus(req: Request) {
+        return this.payoutManager.resetAllPayoutStatus(req);
+    }
+
 }

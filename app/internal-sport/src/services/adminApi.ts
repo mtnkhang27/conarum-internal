@@ -298,4 +298,9 @@ export const payoutApi = {
             method: "POST",
             body: JSON.stringify({ betIds }),
         }),
+    resetAllPayoutStatus: (tournamentId: string) =>
+        odata<ActionResult>("/resetAllPayoutStatus", {
+            method: "POST",
+            body: JSON.stringify({ tournamentId }),
+        }),
 };

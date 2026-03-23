@@ -13,7 +13,12 @@ export default defineConfig({
   },
   server: {
     proxy: {
-      '/api': 'http://localhost:4004',
+      '/api': {
+        target: 'http://localhost:4004',
+        headers: {
+          Authorization: 'Basic ' + Buffer.from('admin:admin').toString('base64')
+        }
+      }
     }
   }
 })

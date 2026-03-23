@@ -9,9 +9,13 @@
     "express": "^4"
   },
   "devDependencies": {
+    "@cap-js/cds-typer": ">=0.1",
+    "@cap-js/cds-types": "^0.15.0",
     "@cap-js/sqlite": "^2",
     "@sap/cds-dk": "^9",
     "@types/jest": "^30.0.0",
+    "@types/node": "^24.0.0",
+    "concurrently": "^9.2.1",
     "eslint": "^10.0.2",
     "eslint-config-prettier": "^10.1.8",
     "husky": "^9.1.7",
@@ -19,11 +23,8 @@
     "lint-staged": "^16.2.7",
     "prettier": "^3.8.1",
     "ts-jest": "^29.4.6",
-    "@cap-js/cds-types": "^0.15.0",
-    "@types/node": "^24.0.0",
     "tsx": "^4",
-    "typescript": "^5",
-    "@cap-js/cds-typer": ">=0.1"
+    "typescript": "^5"
   },
   "scripts": {
     "start": "cds-serve",
@@ -53,6 +54,7 @@
     "cf:dev": "cf target -o proconarum-development-system",
     "cf:qas": "cf target -o proconarum-quality-system",
     "cf:logs": "cf logs cnma_internal_prediction_srv",
+    "start:hybrid": "concurrently \"cds watch --profile hybrid\" \"npm run dev --prefix app/internal-sport\"",
     "start:hybrid:backend": "cds watch --profile hybrid",
     "start:hybrid:frontend": "npm run dev --prefix app/internal-sport"
   },
@@ -102,6 +104,40 @@
               ],
               "attr": {
                 "name": "Tran Thi B"
+              }
+            },
+            "nam.vu@conarum.com": {
+              "password": "admin",
+              "roles": [
+                "PredictionAdmin",
+                "PredictionUser",
+                "admin",
+                "authenticated-user"
+              ],
+              "attr": {
+                "name": "Nam Vu"
+              }
+            }
+          }
+        }
+      },
+      "[hybrid]": {
+        "db": {
+          "kind": "hana"
+        },
+        "auth": {
+          "strategy": "dummy",
+          "users": {
+            "admin": {
+              "password": "admin",
+              "roles": [
+                "PredictionAdmin",
+                "PredictionUser",
+                "admin",
+                "authenticated-user"
+              ],
+              "attr": {
+                "name": "Admin User"
               }
             },
             "nam.vu@conarum.com": {

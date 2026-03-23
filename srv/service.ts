@@ -1,8 +1,10 @@
 import cds from '@sap/cds';
 import { PredictionHandler } from './handlers/PredictionHandler';
 import { AdminHandler } from './handlers/AdminHandler';
-import { syncAuthenticatedUser } from './lib/UserContext';
+import { resolveUserContext, syncAuthenticatedUser } from './lib/UserContext';
 import { ProfileHandler } from './handlers/ProfileHandler';
+
+const AUTH_TRACE_ENABLED = process.env.AUTH_TRACE === '1';
 
 /**
  * PlayerService — Authenticated employee-facing OData service.
@@ -15,8 +17,14 @@ export class PlayerService extends cds.ApplicationService {
     async init() {
         this.predictionHandler = new PredictionHandler(this);
         this.profileHandler = new ProfileHandler(this);
-        this.before('*', async (req) => {
-            await syncAuthenticatedUser(req);
+        this.before('*', (req) => {
+            // Never block user requests on profile sync to avoid cascading timeouts
+            // when remote DB is slow. Sync still happens in background.
+            void syncAuthenticatedUser(req).catch((err: any) => {
+                if (AUTH_TRACE_ENABLED) {
+                    console.warn('[PlayerService] background user sync failed:', err?.message ?? err);
+                }
+            });
         });
 
         // ── Actions ──────────────────────────────────────────
@@ -60,17 +68,24 @@ export class AdminService extends cds.ApplicationService {
     async init() {
         this.adminHandler = new AdminHandler(this);
         this.before('*', async (req) => {
-            const context = await syncAuthenticatedUser(req);
+            const context = resolveUserContext(req);
             const isAdmin = context.roles.includes('PredictionAdmin') || context.roles.includes('admin');
-            console.log('[AdminService TRACE]', JSON.stringify({
-                email: context.email,
-                roles: context.roles,
-                isAdmin,
-                identityOrigin: context.identityOrigin,
-            }));
+            if (AUTH_TRACE_ENABLED) {
+                console.log('[AdminService TRACE]', JSON.stringify({
+                    email: context.email,
+                    roles: context.roles,
+                    isAdmin,
+                    identityOrigin: context.identityOrigin,
+                }));
+            }
             if (!isAdmin) {
                 return req.reject(403, 'Admin access is restricted to authorized accounts');
             }
+            void syncAuthenticatedUser(req).catch((err: any) => {
+                if (AUTH_TRACE_ENABLED) {
+                    console.warn('[AdminService] background user sync failed:', err?.message ?? err);
+                }
+            });
         });
 
         // ── Actions ──────────────────────────────────────────

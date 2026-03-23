@@ -1,5 +1,5 @@
 import cds, { Request } from '@sap/cds';
-import { ResolvedUserContext, syncAuthenticatedUser } from '../lib/UserContext';
+import { ResolvedUserContext, resolveUserContext } from '../lib/UserContext';
 
 type PlayerRow = {
     ID: string;
@@ -20,6 +20,7 @@ type PlayerRow = {
 
 const MAX_AVATAR_BYTES = 10 * 1024 * 1024;
 const DATA_IMAGE_REGEX = /^data:image\/(png|jpe?g|webp|gif);base64,/i;
+const AUTH_TRACE_ENABLED = process.env.AUTH_TRACE === '1';
 
 const asString = (value: unknown): string | null => {
     if (typeof value !== 'string') return null;
@@ -135,7 +136,7 @@ export class ProfileHandler {
     private async getCurrentPlayer(req: Request): Promise<{ player: PlayerRow | null; context: ResolvedUserContext }> {
         const entities = cds.entities('cnma.prediction') as Record<string, any>;
         const { Player } = entities;
-        const context = await syncAuthenticatedUser(req);
+        const context = resolveUserContext(req);
 
         let player: PlayerRow | null = null;
         if (context.userUUID) {
@@ -224,14 +225,16 @@ export class ProfileHandler {
 
         const roles = context.roles.length > 0 ? context.roles : this.parseStoredRoles(player.roles);
         const isAdmin = roles.includes('admin') || roles.includes('PredictionAdmin');
-        console.log('[ProfileHandler TRACE] getMyProfile isAdmin check', JSON.stringify({
-            email: player.email,
-            contextRoles: context.roles,
-            storedRoles: this.parseStoredRoles(player.roles),
-            usedRoles: roles,
-            isAdmin,
-            identityOrigin: context.identityOrigin,
-        }));
+        if (AUTH_TRACE_ENABLED) {
+            console.log('[ProfileHandler TRACE] getMyProfile isAdmin check', JSON.stringify({
+                email: player.email,
+                contextRoles: context.roles,
+                storedRoles: this.parseStoredRoles(player.roles),
+                usedRoles: roles,
+                isAdmin,
+                identityOrigin: context.identityOrigin,
+            }));
+        }
         const preferredDisplayName = this.composeDisplayName(player.givenName, player.familyName);
 
         return {

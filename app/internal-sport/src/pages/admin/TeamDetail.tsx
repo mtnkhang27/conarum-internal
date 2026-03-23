@@ -291,7 +291,7 @@ export function TeamDetail() {
                                         <div>
                                             <p className="font-medium text-white">{member.name}</p>
                                             <Badge variant={roleBadgeVariant(member.role)} className="text-xs">
-                                                {t(ROLES.find((r) => r.value === member.role)?.label || "admin.teamDetail.role.player")}
+                                                {t(ROLES.find((r) => r.value === member.role)?.label || "admin.teamDetail.roles.player")}
                                             </Badge>
                                         </div>
                                     </div>
@@ -370,7 +370,7 @@ export function TeamDetail() {
                                         </td>
                                         <td className="px-4 py-3">
                                             <Badge variant={roleBadgeVariant(member.role)} className="text-xs">
-                                                {member.isCaptain ? t("admin.teamDetail.role.captain") : t(ROLES.find((r) => r.value === member.role)?.label || "admin.teamDetail.role.player")}
+                                                {member.isCaptain ? t("admin.teamDetail.roles.captain") : t(ROLES.find((r) => r.value === member.role)?.label || "admin.teamDetail.roles.player")}
                                             </Badge>
                                         </td>
                                         <td className="px-4 py-3">

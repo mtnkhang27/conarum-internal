@@ -16,6 +16,8 @@
     "actions": "Aktionen",
     "name": "Name",
     "vs": "VS",
+    "tbd": "TBD",
+    "total": "Gesamt",
     "noData": "—",
     "saving": "Speichern…",
     "importing": "Importieren…",
@@ -135,6 +137,10 @@
       "recentSubtitle": "Deine letzten Tippaktivitäten"
     },
     "upcomingKickoffs": "Nächste Anstöße",
+    "liveMatches": "Live-Spiele",
+    "inPlayMatch": "Laufendes Spiel",
+    "score": "Ergebnis",
+    "pick": "Tipp",
     "match": "Spiel",
     "kickoff": "Anstoß",
     "points": "Punkte",
@@ -143,7 +149,8 @@
     "picks": {
       "homeWin": "Heimsieg",
       "awayWin": "Auswärtssieg",
-      "draw": "Unentschieden"
+      "draw": "Unentschieden",
+      "noPick": "Kein Tipp"
     },
     "status": {
       "correct": "Richtig",
@@ -181,7 +188,8 @@
     "cancelConfirm": "Zurück",
     "prize": "Preis",
     "reward": "Admin-Belohnung",
-    "alreadyPicked": "Du hast bereits {{team}} als Sieger gewählt."
+    "alreadyPicked": "Du hast bereits {{team}} als Sieger gewählt.",
+    "samePickCount": "Personen haben {{team}} ebenfalls gewählt"
   },
   "matchCard": {
     "futureRound": "Zukünftige Runde",
@@ -378,7 +386,10 @@
       "selectTournament": "Turnier wählen",
       "syncResults": "Ergebnisse synchronisieren",
       "syncTitle": "Spielergebnisse synchronisieren",
+      "syncDescription": "Spielergebnisse für das ausgewählte Turnier synchronisieren.",
       "selectTeamToSync": "Bitte wählen Sie ein Turnier zum Synchronisieren von Ergebnissen.",
+      "selectTournamentToSync": "Bitte wählen Sie ein Turnier zum Synchronisieren von Ergebnissen.",
+      "syncNow": "Jetzt synchronisieren",
       "stadiumPlaceholder": "Stadionnamen eingeben",
       "placeholderMatchday": "z.B. 1-38"
     },
@@ -411,6 +422,7 @@
       "noPredictions": "Noch keine Tipps.",
       "player": "Spieler",
       "pick": "Tipp",
+      "vs": "VS",
       "submittedAt": "Eingereicht am",
       "noScoreBets": "Noch keine Ergebniswetten eingereicht.",
       "predictedScore": "Vorherg. Ergebnis",
@@ -472,6 +484,7 @@
       "fifaRanking": "FIFA-Ranking",
       "fifaRank": "FIFA-Rang",
       "position": "Position",
+      "status": "Status",
       "confederation": "Konföderation",
       "name": "Name",
       "shortName": "Kurzname",

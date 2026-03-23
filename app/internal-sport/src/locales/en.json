@@ -16,6 +16,8 @@
     "actions": "Actions",
     "name": "Name",
     "vs": "VS",
+    "tbd": "TBD",
+    "total": "Total",
     "noData": "—",
     "saving": "Saving…",
     "importing": "Importing…",
@@ -135,6 +137,10 @@
       "recentSubtitle": "Your latest prediction activity"
     },
     "upcomingKickoffs": "Upcoming Kickoffs",
+    "liveMatches": "Live Matches",
+    "inPlayMatch": "In-Play Match",
+    "score": "Score",
+    "pick": "Pick",
     "match": "Match",
     "kickoff": "Kickoff",
     "points": "Points",
@@ -143,7 +149,8 @@
     "picks": {
       "homeWin": "Home Win",
       "awayWin": "Away Win",
-      "draw": "Draw"
+      "draw": "Draw",
+      "noPick": "No Pick"
     },
     "status": {
       "correct": "Correct",
@@ -181,7 +188,8 @@
     "cancelConfirm": "Go Back",
     "prize": "Prize",
     "reward": "Admin Reward",
-    "alreadyPicked": "You already picked {{team}} as your champion."
+    "alreadyPicked": "You already picked {{team}} as your champion.",
+    "samePickCount": "people also picked {{team}}"
   },
   "matchCard": {
     "futureRound": "Future Round",
@@ -378,7 +386,10 @@
       "selectTournament": "Select tournament",
       "syncResults": "Sync Results",
       "syncTitle": "Sync Match Results",
+      "syncDescription": "Sync match results for the selected tournament.",
       "selectTeamToSync": "Please select a tournament to sync results.",
+      "selectTournamentToSync": "Please select a tournament to sync results.",
+      "syncNow": "Sync Now",
       "stadiumPlaceholder": "Enter stadium name",
       "placeholderMatchday": "e.g., 1-38"
     },
@@ -411,6 +422,7 @@
       "noPredictions": "No predictions yet.",
       "player": "Player",
       "pick": "Pick",
+      "vs": "VS",
       "submittedAt": "Submitted At",
       "noScoreBets": "No score bets submitted.",
       "predictedScore": "Predicted Score",
@@ -471,6 +483,7 @@
       "crestUrl": "Crest URL",
       "fifaRanking": "FIFA Ranking",
       "position": "Position",
+      "status": "Status",
       "name": "Name",
       "shortName": "Short Name",
       "tla": "TLA",

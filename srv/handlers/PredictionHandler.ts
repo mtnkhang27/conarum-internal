@@ -580,7 +580,7 @@ export class PredictionHandler {
         // Batch-fetch all teams referenced by these matches
         const teamIds = [...new Set(matches.flatMap((m: any) => [m.homeTeam_ID, m.awayTeam_ID]).filter(Boolean))];
         const teams = teamIds.length > 0 ? await SELECT.from(Team).where({ ID: { in: teamIds } }) : [];
-        const teamMap = new Map(teams.map((t: any) => [t.ID, t]));
+        const teamMap: Map<string, any> = new Map(teams.map((t: any) => [t.ID as string, t]));
 
         return matches.map((m: any) => {
             const home = teamMap.get(m.homeTeam_ID);
@@ -618,7 +618,7 @@ export class PredictionHandler {
         // Batch-fetch all teams
         const teamIds = [...new Set(matches.flatMap((m: any) => [m.homeTeam_ID, m.awayTeam_ID]).filter(Boolean))];
         const teams = teamIds.length > 0 ? await SELECT.from(Team).where({ ID: { in: teamIds } }) : [];
-        const teamMap = new Map(teams.map((t: any) => [t.ID, t]));
+        const teamMap: Map<string, any> = new Map(teams.map((t: any) => [t.ID as string, t]));
 
         return matches.map((m: any) => {
             const home = teamMap.get(m.homeTeam_ID);
@@ -655,12 +655,12 @@ export class PredictionHandler {
         // Batch-fetch all players
         const playerIds = [...new Set(stats.map((s: any) => s.player_ID).filter(Boolean))];
         const players = playerIds.length > 0 ? await SELECT.from(Player).where({ ID: { in: playerIds } }) : [];
-        const playerMap = new Map(players.map((p: any) => [p.ID, p]));
+        const playerMap: Map<string, any> = new Map(players.map((p: any) => [p.ID as string, p]));
 
         // Batch-fetch favorite teams
         const favTeamIds = [...new Set(players.map((p: any) => p.favoriteTeam_ID).filter(Boolean))];
         const favTeams = favTeamIds.length > 0 ? await SELECT.from(Team).columns('ID', 'name').where({ ID: { in: favTeamIds } }) : [];
-        const favTeamMap = new Map(favTeams.map((t: any) => [t.ID, t]));
+        const favTeamMap: Map<string, any> = new Map(favTeams.map((t: any) => [t.ID as string, t]));
 
         // Enrich with player details and sort with name tiebreak
         const enriched = stats.map((s: any) => {
@@ -780,7 +780,7 @@ export class PredictionHandler {
         // Enrich with team names (batch-fetch)
         const enrichTeamIds = [...new Set(Object.values(standingsMap).map((s: any) => s.teamId).filter(Boolean))];
         const teams = enrichTeamIds.length > 0 ? await SELECT.from(Team).where({ ID: { in: enrichTeamIds } }) : [];
-        const teamMap = new Map(teams.map((t: any) => [t.ID, t]));
+        const teamMap: Map<string, any> = new Map(teams.map((t: any) => [t.ID as string, t]));
 
         const result = standings.map((s: any) => {
             const team = teamMap.get(s.teamId);
@@ -840,15 +840,15 @@ export class PredictionHandler {
 
         // Batch-fetch all matches and teams for this batch of predictions
         const allMatches = matchIds.length > 0 ? await SELECT.from(Match).where({ ID: { in: matchIds } }) : [];
-        const matchMap = new Map(allMatches.map((m: any) => [m.ID, m]));
+        const matchMap: Map<string, any> = new Map(allMatches.map((m: any) => [m.ID as string, m]));
 
         const teamIds = [...new Set(allMatches.flatMap((m: any) => [m.homeTeam_ID, m.awayTeam_ID]).filter(Boolean))];
         const teams = teamIds.length > 0 ? await SELECT.from(Team).where({ ID: { in: teamIds } }) : [];
-        const teamMap = new Map(teams.map((t: any) => [t.ID, t]));
+        const teamMap: Map<string, any> = new Map(teams.map((t: any) => [t.ID as string, t]));
 
         const tournamentIds = [...new Set(predictions.map((p: any) => p.tournament_ID).filter(Boolean))];
         const tournaments = tournamentIds.length > 0 ? await SELECT.from(Tournament).where({ ID: { in: tournamentIds } }) : [];
-        const tournamentMap = new Map(tournaments.map((t: any) => [t.ID, t]));
+        const tournamentMap: Map<string, any> = new Map(tournaments.map((t: any) => [t.ID as string, t]));
 
         const results = [];
         for (const p of predictions) {
@@ -906,7 +906,7 @@ export class PredictionHandler {
         // Batch-fetch all referenced teams
         const teamIds = [...new Set(slots.flatMap((s: any) => [s.homeTeam_ID, s.awayTeam_ID, s.winner_ID]).filter(Boolean))];
         const teams = teamIds.length > 0 ? await SELECT.from(Team).where({ ID: { in: teamIds } }) : [];
-        const teamMap = new Map(teams.map((t: any) => [t.ID, t]));
+        const teamMap: Map<string, any> = new Map(teams.map((t: any) => [t.ID as string, t]));
 
         // Batch-fetch all referenced matches (by ID and by externalId)
         const matchIds = [...new Set(slots.flatMap((s: any) => [s.leg1_ID, s.leg2_ID]).filter(Boolean))];
@@ -924,8 +924,8 @@ export class PredictionHandler {
             ? await SELECT.from(Match).where({ tournament_ID: tournamentId, externalId: { in: matchExternalIds } })
             : [];
 
-        const matchMap = new Map(matchesById.map((m: any) => [m.ID, m]));
-        const matchByExtIdMap = new Map(matchesByExtId.map((m: any) => [m.externalId, m]));
+        const matchMap: Map<string, any> = new Map(matchesById.map((m: any) => [m.ID as string, m]));
+        const matchByExtIdMap: Map<number, any> = new Map(matchesByExtId.map((m: any) => [m.externalId as number, m]));
 
         const results = slots.map((slot: any) => {
             const homeTeam = teamMap.get(slot.homeTeam_ID) ?? null;
@@ -994,7 +994,7 @@ export class PredictionHandler {
         // Batch-fetch all teams
         const teamIds = [...countMap.keys()];
         const teams = teamIds.length > 0 ? await SELECT.from(Team).where({ ID: { in: teamIds } }) : [];
-        const teamMap = new Map(teams.map((t: any) => [t.ID, t]));
+        const teamMap: Map<string, any> = new Map(teams.map((t: any) => [t.ID as string, t]));
 
         const results = teamIds.map(teamId => {
             const team = teamMap.get(teamId);

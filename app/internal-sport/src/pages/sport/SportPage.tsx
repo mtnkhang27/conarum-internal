@@ -77,8 +77,14 @@ export function SportPage() {
     const [predictions, setPredictions] = useState<RecentPredictionItem[]>([]);
     const [loadingPredictions, setLoadingPredictions] = useState(true);
 
-    const loadMatchData = useCallback(async (tid: string) => {
-        setLoadingMatches(true);
+    const loadMatchData = useCallback(async (
+        tid: string,
+        options?: { showLoading?: boolean }
+    ) => {
+        const showLoading = options?.showLoading ?? true;
+        if (showLoading) {
+            setLoadingMatches(true);
+        }
         const filterTid = tid || undefined;
         try {
             const [m, u, l, c] = await Promise.all([
@@ -94,7 +100,9 @@ export function SportPage() {
         } catch {
             // fall back silently
         } finally {
-            setLoadingMatches(false);
+            if (showLoading) {
+                setLoadingMatches(false);
+            }
         }
     }, []);
 
@@ -111,7 +119,7 @@ export function SportPage() {
     }, []);
 
     useEffect(() => {
-        loadMatchData(tournamentId);
+        loadMatchData(tournamentId, { showLoading: true });
     }, [tournamentId, loadMatchData, location.key]);
 
     useEffect(() => {
@@ -131,9 +139,11 @@ export function SportPage() {
     }, [tournamentId]);
 
     // Callback for MatchCard to trigger refresh after submit/cancel
-    const refreshAll = useCallback(() => {
-        loadMatchData(tournamentId);
-        loadPredictions();
+    const refreshAll = useCallback(async () => {
+        await Promise.all([
+            loadMatchData(tournamentId, { showLoading: false }),
+            loadPredictions(),
+        ]);
     }, [tournamentId, loadMatchData, loadPredictions]);
 
     // Scroll to hash section on mount / navigation

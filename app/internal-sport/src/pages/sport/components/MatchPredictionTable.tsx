@@ -28,7 +28,7 @@ const parseDateInputValue = (value?: string) => {
 
 interface MatchPredictionTableProps {
     matches: Match[];
-    onPredictionChange?: () => void;
+    onPredictionChange?: () => void | Promise<void>;
 }
 
 export function MatchPredictionTable({ matches, onPredictionChange }: MatchPredictionTableProps) {

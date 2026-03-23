@@ -3,6 +3,61 @@ import { ScoringEngine } from '../lib/ScoringEngine';
 import { materializeSlotBetsForMatch } from '../lib/SlotBetMaterializer';
 import { PlayerResolver } from '../lib/PlayerResolver';
 
+type TeamLookup = {
+    ID?: string | null;
+    name?: string | null;
+    flagCode?: string | null;
+    crest?: string | null;
+};
+
+type PlayerLookup = {
+    ID?: string | null;
+    email?: string | null;
+    bio?: string | null;
+    country?: unknown;
+    country_code?: string | null;
+    favoriteTeam_ID?: string | null;
+    avatarUrl?: string | null;
+    displayName?: string | null;
+    givenName?: string | null;
+    familyName?: string | null;
+    loginName?: string | null;
+};
+
+type MatchLookup = {
+    ID?: string | null;
+    homeTeam_ID?: string | null;
+    awayTeam_ID?: string | null;
+    externalId?: number | null;
+    homeScore?: number | null;
+    awayScore?: number | null;
+    status?: string | null;
+    kickoff?: string | null;
+};
+
+type TournamentLookup = {
+    ID?: string | null;
+    name?: string | null;
+};
+
+const toIdMap = <T extends { ID?: string | null }>(rows: readonly T[]) =>
+    new Map<string, T>(
+        rows.flatMap((row) =>
+            typeof row.ID === 'string' && row.ID.length > 0
+                ? [[row.ID, row] as const]
+                : []
+        )
+    );
+
+const toExternalIdMap = <T extends { externalId?: number | null }>(rows: readonly T[]) =>
+    new Map<number, T>(
+        rows.flatMap((row) =>
+            typeof row.externalId === 'number'
+                ? [[row.externalId, row] as const]
+                : []
+        )
+    );
+
 /**
  * PredictionHandler — Handles user prediction submissions.
  * Validates business rules before persisting predictions.
@@ -579,8 +634,10 @@ export class PredictionHandler {
 
         // Batch-fetch all teams referenced by these matches
         const teamIds = [...new Set(matches.flatMap((m: any) => [m.homeTeam_ID, m.awayTeam_ID]).filter(Boolean))];
-        const teams = teamIds.length > 0 ? await SELECT.from(Team).where({ ID: { in: teamIds } }) : [];
-        const teamMap = new Map(teams.map((t: any) => [t.ID, t]));
+        const teams: TeamLookup[] = teamIds.length > 0
+            ? (await SELECT.from(Team).where({ ID: { in: teamIds } })) as TeamLookup[]
+            : [];
+        const teamMap = toIdMap(teams);
 
         return matches.map((m: any) => {
             const home = teamMap.get(m.homeTeam_ID);
@@ -617,8 +674,10 @@ export class PredictionHandler {
 
         // Batch-fetch all teams
         const teamIds = [...new Set(matches.flatMap((m: any) => [m.homeTeam_ID, m.awayTeam_ID]).filter(Boolean))];
-        const teams = teamIds.length > 0 ? await SELECT.from(Team).where({ ID: { in: teamIds } }) : [];
-        const teamMap = new Map(teams.map((t: any) => [t.ID, t]));
+        const teams: TeamLookup[] = teamIds.length > 0
+            ? (await SELECT.from(Team).where({ ID: { in: teamIds } })) as TeamLookup[]
+            : [];
+        const teamMap = toIdMap(teams);
 
         return matches.map((m: any) => {
             const home = teamMap.get(m.homeTeam_ID);
@@ -654,13 +713,17 @@ export class PredictionHandler {
 
         // Batch-fetch all players
         const playerIds = [...new Set(stats.map((s: any) => s.player_ID).filter(Boolean))];
-        const players = playerIds.length > 0 ? await SELECT.from(Player).where({ ID: { in: playerIds } }) : [];
-        const playerMap = new Map(players.map((p: any) => [p.ID, p]));
+        const players: PlayerLookup[] = playerIds.length > 0
+            ? (await SELECT.from(Player).where({ ID: { in: playerIds } })) as PlayerLookup[]
+            : [];
+        const playerMap = toIdMap(players);
 
         // Batch-fetch favorite teams
         const favTeamIds = [...new Set(players.map((p: any) => p.favoriteTeam_ID).filter(Boolean))];
-        const favTeams = favTeamIds.length > 0 ? await SELECT.from(Team).columns('ID', 'name').where({ ID: { in: favTeamIds } }) : [];
-        const favTeamMap = new Map(favTeams.map((t: any) => [t.ID, t]));
+        const favTeams: TeamLookup[] = favTeamIds.length > 0
+            ? (await SELECT.from(Team).columns('ID', 'name').where({ ID: { in: favTeamIds } })) as TeamLookup[]
+            : [];
+        const favTeamMap = toIdMap(favTeams);
 
         // Enrich with player details and sort with name tiebreak
         const enriched = stats.map((s: any) => {
@@ -779,8 +842,10 @@ export class PredictionHandler {
 
         // Enrich with team names (batch-fetch)
         const enrichTeamIds = [...new Set(Object.values(standingsMap).map((s: any) => s.teamId).filter(Boolean))];
-        const teams = enrichTeamIds.length > 0 ? await SELECT.from(Team).where({ ID: { in: enrichTeamIds } }) : [];
-        const teamMap = new Map(teams.map((t: any) => [t.ID, t]));
+        const teams: TeamLookup[] = enrichTeamIds.length > 0
+            ? (await SELECT.from(Team).where({ ID: { in: enrichTeamIds } })) as TeamLookup[]
+            : [];
+        const teamMap = toIdMap(teams);
 
         const result = standings.map((s: any) => {
             const team = teamMap.get(s.teamId);
@@ -839,26 +904,32 @@ export class PredictionHandler {
         }
 
         // Batch-fetch all matches and teams for this batch of predictions
-        const allMatches = matchIds.length > 0 ? await SELECT.from(Match).where({ ID: { in: matchIds } }) : [];
-        const matchMap = new Map(allMatches.map((m: any) => [m.ID, m]));
+        const allMatches: MatchLookup[] = matchIds.length > 0
+            ? (await SELECT.from(Match).where({ ID: { in: matchIds } })) as MatchLookup[]
+            : [];
+        const matchMap = toIdMap(allMatches);
 
         const teamIds = [...new Set(allMatches.flatMap((m: any) => [m.homeTeam_ID, m.awayTeam_ID]).filter(Boolean))];
-        const teams = teamIds.length > 0 ? await SELECT.from(Team).where({ ID: { in: teamIds } }) : [];
-        const teamMap = new Map(teams.map((t: any) => [t.ID, t]));
+        const teams: TeamLookup[] = teamIds.length > 0
+            ? (await SELECT.from(Team).where({ ID: { in: teamIds } })) as TeamLookup[]
+            : [];
+        const teamMap = toIdMap(teams);
 
         const tournamentIds = [...new Set(predictions.map((p: any) => p.tournament_ID).filter(Boolean))];
-        const tournaments = tournamentIds.length > 0 ? await SELECT.from(Tournament).where({ ID: { in: tournamentIds } }) : [];
-        const tournamentMap = new Map(tournaments.map((t: any) => [t.ID, t]));
+        const tournaments: TournamentLookup[] = tournamentIds.length > 0
+            ? (await SELECT.from(Tournament).where({ ID: { in: tournamentIds } })) as TournamentLookup[]
+            : [];
+        const tournamentMap = toIdMap(tournaments);
 
         const results = [];
         for (const p of predictions) {
             const match = matchMap.get(p.match_ID);
             if (!match) continue;
-            const home = teamMap.get(match.homeTeam_ID);
-            const away = teamMap.get(match.awayTeam_ID);
+            const home = match.homeTeam_ID ? teamMap.get(match.homeTeam_ID) : undefined;
+            const away = match.awayTeam_ID ? teamMap.get(match.awayTeam_ID) : undefined;
             const tournament = p.tournament_ID ? tournamentMap.get(p.tournament_ID) : null;
 
-            const scoreBets = (scoreBetMap.get(match.ID) ?? []).map((sb: any) => ({
+            const scoreBets = ((match.ID ? scoreBetMap.get(match.ID) : undefined) ?? []).map((sb: any) => ({
                 betId: sb.ID,
                 predictedHomeScore: sb.predictedHomeScore,
                 predictedAwayScore: sb.predictedAwayScore,
@@ -905,8 +976,10 @@ export class PredictionHandler {
 
         // Batch-fetch all referenced teams
         const teamIds = [...new Set(slots.flatMap((s: any) => [s.homeTeam_ID, s.awayTeam_ID, s.winner_ID]).filter(Boolean))];
-        const teams = teamIds.length > 0 ? await SELECT.from(Team).where({ ID: { in: teamIds } }) : [];
-        const teamMap = new Map(teams.map((t: any) => [t.ID, t]));
+        const teams: TeamLookup[] = teamIds.length > 0
+            ? (await SELECT.from(Team).where({ ID: { in: teamIds } })) as TeamLookup[]
+            : [];
+        const teamMap = toIdMap(teams);
 
         // Batch-fetch all referenced matches (by ID and by externalId)
         const matchIds = [...new Set(slots.flatMap((s: any) => [s.leg1_ID, s.leg2_ID]).filter(Boolean))];
@@ -919,13 +992,15 @@ export class PredictionHandler {
             })
         )];
 
-        const matchesById = matchIds.length > 0 ? await SELECT.from(Match).where({ ID: { in: matchIds } }) : [];
-        const matchesByExtId = matchExternalIds.length > 0
-            ? await SELECT.from(Match).where({ tournament_ID: tournamentId, externalId: { in: matchExternalIds } })
+        const matchesById: MatchLookup[] = matchIds.length > 0
+            ? (await SELECT.from(Match).where({ ID: { in: matchIds } })) as MatchLookup[]
+            : [];
+        const matchesByExtId: MatchLookup[] = matchExternalIds.length > 0
+            ? (await SELECT.from(Match).where({ tournament_ID: tournamentId, externalId: { in: matchExternalIds } })) as MatchLookup[]
             : [];
 
-        const matchMap = new Map(matchesById.map((m: any) => [m.ID, m]));
-        const matchByExtIdMap = new Map(matchesByExtId.map((m: any) => [m.externalId, m]));
+        const matchMap = toIdMap(matchesById);
+        const matchByExtIdMap = toExternalIdMap(matchesByExtId);
 
         const results = slots.map((slot: any) => {
             const homeTeam = teamMap.get(slot.homeTeam_ID) ?? null;
@@ -993,8 +1068,10 @@ export class PredictionHandler {
 
         // Batch-fetch all teams
         const teamIds = [...countMap.keys()];
-        const teams = teamIds.length > 0 ? await SELECT.from(Team).where({ ID: { in: teamIds } }) : [];
-        const teamMap = new Map(teams.map((t: any) => [t.ID, t]));
+        const teams: TeamLookup[] = teamIds.length > 0
+            ? (await SELECT.from(Team).where({ ID: { in: teamIds } })) as TeamLookup[]
+            : [];
+        const teamMap = toIdMap(teams);
 
         const results = teamIds.map(teamId => {
             const team = teamMap.get(teamId);

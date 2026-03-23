@@ -92,11 +92,30 @@ export function TournamentChampionPage() {
     const onConfirmSelection = async () => {
         if (!pendingTeam || !tournamentId) return;
         setSubmitting(true);
+        const previousSelectedTeamName = teams.find((team) => team.selected)?.name;
         try {
             const res = await playerActionsApi.pickChampion(pendingTeam.ID, tournamentId);
             setTeams((prev) =>
                 prev.map((tm) => ({ ...tm, selected: tm.name === pendingTeam.name }))
             );
+            setPickCounts((prev) => {
+                const next = new Map(prev);
+
+                if (previousSelectedTeamName && previousSelectedTeamName !== pendingTeam.name) {
+                    const previousCount = next.get(previousSelectedTeamName) ?? 0;
+                    if (previousCount <= 1) {
+                        next.delete(previousSelectedTeamName);
+                    } else {
+                        next.set(previousSelectedTeamName, previousCount - 1);
+                    }
+                }
+
+                if (previousSelectedTeamName !== pendingTeam.name) {
+                    next.set(pendingTeam.name, (next.get(pendingTeam.name) ?? 0) + 1);
+                }
+
+                return next;
+            });
             toast.success(t("predictionSlip.championSaved"), {
                 description: res.message || t("predictionSlip.championSavedDesc", { team: pendingTeam.name }),
             });
@@ -152,7 +171,9 @@ export function TournamentChampionPage() {
                     {/* Show how many users picked the same champion */}
                     {(() => {
                         const myPick = teams.find((tm) => tm.selected);
-                        const samePickCount = myPick ? (pickCounts.get(myPick.name) ?? 0) : 0;
+                        const samePickCount = myPick
+                            ? Math.max(0, (pickCounts.get(myPick.name) ?? 0) - 1)
+                            : 0;
                         if (myPick && samePickCount > 0) {
                             return (
                                 <div className="mb-4 flex items-center gap-2.5 rounded-lg border border-primary/30 bg-primary/10 px-4 py-3 text-sm text-primary">

@@ -110,19 +110,19 @@ export function CompletedMatchesTable({ matches }: CompletedMatchesTableProps) {
                                 >
                                     {/* Match teams */}
                                     <td className="px-4 py-3">
-                                        <div className="flex flex-wrap items-center gap-1.5">
-                                            <span className="flex items-center gap-1 text-sm font-bold text-white">
+                                        <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2">
+                                            <span className="flex min-w-0 items-center gap-1 text-sm font-bold text-white">
                                                 {match.home.crest
                                                     ? <img src={match.home.crest} alt={match.home.name} className="h-4 w-4 object-contain" />
                                                     : <span className={`fi fi-${match.home.flag} rounded-sm`} />}
-                                                {match.home.name}
+                                                <span className="min-w-0 break-words">{match.home.name}</span>
                                             </span>
                                             <span className="text-[10px] font-black text-muted-foreground">{t("common.vs")}</span>
-                                            <span className="flex items-center gap-1 text-sm font-bold text-white">
+                                            <span className="flex min-w-0 items-center justify-end gap-1 text-right text-sm font-bold text-white">
                                                 {match.away.crest
                                                     ? <img src={match.away.crest} alt={match.away.name} className="h-4 w-4 object-contain" />
                                                     : <span className={`fi fi-${match.away.flag} rounded-sm`} />}
-                                                {match.away.name}
+                                                <span className="min-w-0 break-words">{match.away.name}</span>
                                             </span>
                                         </div>
                                         {match.stage && (

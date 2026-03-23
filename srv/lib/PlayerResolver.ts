@@ -1,5 +1,5 @@
 import cds, { Request } from '@sap/cds';
-import { syncAuthenticatedUser } from './UserContext';
+import { resolveUserContext } from './UserContext';
 
 /** Default fallback values when user identity cannot be determined. */
 const FALLBACK_USER_EMAIL = (process.env.DEFAULT_PLAYER_EMAIL || 'local.player@conarum.invalid').toLowerCase();
@@ -38,7 +38,7 @@ export class PlayerResolver {
      */
     async resolve(req: Request, createIfMissing: boolean): Promise<any | null> {
         const { Player } = cds.entities('cnma.prediction');
-        const context = await syncAuthenticatedUser(req);
+        const context = resolveUserContext(req);
 
         let primaryPlayer: any | null = null;
         if (context.userUUID) {

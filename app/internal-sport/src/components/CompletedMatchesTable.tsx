@@ -78,10 +78,12 @@ export function CompletedMatchesTable({ matches }: CompletedMatchesTableProps) {
     return (
         <div className="overflow-hidden rounded-lg border border-border bg-card">
             <div className="overflow-x-auto">
-                <table className="min-w-[640px] w-full border-collapse">
+                <table className="min-w-[760px] w-full border-collapse">
                     <thead>
                         <tr className="border-b border-border bg-surface/60 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                            <th className="px-4 py-2.5 text-left font-bold">{t("completedMatchesTable.match")}</th>
+                            <th className="px-4 py-2.5 text-right font-bold">{t("common.home")}</th>
+                            <th className="w-[56px] px-2 py-2.5 text-center font-bold"></th>
+                            <th className="px-4 py-2.5 text-left font-bold">{t("common.away")}</th>
                             <th className="w-[120px] px-4 py-2.5 text-center font-bold">{t("completedMatchesTable.score")}</th>
                             <th className="w-[180px] px-4 py-2.5 text-center font-bold">{t("completedMatchesTable.yourPick")}</th>
                             <th className="w-[180px] px-4 py-2.5 text-right font-bold">{t("completedMatchesTable.date")}</th>
@@ -108,28 +110,34 @@ export function CompletedMatchesTable({ matches }: CompletedMatchesTableProps) {
                                     key={match.id}
                                     className="transition-colors hover:bg-surface"
                                 >
-                                    {/* Match teams */}
+                                    {/* Home team */}
                                     <td className="px-4 py-3">
-                                        <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2">
-                                            <span className="flex min-w-0 items-center gap-1 text-sm font-bold text-white">
-                                                {match.home.crest
-                                                    ? <img src={match.home.crest} alt={match.home.name} className="h-4 w-4 object-contain" />
-                                                    : <span className={`fi fi-${match.home.flag} rounded-sm`} />}
-                                                <span className="min-w-0 break-words">{match.home.name}</span>
-                                            </span>
-                                            <span className="text-[10px] font-black text-muted-foreground">{t("common.vs")}</span>
-                                            <span className="flex min-w-0 items-center justify-end gap-1 text-right text-sm font-bold text-white">
-                                                {match.away.crest
-                                                    ? <img src={match.away.crest} alt={match.away.name} className="h-4 w-4 object-contain" />
-                                                    : <span className={`fi fi-${match.away.flag} rounded-sm`} />}
-                                                <span className="min-w-0 break-words">{match.away.name}</span>
-                                            </span>
+                                        <div className="flex items-center justify-end gap-1.5 text-sm font-bold text-white">
+                                            <span className="max-w-[240px] truncate">{match.home.name}</span>
+                                            {match.home.crest
+                                                ? <img src={match.home.crest} alt={match.home.name} className="h-4 w-4 flex-shrink-0 object-contain" />
+                                                : <span className={`fi fi-${match.home.flag} flex-shrink-0 rounded-sm`} />}
                                         </div>
-                                        {match.stage && (
-                                            <span className="mt-0.5 block text-[10px] uppercase tracking-wide text-muted-foreground">
-                                                {match.stage}
-                                            </span>
-                                        )}
+                                    </td>
+
+                                    {/* vs + stage */}
+                                    <td className="px-2 py-3 text-center">
+                                        <div className="text-[10px] font-black text-muted-foreground">
+                                            {t("common.vs").toLowerCase()}
+                                        </div>
+                                        <div className="mt-0.5 h-3 text-[9px] uppercase tracking-wide text-muted-foreground">
+                                            {match.stage || ""}
+                                        </div>
+                                    </td>
+
+                                    {/* Away team */}
+                                    <td className="px-4 py-3">
+                                        <div className="flex items-center gap-1.5 text-sm font-bold text-white">
+                                            {match.away.crest
+                                                ? <img src={match.away.crest} alt={match.away.name} className="h-4 w-4 flex-shrink-0 object-contain" />
+                                                : <span className={`fi fi-${match.away.flag} flex-shrink-0 rounded-sm`} />}
+                                            <span className="max-w-[240px] truncate">{match.away.name}</span>
+                                        </div>
                                     </td>
 
                                     {/* Final score */}

@@ -54,8 +54,9 @@
     "cf:dev": "cf target -o proconarum-development-system",
     "cf:qas": "cf target -o proconarum-quality-system",
     "cf:logs": "cf logs cnma_internal_prediction_srv",
-    "start:hybrid": "concurrently \"cds watch --profile hybrid\" \"npm run dev --prefix app/internal-sport\"",
-    "start:hybrid:backend": "cds watch --profile hybrid",
+    "start:hybrid": "concurrently \"cds bind --exec --profile hybrid -- cds watch --profile hybrid --exclude app/internal-sport,app/router,ui_resources,mta_archives,gen\" \"npm run dev --prefix app/internal-sport\"",
+    "start:hybrid:backend": "cds bind --exec --profile hybrid -- cds watch --profile hybrid --exclude app/internal-sport,app/router,ui_resources,mta_archives,gen",
+    "start:hybrid:stable": "concurrently \"cds bind --exec --profile hybrid -- cds serve --profile hybrid\" \"npm run dev --prefix app/internal-sport\"",
     "start:hybrid:frontend": "npm run dev --prefix app/internal-sport"
   },
   "private": true,
@@ -86,27 +87,7 @@
                 "name": "Admin User"
               }
             },
-            "nguyen.a@conarum.com": {
-              "password": "player",
-              "roles": [
-                "PredictionUser",
-                "authenticated-user"
-              ],
-              "attr": {
-                "name": "Nguyen Van A"
-              }
-            },
-            "tran.b@conarum.com": {
-              "password": "player",
-              "roles": [
-                "PredictionUser",
-                "authenticated-user"
-              ],
-              "attr": {
-                "name": "Tran Thi B"
-              }
-            },
-            "nam.vu@conarum.com": {
+            "khang.mai@conarum.com": {
               "password": "admin",
               "roles": [
                 "PredictionAdmin",
@@ -140,7 +121,7 @@
                 "name": "Admin User"
               }
             },
-            "nam.vu@conarum.com": {
+            "khang.mai@conarum.com": {
               "password": "admin",
               "roles": [
                 "PredictionAdmin",

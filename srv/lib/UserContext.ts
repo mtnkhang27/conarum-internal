@@ -31,6 +31,16 @@ const STATIC_ADMIN_EMAILS = new Set([
     // 'tam.nguyen@conarum.com',
 ]);
 const LOCAL_LOGIN_FILE = path.resolve(process.cwd(), 'login.json');
+const AUTH_TRACE_ENABLED = process.env.AUTH_TRACE === '1';
+const USER_SYNC_COOLDOWN_MS = Number(process.env.USER_SYNC_COOLDOWN_MS ?? '30000');
+const recentUserSync = new Map<string, number>();
+const inFlightUserSync = new Map<string, Promise<void>>();
+
+const toSyncKey = (context: Pick<ResolvedUserContext, 'userUUID' | 'email'>): string | null => {
+    const raw = context.userUUID ?? context.email;
+    const value = asTrimmedString(raw)?.toLowerCase();
+    return value ?? null;
+};
 
 const asTrimmedString = (value: unknown): string | null => {
     if (typeof value !== 'string') return null;
@@ -242,12 +252,14 @@ export const resolveUserContext = (req: Request): ResolvedUserContext => {
     if (localLogin) {
         const localDisplayName = localLogin.displayName ?? localLogin.loginName;
         const localRoles = rolesFromEmail(localLogin.email);
-        console.log('[UserContext TRACE] LOCAL LOGIN PATH', JSON.stringify({
-            email: localLogin.email,
-            displayName: localDisplayName,
-            roles: localRoles,
-            isStaticAdmin: STATIC_ADMIN_EMAILS.has(localLogin.email),
-        }, null, 2));
+        if (AUTH_TRACE_ENABLED) {
+            console.log('[UserContext TRACE] LOCAL LOGIN PATH', JSON.stringify({
+                email: localLogin.email,
+                displayName: localDisplayName,
+                roles: localRoles,
+                isStaticAdmin: STATIC_ADMIN_EMAILS.has(localLogin.email),
+            }, null, 2));
+        }
         return {
             userUUID: localLogin.email,
             loginName: localLogin.loginName,
@@ -390,27 +402,29 @@ export const resolveUserContext = (req: Request): ResolvedUserContext => {
     const attrRoles = toStringArray(getAttr(req, 'roles')).map(normalizeScopeToRole);
     const scopeRoles = scopes.map(normalizeScopeToRole);
     const isStaticAdmin = normalizedEmail ? STATIC_ADMIN_EMAILS.has(normalizedEmail) : false;
-    console.log('[UserContext TRACE]', JSON.stringify({
-        email: normalizedEmail,
-        loginName,
-        userUUID,
-        identityOrigin,
-        finalRoles: roles,
-        finalScopes: scopes,
-        breakdown: {
-            fromReqUser: userRolesFromReq,
-            fromAttrRoles: attrRoles,
-            fromScopeNormalized: scopeRoles,
-            isStaticAdmin,
-            isCloud: isCloudRuntime(),
-            isDev: isDevelopmentRuntime(),
-        },
-        reqUserRaw: {
-            id: (req.user as any)?.id,
-            roles: (req.user as any)?.roles,
-            scopes: (req.user as any)?.scopes,
-        },
-    }, null, 2));
+    if (AUTH_TRACE_ENABLED) {
+        console.log('[UserContext TRACE]', JSON.stringify({
+            email: normalizedEmail,
+            loginName,
+            userUUID,
+            identityOrigin,
+            finalRoles: roles,
+            finalScopes: scopes,
+            breakdown: {
+                fromReqUser: userRolesFromReq,
+                fromAttrRoles: attrRoles,
+                fromScopeNormalized: scopeRoles,
+                isStaticAdmin,
+                isCloud: isCloudRuntime(),
+                isDev: isDevelopmentRuntime(),
+            },
+            reqUserRaw: {
+                id: (req.user as any)?.id,
+                roles: (req.user as any)?.roles,
+                scopes: (req.user as any)?.scopes,
+            },
+        }, null, 2));
+    }
 
     return result;
 };
@@ -427,75 +441,114 @@ export const syncAuthenticatedUser = async (req: Request): Promise<ResolvedUserC
         return context;
     }
 
-    let player = null;
-    if (context.userUUID) {
-        player = await SELECT.one.from(Player).where({ userUUID: context.userUUID });
-    }
-    if (!player && context.email) {
-        player = await SELECT.one.from(Player).where({ email: context.email });
+    const syncKey = toSyncKey(context);
+    if (syncKey) {
+        const lastSyncedAt = recentUserSync.get(syncKey);
+        if (lastSyncedAt && (Date.now() - lastSyncedAt) < USER_SYNC_COOLDOWN_MS) {
+            return context;
+        }
+
+        const inFlight = inFlightUserSync.get(syncKey);
+        if (inFlight) {
+            await inFlight;
+            return context;
+        }
     }
 
-    if (player) {
-        const existingDisplayName = asTrimmedString(player.displayName);
-        const existingGivenName = asTrimmedString(player.givenName);
-        const existingFamilyName = asTrimmedString(player.familyName);
+    const performSync = async (): Promise<void> => {
+        let player = null;
+        if (context.userUUID) {
+            player = await SELECT.one.from(Player).where({ userUUID: context.userUUID });
+        }
+        if (!player && context.email) {
+            player = await SELECT.one.from(Player).where({ email: context.email });
+        }
 
-        const updateEntry: Record<string, unknown> = {
-            userUUID: context.userUUID ?? player.userUUID ?? null,
-            loginName: context.loginName ?? player.loginName ?? null,
-            email: context.email ?? player.email ?? null,
+        if (player) {
+            const existingDisplayName = asTrimmedString(player.displayName);
+            const existingGivenName = asTrimmedString(player.givenName);
+            const existingFamilyName = asTrimmedString(player.familyName);
+
+            const updateEntry: Record<string, unknown> = {
+                userUUID: context.userUUID ?? player.userUUID ?? null,
+                loginName: context.loginName ?? player.loginName ?? null,
+                email: context.email ?? player.email ?? null,
+                roles: JSON.stringify(context.roles),
+                scopes: JSON.stringify(context.scopes),
+                identityOrigin: context.identityOrigin ?? player.identityOrigin ?? null,
+                lastLoginAt: new Date().toISOString(),
+            };
+
+            if (!existingDisplayName && context.displayName) {
+                updateEntry.displayName = context.displayName;
+            }
+            if (!existingGivenName && context.givenName) {
+                updateEntry.givenName = context.givenName;
+            }
+            if (!existingFamilyName && context.familyName) {
+                updateEntry.familyName = context.familyName;
+            }
+
+            await UPDATE(Player).where({ ID: player.ID }).set(updateEntry);
+            return;
+        }
+
+        if (!context.email) {
+            // Cannot create Player without email, but still return resolved context.
+            return;
+        }
+
+        const now = new Date().toISOString();
+        const playerEntry = {
+            userUUID: context.userUUID ?? null,
+            loginName: context.loginName,
+            email: context.email ?? null,
+            displayName: context.displayName ?? context.email ?? context.loginName ?? 'Unknown',
+            givenName: context.givenName,
+            familyName: context.familyName,
             roles: JSON.stringify(context.roles),
             scopes: JSON.stringify(context.scopes),
-            identityOrigin: context.identityOrigin ?? player.identityOrigin ?? null,
-            lastLoginAt: new Date().toISOString(),
+            identityOrigin: context.identityOrigin,
+            lastLoginAt: now,
         };
 
-        if (!existingDisplayName && context.displayName) {
-            updateEntry.displayName = context.displayName;
+        try {
+            await INSERT.into(Player).entries(playerEntry);
+        } catch {
+            // Handle concurrent first-login requests.
+            const existing = await SELECT.one.from(Player).where({ email: context.email });
+            try {
+                if (existing) {
+                    await UPDATE(Player).where({ ID: existing.ID }).set(playerEntry);
+                }
+            } catch {
+                // Last-write-wins is acceptable for login metadata.
+            }
         }
-        if (!existingGivenName && context.givenName) {
-            updateEntry.givenName = context.givenName;
-        }
-        if (!existingFamilyName && context.familyName) {
-            updateEntry.familyName = context.familyName;
-        }
-
-        await UPDATE(Player).where({ ID: player.ID }).set(updateEntry);
-        return context;
-    }
-
-    if (!context.email) {
-        // Cannot create Player without email, but still return resolved context.
-        return context;
-    }
-
-    const now = new Date().toISOString();
-    const playerEntry = {
-        userUUID: context.userUUID ?? null,
-        loginName: context.loginName,
-        email: context.email ?? null,
-        displayName: context.displayName ?? context.email ?? context.loginName ?? 'Unknown',
-        givenName: context.givenName,
-        familyName: context.familyName,
-        roles: JSON.stringify(context.roles),
-        scopes: JSON.stringify(context.scopes),
-        identityOrigin: context.identityOrigin,
-        lastLoginAt: now,
     };
 
-    try {
-        await INSERT.into(Player).entries(playerEntry);
-    } catch {
-        // Handle concurrent first-login requests.
-        const existing = await SELECT.one.from(Player).where({ email: context.email });
-        try {
-            if (existing) {
-                await UPDATE(Player).where({ ID: existing.ID }).set(playerEntry);
-            }
-        } catch {
-            // Last-write-wins is acceptable for login metadata.
-        }
+    if (syncKey) {
+        const pendingSync = performSync()
+            .then(() => {
+                recentUserSync.set(syncKey, Date.now());
+                if (recentUserSync.size > 500) {
+                    const cutoff = Date.now() - USER_SYNC_COOLDOWN_MS * 4;
+                    for (const [key, ts] of recentUserSync.entries()) {
+                        if (ts < cutoff) {
+                            recentUserSync.delete(key);
+                        }
+                    }
+                }
+            })
+            .finally(() => {
+                inFlightUserSync.delete(syncKey);
+            });
+
+        inFlightUserSync.set(syncKey, pendingSync);
+        await pendingSync;
+        return context;
     }
 
+    await performSync();
     return context;
 };

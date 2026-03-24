@@ -1,14 +1,14 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { MatchPredictionTable } from "@/components/MatchPredictionTable";
-import { LiveMatchesTable } from "@/components/LiveMatchesTable";
-import { CompletedMatchesTable } from "@/components/CompletedMatchesTable";
-import { TournamentSelector } from "@/components/TournamentSelector";
-import { LeaderboardSection } from "@/components/LeaderboardSection";
-import { RecentPredictionsSection } from "@/components/RecentPredictionsSection";
-import { TournamentBracket } from "@/components/TournamentBracket";
-import { LoadingOverlay } from "@/components/LoadingOverlay";
+import { MatchPredictionTable } from "./components/MatchPredictionTable";
+import { LiveMatchesTable } from "./components/LiveMatchesTable";
+import { CompletedMatchesTable } from "./components/CompletedMatchesTable";
+import { TournamentSelector } from "@/components/shared/TournamentSelector";
+import { LeaderboardSection } from "./components/LeaderboardSection";
+import { RecentPredictionsSection } from "./components/RecentPredictionsSection";
+import { TournamentBracket } from "./components/TournamentBracket";
+import { LoadingOverlay } from "@/components/shared/LoadingOverlay";
 import { useActiveSection } from "@/hooks/useActiveSection";
 import {
     playerMatchesApi,
@@ -77,8 +77,14 @@ export function SportPage() {
     const [predictions, setPredictions] = useState<RecentPredictionItem[]>([]);
     const [loadingPredictions, setLoadingPredictions] = useState(true);
 
-    const loadMatchData = useCallback(async (tid: string) => {
-        setLoadingMatches(true);
+    const loadMatchData = useCallback(async (
+        tid: string,
+        options?: { showLoading?: boolean }
+    ) => {
+        const showLoading = options?.showLoading ?? true;
+        if (showLoading) {
+            setLoadingMatches(true);
+        }
         const filterTid = tid || undefined;
         try {
             const [m, u, l, c] = await Promise.all([
@@ -94,7 +100,9 @@ export function SportPage() {
         } catch {
             // fall back silently
         } finally {
-            setLoadingMatches(false);
+            if (showLoading) {
+                setLoadingMatches(false);
+            }
         }
     }, []);
 
@@ -111,7 +119,7 @@ export function SportPage() {
     }, []);
 
     useEffect(() => {
-        loadMatchData(tournamentId);
+        loadMatchData(tournamentId, { showLoading: true });
     }, [tournamentId, loadMatchData, location.key]);
 
     useEffect(() => {
@@ -131,9 +139,11 @@ export function SportPage() {
     }, [tournamentId]);
 
     // Callback for MatchCard to trigger refresh after submit/cancel
-    const refreshAll = useCallback(() => {
-        loadMatchData(tournamentId);
-        loadPredictions();
+    const refreshAll = useCallback(async () => {
+        await Promise.all([
+            loadMatchData(tournamentId, { showLoading: false }),
+            loadPredictions(),
+        ]);
     }, [tournamentId, loadMatchData, loadPredictions]);
 
     // Scroll to hash section on mount / navigation

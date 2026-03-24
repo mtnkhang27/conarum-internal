@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { MatchCard } from "@/components/MatchCard";
+import { MatchCard } from "./MatchCard";
 import { DateRangePicker } from "@/components/ui/date-range-picker";
 import type { Match } from "@/types";
 
@@ -28,7 +28,7 @@ const parseDateInputValue = (value?: string) => {
 
 interface MatchPredictionTableProps {
     matches: Match[];
-    onPredictionChange?: () => void;
+    onPredictionChange?: () => void | Promise<void>;
 }
 
 export function MatchPredictionTable({ matches, onPredictionChange }: MatchPredictionTableProps) {

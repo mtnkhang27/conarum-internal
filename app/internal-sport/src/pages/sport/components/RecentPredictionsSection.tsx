@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Clock, CheckCircle2, XCircle, MinusCircle, Trophy, Target } from "lucide-react";
-import { LoadingOverlay } from "@/components/LoadingOverlay";
+import { LoadingOverlay } from "@/components/shared/LoadingOverlay";
 import type { RecentPredictionItem, ScoreBetDetail } from "@/types";
 
 const ITEMS_PER_PAGE = 3;

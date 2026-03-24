@@ -50,7 +50,7 @@ function getTeamButtonClass(optionKey: PickKey, selected: PickKey, isCompleted: 
 interface MatchCardProps {
     match: Match;
     isCompleted?: boolean;
-    onPredictionChange?: () => void;
+    onPredictionChange?: () => void | Promise<void>;
 }
 
 export function MatchCard({ match, isCompleted = false, onPredictionChange }: MatchCardProps) {
@@ -157,7 +157,7 @@ export function MatchCard({ match, isCompleted = false, onPredictionChange }: Ma
             // Keep Submit active so user can make a new prediction if they want
             setJustCancelled(true);
             // Notify parent to refresh predictions list
-            onPredictionChange?.();
+            await onPredictionChange?.();
         } catch (e: any) {
             toast.error(t("matchCard.failedToRemove"), {
                 description: e.message || t("matchCard.pleaseTryAgain"),
@@ -188,7 +188,7 @@ export function MatchCard({ match, isCompleted = false, onPredictionChange }: Ma
             setInitialOption(selectedOption);
             setInitialScores([...scores]);
             // Notify parent to refresh predictions list
-            onPredictionChange?.();
+            await onPredictionChange?.();
         } catch (e: any) {
             toast.error(t("matchCard.failedToSave"), {
                 description: e.message || t("matchCard.pleaseTryAgain"),

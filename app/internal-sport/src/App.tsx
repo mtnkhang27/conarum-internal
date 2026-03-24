@@ -2,8 +2,8 @@ import { Routes, Route, Navigate, useNavigate } from "react-router-dom";
 import { useRef, useEffect } from "react";
 import { AppShell } from "@/layouts/AppShell";
 import { AdminLayout } from "@/layouts/AdminLayout";
-import { SportPage } from "@/pages/SportPage";
-import { AccountPage } from "@/pages/AccountPage";
+import { SportPage } from "@/pages/sport/SportPage";
+import { AccountPage } from "@/pages/account/AccountPage";
 import { MatchManagement } from "@/pages/admin/MatchManagement";
 import { MatchDetail } from "@/pages/admin/MatchDetail";
 import { TeamManagement } from "@/pages/admin/TeamManagement";
@@ -12,7 +12,7 @@ import { TournamentManagement } from "@/pages/admin/TournamentManagement";
 import { TournamentDetail } from "@/pages/admin/TournamentDetail";
 import { PlayerManagement } from "@/pages/admin/PlayerManagement";
 import { PayoutManagement } from "@/pages/admin/PayoutManagement";
-import { TournamentChampionPage } from "./pages/TournamentChampionPage";
+import { TournamentChampionPage } from "./pages/tournament-champion/TournamentChampionPage";
 import { useFLPSyncDirect, getInitialFLPRoute } from "./hooks/useFLPSync";
 
 // Component to sync React Router with FLP shell URL

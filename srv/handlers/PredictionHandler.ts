@@ -3,6 +3,61 @@ import { ScoringEngine } from '../lib/ScoringEngine';
 import { materializeSlotBetsForMatch } from '../lib/SlotBetMaterializer';
 import { PlayerResolver } from '../lib/PlayerResolver';
 
+type TeamLookup = {
+    ID?: string | null;
+    name?: string | null;
+    flagCode?: string | null;
+    crest?: string | null;
+};
+
+type PlayerLookup = {
+    ID?: string | null;
+    email?: string | null;
+    bio?: string | null;
+    country?: unknown;
+    country_code?: string | null;
+    favoriteTeam_ID?: string | null;
+    avatarUrl?: string | null;
+    displayName?: string | null;
+    givenName?: string | null;
+    familyName?: string | null;
+    loginName?: string | null;
+};
+
+type MatchLookup = {
+    ID?: string | null;
+    homeTeam_ID?: string | null;
+    awayTeam_ID?: string | null;
+    externalId?: number | null;
+    homeScore?: number | null;
+    awayScore?: number | null;
+    status?: string | null;
+    kickoff?: string | null;
+};
+
+type TournamentLookup = {
+    ID?: string | null;
+    name?: string | null;
+};
+
+const toIdMap = <T extends { ID?: string | null }>(rows: readonly T[]) =>
+    new Map<string, T>(
+        rows.flatMap((row) =>
+            typeof row.ID === 'string' && row.ID.length > 0
+                ? [[row.ID, row] as const]
+                : []
+        )
+    );
+
+const toExternalIdMap = <T extends { externalId?: number | null }>(rows: readonly T[]) =>
+    new Map<number, T>(
+        rows.flatMap((row) =>
+            typeof row.externalId === 'number'
+                ? [[row.externalId, row] as const]
+                : []
+        )
+    );
+
 /**
  * PredictionHandler — Handles user prediction submissions.
  * Validates business rules before persisting predictions.
@@ -854,11 +909,11 @@ export class PredictionHandler {
         for (const p of predictions) {
             const match = matchMap.get(p.match_ID);
             if (!match) continue;
-            const home = teamMap.get(match.homeTeam_ID);
-            const away = teamMap.get(match.awayTeam_ID);
+            const home = match.homeTeam_ID ? teamMap.get(match.homeTeam_ID) : undefined;
+            const away = match.awayTeam_ID ? teamMap.get(match.awayTeam_ID) : undefined;
             const tournament = p.tournament_ID ? tournamentMap.get(p.tournament_ID) : null;
 
-            const scoreBets = (scoreBetMap.get(match.ID) ?? []).map((sb: any) => ({
+            const scoreBets = ((match.ID ? scoreBetMap.get(match.ID) : undefined) ?? []).map((sb: any) => ({
                 betId: sb.ID,
                 predictedHomeScore: sb.predictedHomeScore,
                 predictedAwayScore: sb.predictedAwayScore,
@@ -919,9 +974,11 @@ export class PredictionHandler {
             })
         )];
 
-        const matchesById = matchIds.length > 0 ? await SELECT.from(Match).where({ ID: { in: matchIds } }) : [];
-        const matchesByExtId = matchExternalIds.length > 0
-            ? await SELECT.from(Match).where({ tournament_ID: tournamentId, externalId: { in: matchExternalIds } })
+        const matchesById: MatchLookup[] = matchIds.length > 0
+            ? (await SELECT.from(Match).where({ ID: { in: matchIds } })) as MatchLookup[]
+            : [];
+        const matchesByExtId: MatchLookup[] = matchExternalIds.length > 0
+            ? (await SELECT.from(Match).where({ tournament_ID: tournamentId, externalId: { in: matchExternalIds } })) as MatchLookup[]
             : [];
 
         const matchMap: Map<string, any> = new Map(matchesById.map((m: any) => [m.ID as string, m]));

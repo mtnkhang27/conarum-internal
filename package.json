@@ -135,6 +135,15 @@
             }
           }
         }
+      },
+      "db": {
+        "kind": "hana",
+        "pool": {
+          "max": 20,
+          "acquireTimeoutMillis": 60000,
+          "idleTimeoutMillis": 30000,
+          "communicationTimeout": 600000
+        }
       }
     }
   },

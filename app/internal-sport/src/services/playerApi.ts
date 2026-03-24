@@ -1253,8 +1253,9 @@ export const playerTournamentQueryApi = {
 
     /** Get the tournament bracket (knockout tree). */
     async getTournamentBracket(tournamentId: string) {
+        const filter = encodeURIComponent(`tournament_ID eq '${tournamentId}'`);
         return json<any[]>(
-            `${BASE}/getTournamentBracket(tournamentId='${tournamentId}')`
+            `${BASE}/TournamentBracketView?$filter=${filter}&$orderby=stage asc,position asc`
         );
     },
 

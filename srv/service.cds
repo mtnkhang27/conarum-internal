@@ -232,6 +232,57 @@ service PlayerService {
                 t.name             as tournamentName
         };
 
+    /**
+     * Knockout bracket data as read-only view.
+     * Replaces the getTournamentBracket() function.
+     * For slots linked only by external IDs, an after-READ handler enriches leg scores/status.
+     */
+    @readonly
+    entity TournamentBracketView    as
+        select from db.BracketSlot as slot
+            left join db.Team as home
+                on home.ID = slot.homeTeam.ID
+            left join db.Team as away
+                on away.ID = slot.awayTeam.ID
+            left join db.Team as winner
+                on winner.ID = slot.winner.ID
+            left join db.Match as leg1
+                on leg1.ID = slot.leg1.ID
+            left join db.Match as leg2
+                on leg2.ID = slot.leg2.ID {
+            key slot.ID            as slotId,
+                slot.tournament.ID as tournament_ID,
+                slot.stage         as stage,
+                slot.position      as position,
+                slot.label         as label,
+                slot.homeTeam.ID   as homeTeamId,
+                home.name          as homeTeamName,
+                home.flagCode      as homeTeamFlag,
+                home.crest         as homeTeamCrest,
+                slot.awayTeam.ID   as awayTeamId,
+                away.name          as awayTeamName,
+                away.flagCode      as awayTeamFlag,
+                away.crest         as awayTeamCrest,
+                leg1.ID            as leg1Id,
+                slot.leg1ExternalId as leg1ExternalId,
+                leg1.homeScore     as leg1HomeScore,
+                leg1.awayScore     as leg1AwayScore,
+                leg1.status        as leg1Status,
+                leg2.ID            as leg2Id,
+                slot.leg2ExternalId as leg2ExternalId,
+                leg2.homeScore     as leg2HomeScore,
+                leg2.awayScore     as leg2AwayScore,
+                leg2.status        as leg2Status,
+                slot.homeAgg       as homeAgg,
+                slot.awayAgg       as awayAgg,
+                slot.homePen       as homePen,
+                slot.awayPen       as awayPen,
+                slot.winner.ID     as winnerId,
+                winner.name        as winnerName,
+                slot.nextSlot.ID   as nextSlotId,
+                slot.nextSlotSide  as nextSlotSide
+        };
+
     // ── User-Specific Views ──────────────────────────────────
 
     /** Current user's match outcome predictions. */
@@ -412,40 +463,6 @@ service PlayerService {
 
     function getUpcomingMatches(tournamentId: UUID) returns many UpcomingMatchItem;
 
-    /** Score bet detail within a recent prediction. */
-    type ScoreBetDetail {
-        betId              : UUID;
-        predictedHomeScore : Integer;
-        predictedAwayScore : Integer;
-        status             : String;
-        isCorrect          : Boolean;
-        payout             : Decimal;
-    }
-
-    /** Recent predictions for the current user. */
-    type RecentPredictionItem {
-        predictionId   : UUID;
-        matchId        : UUID;
-        homeTeam       : String;
-        homeFlag       : String;
-        homeCrest      : String;
-        awayTeam       : String;
-        awayFlag       : String;
-        awayCrest      : String;
-        tournamentName : String;
-        pick           : String;
-        status         : String;
-        isCorrect      : Boolean;
-        pointsEarned   : Decimal;
-        submittedAt    : DateTime;
-        kickoff        : DateTime;
-        homeScore      : Integer;
-        awayScore      : Integer;
-        scoreBets      : array of ScoreBetDetail;
-    }
-
-    function getMyRecentPredictions(limit: Integer) returns many RecentPredictionItem;
-
     /** League standings for a league-format tournament. */
     type StandingItem {
         teamId       : UUID;
@@ -463,42 +480,6 @@ service PlayerService {
     }
 
     function getStandings(tournamentId: UUID)   returns many StandingItem;
-
-    /** Knockout bracket for a tournament. */
-    type BracketSlotItem {
-        slotId       : UUID;
-        stage        : String;
-        position     : Integer;
-        label        : String;
-        homeTeamId   : UUID;
-        homeTeamName : String;
-        homeTeamFlag : String;
-        homeTeamCrest: String;
-        awayTeamId   : UUID;
-        awayTeamName : String;
-        awayTeamFlag : String;
-        awayTeamCrest: String;
-        leg1Id       : UUID;
-        leg1ExternalId: Integer;
-        leg1HomeScore: Integer;
-        leg1AwayScore: Integer;
-        leg1Status   : String;
-        leg2Id       : UUID;
-        leg2ExternalId: Integer;
-        leg2HomeScore: Integer;
-        leg2AwayScore: Integer;
-        leg2Status   : String;
-        homeAgg      : Integer;
-        awayAgg      : Integer;
-        homePen      : Integer;
-        awayPen      : Integer;
-        winnerId     : UUID;
-        winnerName   : String;
-        nextSlotId   : UUID;
-        nextSlotSide : String;
-    }
-
-    function getTournamentBracket(tournamentId: UUID) returns many BracketSlotItem;
 
     /** Champion pick counts by team for a tournament. */
     type ChampionPickCountItem {

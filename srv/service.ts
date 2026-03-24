@@ -54,6 +54,11 @@ export class PlayerService extends cds.ApplicationService {
         this.before('READ', 'MySlotScoreBets', this.predictionHandler.filterByCurrentUser.bind(this.predictionHandler));
         this.before('READ', 'MyChampionPick', this.predictionHandler.filterByCurrentUser.bind(this.predictionHandler));
 
+        // ── Filter view-based entities to current user ──
+        this.after('READ', 'CompletedMatchesView', this.predictionHandler.enrichCompletedMatchesView.bind(this.predictionHandler));
+        this.before('READ', 'RecentPredictionsView', this.predictionHandler.filterByCurrentUser.bind(this.predictionHandler));
+        this.after('READ', 'RecentPredictionsView', this.predictionHandler.enrichRecentPredictionsView.bind(this.predictionHandler));
+
         return super.init();
     }
 }

@@ -170,9 +170,89 @@ body::before {
   background-clip: text;
 }
 
-.match-card {
-  min-height: 220px;
+.match-card,
+.mc-card {
+  min-height: 240px;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
+  background: linear-gradient(
+    165deg,
+    rgba(30, 30, 56, 0.95) 0%,
+    rgba(20, 20, 40, 0.98) 100%
+  );
+  backdrop-filter: blur(12px);
+}
+
+/* Remove number input spinners for score inputs */
+.mc-score-input::-webkit-outer-spin-button,
+.mc-score-input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+.mc-score-input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+
+/* Score input hover effect */
+.mc-score-input:hover:not(:disabled) {
+  border-color: rgba(255, 255, 255, 0.15);
+  background-color: rgba(255, 255, 255, 0.06);
+}
+
+/* Pick button full-width */
+.mc-pick-btn {
+  width: 100%;
+  cursor: pointer;
+}
+
+/* Selected pick shimmer */
+.mc-pick-selected::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    135deg,
+    rgba(109, 63, 199, 0.1) 0%,
+    rgba(139, 92, 246, 0.05) 100%
+  );
+  border-radius: inherit;
+}
+
+/* Team badge hover scale */
+.mc-team-badge {
+  transition: transform 0.2s ease;
+}
+.mc-card:hover .mc-team-badge {
+  transform: scale(1.05);
+}
+
+/* Winner dot animation */
+.mc-winner-dot {
+  animation: mc-pop-in 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes mc-pop-in {
+  0% { transform: scale(0); opacity: 0; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+/* Submit button shine on hover */
+.mc-btn-submit:not(:disabled):hover::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.08) 0%,
+    transparent 50%
+  );
+  pointer-events: none;
+}
+
+.mc-btn-submit {
+  position: relative;
+  overflow: hidden;
 }

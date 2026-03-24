@@ -39,14 +39,6 @@ function optionKeyAt(index: number): PickKey {
     return "";
 }
 
-function getTeamButtonClass(optionKey: PickKey, selected: PickKey, isCompleted: boolean, isSaving: boolean) {
-    if (selected === optionKey) {
-        return "rounded-lg border border-primary bg-primary py-2 text-xs font-bold text-white shadow-lg transition-all glow-purple";
-    }
-    return `rounded-lg border border-border bg-surface-dark py-2 text-xs font-bold text-muted-foreground transition-all hover:border-primary hover:text-primary ${isCompleted || isSaving ? "pointer-events-none opacity-70" : ""
-        }`;
-}
-
 interface MatchCardProps {
     match: Match;
     isCompleted?: boolean;
@@ -58,7 +50,6 @@ export function MatchCard({ match, isCompleted = false, onPredictionChange }: Ma
     const maxBets = match.maxBets ?? 3;
     const isSlotBet = match.betTarget === "slot";
     const slotId = match.slotId || match.id;
-    // Track the initial state loaded from server to distinguish "has existing prediction" vs "new pick"
     const [initialOption, setInitialOption] = useState<PickKey>(
         normalizePick(match.selectedOption, match.home.name, match.away.name)
     );
@@ -75,7 +66,6 @@ export function MatchCard({ match, isCompleted = false, onPredictionChange }: Ma
     });
     const [isSaving, setIsSaving] = useState(false);
     const [cancelConfirmOpen, setCancelConfirmOpen] = useState(false);
-    // Track whether the user just cancelled an existing prediction (to keep Submit active)
     const [justCancelled, setJustCancelled] = useState(false);
 
     useEffect(() => {
@@ -93,16 +83,8 @@ export function MatchCard({ match, isCompleted = false, onPredictionChange }: Ma
 
     const hasExistingPrediction = !!initialOption;
     const hasCurrentSelection = !!selectedOption;
-
-    // Check if user has made any changes from the loaded state
     const hasChanges = selectedOption !== initialOption ||
         JSON.stringify(scores) !== JSON.stringify(initialScores);
-
-    // Determine button states:
-    // - No prediction + no changes → both disabled
-    // - User made changes (picked/scored) → both active
-    // - Existing prediction loaded → both active
-    // - Just cancelled existing prediction → Submit active (to re-submit), Cancel disabled until user picks
     const isIdle = !hasExistingPrediction && !hasCurrentSelection && !hasChanges && !justCancelled;
     const cancelDisabled = isSaving || isIdle;
     const submitDisabled = isSaving || (!hasCurrentSelection && !justCancelled);
@@ -110,7 +92,6 @@ export function MatchCard({ match, isCompleted = false, onPredictionChange }: Ma
     const onPickOption = (option: PickKey) => {
         if (isCompleted || isSaving) return;
         setSelectedOption((prev) => (prev === option ? "" : option));
-        // Once user picks after cancel, clear the justCancelled flag
         if (justCancelled) setJustCancelled(false);
     };
 
@@ -123,21 +104,16 @@ export function MatchCard({ match, isCompleted = false, onPredictionChange }: Ma
         });
     };
 
-    // Cancel button handler
     const onCancel = () => {
         if (isCompleted || isSaving) return;
-
         if (hasExistingPrediction) {
-            // Has existing prediction from server → show confirmation popup
             setCancelConfirmOpen(true);
         } else {
-            // No existing prediction → just clear the local selection
             setSelectedOption("");
             setScores(Array.from({ length: maxBets }, () => ({ home: 0, away: 0 })));
         }
     };
 
-    // Confirm cancel of existing prediction (delete from server)
     const onConfirmCancelPrediction = async () => {
         setCancelConfirmOpen(false);
         setIsSaving(true);
@@ -148,15 +124,12 @@ export function MatchCard({ match, isCompleted = false, onPredictionChange }: Ma
             toast.success(t("matchCard.predictionRemoved"), {
                 description: res.message || t("matchCard.predictionRemovedDesc", { home: match.home.name, away: match.away.name }),
             });
-            // Clear all local state
             setSelectedOption("");
             setInitialOption("");
             const emptyScores = Array.from({ length: maxBets }, () => ({ home: 0, away: 0 }));
             setScores(emptyScores);
             setInitialScores(emptyScores);
-            // Keep Submit active so user can make a new prediction if they want
             setJustCancelled(true);
-            // Notify parent to refresh predictions list
             await onPredictionChange?.();
         } catch (e: any) {
             toast.error(t("matchCard.failedToRemove"), {
@@ -167,13 +140,10 @@ export function MatchCard({ match, isCompleted = false, onPredictionChange }: Ma
         }
     };
 
-    // Submit prediction  
     const onSubmit = async () => {
         if (isCompleted || isSaving || !hasCurrentSelection) return;
-
         setIsSaving(true);
         const apiPick = selectedOption;
-
         try {
             const scoresToSend = match.scoreBettingEnabled
                 ? scores.map((s) => ({ homeScore: s.home, awayScore: s.away }))
@@ -184,10 +154,8 @@ export function MatchCard({ match, isCompleted = false, onPredictionChange }: Ma
             toast.success(t("matchCard.predictionSaved"), {
                 description: res.message || t("matchCard.predictionSavedDesc", { home: match.home.name, away: match.away.name }),
             });
-            // Update initial state to reflect saved prediction
             setInitialOption(selectedOption);
             setInitialScores([...scores]);
-            // Notify parent to refresh predictions list
             await onPredictionChange?.();
         } catch (e: any) {
             toast.error(t("matchCard.failedToSave"), {
@@ -198,53 +166,109 @@ export function MatchCard({ match, isCompleted = false, onPredictionChange }: Ma
         }
     };
 
+    /* ── Team logo/flag render helper ── */
+    const renderTeamBadge = (team: Match["home"], size: "lg" | "sm" = "lg") => {
+        const dim = size === "lg" ? "h-12 w-12" : "h-8 w-8";
+        if (team.crest) {
+            return <img src={team.crest} alt={team.name} className={`${dim} object-contain drop-shadow-lg`} />;
+        }
+        if (team.flag) {
+            return <span className={`fi fi-${team.flag} ${size === "lg" ? "!w-12 text-4xl" : "!w-8 text-2xl"} rounded-sm shadow-md`} />;
+        }
+        return (
+            <span className={`inline-flex ${dim} items-center justify-center rounded-full bg-white/5 border border-white/10 text-xs font-black text-muted-foreground`}>
+                ?
+            </span>
+        );
+    };
+
+    /* ── Pick button helper ── */
+    const renderPickButton = (optionKey: PickKey, label: string) => {
+        const isSelected = selectedOption === optionKey;
+        const isDraw = optionKey === "draw";
+
+        return (
+            <button
+                type="button"
+                onClick={() => onPickOption(optionKey)}
+                disabled={isSaving || isCompleted || !optionKey}
+                className={`
+                    mc-pick-btn relative overflow-hidden rounded-xl px-3 py-2.5 text-xs font-bold
+                    transition-all duration-200 ease-out
+                    disabled:pointer-events-none disabled:opacity-50
+                    ${isSelected
+                        ? isDraw
+                            ? "mc-pick-selected-draw bg-gradient-to-br from-amber-500/20 to-yellow-600/20 border-2 border-amber-400/60 text-amber-300 shadow-[0_0_20px_rgba(251,191,36,0.3)]"
+                            : "mc-pick-selected bg-gradient-to-br from-primary/30 to-secondary/20 border-2 border-primary text-white shadow-[0_0_20px_rgba(109,63,199,0.4)]"
+                        : "border border-white/10 bg-white/[0.03] text-white/60 hover:bg-white/[0.06] hover:border-white/20 hover:text-white/90"
+                    }
+                `}
+            >
+                {isSelected && (
+                    <span className="mc-pick-check absolute top-1 right-1.5 text-[10px]">✓</span>
+                )}
+                <span className="relative z-[1]">{label}</span>
+            </button>
+        );
+    };
+
     return (
         <>
-            <div className="match-card relative rounded-xl border border-border bg-card p-5 transition-all hover:border-primary/40 hover:shadow-lg">
-                {/* Per-card loading overlay */}
+            <div className={`mc-card group relative rounded-2xl border transition-all duration-300 overflow-hidden
+                ${hasCurrentSelection
+                    ? "border-primary/50 shadow-[0_4px_30px_rgba(109,63,199,0.15)]"
+                    : "border-white/[0.08] hover:border-white/[0.15] hover:shadow-lg"
+                }
+            `}>
+                {/* Saving overlay */}
                 {isSaving && (
-                    <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 rounded-xl bg-card/80 backdrop-blur-sm">
+                    <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 rounded-2xl bg-black/60 backdrop-blur-sm">
                         <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary/30 border-t-primary" />
                         <span className="text-xs font-bold text-primary animate-pulse">{t("common.saving")}</span>
                     </div>
                 )}
-                <div>
-                    <div className="mb-4 flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                            <span className="rounded bg-success/15 px-2 py-1 text-[10px] font-bold text-success">
-                                {match.outcomePoints} {t("common.pts")}
-                            </span>
-                            {match.stage && (
-                                <span className="rounded border border-border bg-surface-dark px-2 py-1 text-[10px] font-bold text-foreground/80">
-                                    {match.stage}
-                                </span>
-                            )}
-                          
-                            {/* {isSlotBet && (
-                                <span className="rounded border border-warning/40 bg-warning/15 px-2 py-1 text-[10px] font-bold text-warning">
-                                    {t("matchCard.futureRound")}
-                                </span>
-                            )} */}
-                        </div>
-                        <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
-                            {match.timeLabel}
+
+                {/* Card header — points + stage + time */}
+                <div className="mc-header flex items-center justify-between px-5 pt-4 pb-2">
+                    <div className="flex items-center gap-2">
+                        <span className="mc-pts-badge inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2.5 py-1 text-[10px] font-bold text-emerald-400 ring-1 ring-emerald-500/25">
+                            <svg className="h-3 w-3" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" /></svg>
+                            {match.outcomePoints} {t("common.pts")}
                         </span>
+                        {match.stage && (
+                            <span className="rounded-full bg-white/[0.06] px-2.5 py-1 text-[10px] font-semibold text-white/60">
+                                {match.stage}
+                            </span>
+                        )}
                     </div>
+                    <span className="text-[10px] font-medium tracking-wider text-white/40">
+                        {match.timeLabel}
+                    </span>
+                </div>
 
-                    <div className="mb-4 flex items-center justify-between border-y border-border/50 py-4">
-                        <div className="flex flex-1 flex-col items-center justify-start h-full">
-                            {match.home.crest
-                                ? <img src={match.home.crest} alt={match.home.name} className="mb-2 h-8 w-8 object-contain" />
-                                : match.home.flag
-                                    ? <span className={`fi fi-${match.home.flag} mb-2 !w-8 rounded-sm text-2xl shadow-md`} />
-                                    : <span className="mb-2 inline-flex h-8 w-8 items-center justify-center rounded-full border border-border bg-surface-dark text-xs font-black text-muted-foreground">?</span>}
-                            <span className="text-sm font-bold text-white text-center">{match.home.name}</span>
+                {/* ── Team matchup section ── */}
+                <div className="mc-matchup relative px-5 py-4">
+                    <div className="flex items-center justify-between">
+                        {/* Home team */}
+                        <div className="mc-team flex flex-col items-center gap-2 w-[90px]">
+                            <div className="mc-team-badge relative">
+                                {renderTeamBadge(match.home)}
+                                {selectedOption === "home" && (
+                                    <span className="mc-winner-dot absolute -bottom-1 -right-1 h-4 w-4 rounded-full bg-primary flex items-center justify-center text-[8px] text-white font-bold shadow-lg ring-2 ring-card">
+                                        ✓
+                                    </span>
+                                )}
+                            </div>
+                            <span className="text-[11px] font-bold text-white/90 text-center leading-tight">
+                                {match.home.name}
+                            </span>
                         </div>
 
-                        <div className="flex flex-col items-center gap-2 px-3">
+                        {/* Score section */}
+                        <div className="mc-scores flex flex-col items-center gap-1.5 flex-1 mx-3">
                             {match.scoreBettingEnabled ? (
                                 scores.map((row, i) => (
-                                    <div key={i} className="flex items-center gap-1">
+                                    <div key={i} className="mc-score-row flex items-center gap-1.5">
                                         <input
                                             type="number"
                                             min={0}
@@ -252,9 +276,9 @@ export function MatchCard({ match, isCompleted = false, onPredictionChange }: Ma
                                             value={row.home}
                                             onChange={(e) => onScoreChange(i, "home", e.target.value)}
                                             disabled={isCompleted || isSaving}
-                                            className="w-10 rounded border border-border bg-surface-dark px-1 py-1 text-center text-sm font-bold text-white outline-none focus:border-primary disabled:opacity-50"
+                                            className="mc-score-input w-9 h-9 rounded-lg bg-white/[0.06] border border-white/10 text-center text-sm font-bold text-white outline-none transition-all focus:border-primary focus:bg-primary/10 focus:ring-1 focus:ring-primary/30 disabled:opacity-40"
                                         />
-                                        <span className="text-xs font-black text-muted-foreground">:</span>
+                                        <span className="text-white/25 text-sm font-bold select-none">:</span>
                                         <input
                                             type="number"
                                             min={0}
@@ -262,79 +286,94 @@ export function MatchCard({ match, isCompleted = false, onPredictionChange }: Ma
                                             value={row.away}
                                             onChange={(e) => onScoreChange(i, "away", e.target.value)}
                                             disabled={isCompleted || isSaving}
-                                            className="w-10 rounded border border-border bg-surface-dark px-1 py-1 text-center text-sm font-bold text-white outline-none focus:border-primary disabled:opacity-50"
+                                            className="mc-score-input w-9 h-9 rounded-lg bg-white/[0.06] border border-white/10 text-center text-sm font-bold text-white outline-none transition-all focus:border-primary focus:bg-primary/10 focus:ring-1 focus:ring-primary/30 disabled:opacity-40"
                                         />
                                     </div>
                                 ))
                             ) : (
-                                <span className="text-2xl font-black tracking-widest text-muted-foreground">
-                                    {t("common.vs")}
-                                </span>
+                                <div className="mc-vs flex items-center justify-center">
+                                    <span className="text-lg font-black tracking-[0.25em] text-white/20 uppercase">
+                                        {t("common.vs")}
+                                    </span>
+                                </div>
                             )}
                         </div>
 
-                        <div className="flex flex-1 flex-col items-center justify-start h-full">
-                            {match.away.crest
-                                ? <img src={match.away.crest} alt={match.away.name} className="mb-2 h-8 w-8 object-contain" />
-                                : match.away.flag
-                                    ? <span className={`fi fi-${match.away.flag} mb-2 !w-8 rounded-sm text-2xl shadow-md`} />
-                                    : <span className="mb-2 inline-flex h-8 w-8 items-center justify-center rounded-full border border-border bg-surface-dark text-xs font-black text-muted-foreground">?</span>}
-                            <span className="text-sm font-bold text-white text-center">{match.away.name}</span>
+                        {/* Away team */}
+                        <div className="mc-team flex flex-col items-center gap-2 w-[90px]">
+                            <div className="mc-team-badge relative">
+                                {renderTeamBadge(match.away)}
+                                {selectedOption === "away" && (
+                                    <span className="mc-winner-dot absolute -bottom-1 -right-1 h-4 w-4 rounded-full bg-primary flex items-center justify-center text-[8px] text-white font-bold shadow-lg ring-2 ring-card">
+                                        ✓
+                                    </span>
+                                )}
+                            </div>
+                            <span className="text-[11px] font-bold text-white/90 text-center leading-tight">
+                                {match.away.name}
+                            </span>
                         </div>
                     </div>
                 </div>
 
-                <div className="space-y-3">
-                    <div className="mb-1 flex items-center justify-between">
-                        <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+                {/* Divider */}
+                <div className="mx-5 h-px bg-gradient-to-r from-transparent via-white/[0.08] to-transparent" />
+
+                {/* ── Pick outcome section ── */}
+                <div className="mc-actions px-5 py-4 space-y-3">
+                    <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-semibold uppercase tracking-[0.15em] text-white/35">
                             {isCompleted
                                 ? t("matchCard.finalPick")
                                 : match.scoreBettingEnabled
                                     ? t("matchCard.pickWinnerAndScore")
                                     : t("matchCard.pickOutcome")}
                         </span>
-                        {isSaving && (
-                            <span className="text-[10px] font-bold text-primary animate-pulse">{t("common.saving")}</span>
+                        {hasCurrentSelection && (
+                            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
                         )}
                     </div>
+
                     <div className="grid grid-cols-3 gap-2">
                         {match.options.map((option, idx) => {
                             const optionKey = optionKeyAt(idx);
                             return (
-                                <button
-                                    type="button"
-                                    key={`${option}-${idx}`}
-                                    onClick={() => onPickOption(optionKey)}
-                                    disabled={isSaving || isCompleted || !optionKey}
-                                    className={getTeamButtonClass(optionKey, selectedOption, isCompleted, isSaving)}
-                                >
-                                    {option}
-                                </button>
+                                <div key={`${option}-${idx}`}>
+                                    {renderPickButton(optionKey, option)}
+                                </div>
                             );
                         })}
                     </div>
+
+                    {/* Action buttons */}
                     {!isCompleted && (
-                        <div className="grid grid-cols-2 gap-4 mt-4">
-                            {/* Cancel button */}
+                        <div className="mc-btn-row flex gap-2 pt-1">
                             <button
                                 type="button"
                                 onClick={onCancel}
                                 disabled={cancelDisabled}
-                                className="rounded-lg border border-border bg-surface-dark px-4 py-2.5 text-sm font-bold text-muted-foreground transition-colors hover:border-red-500 hover:text-red-400 disabled:opacity-50 disabled:pointer-events-none"
+                                className="mc-btn-cancel flex-1 rounded-xl border border-white/[0.08] bg-white/[0.03] px-3 py-2.5 text-xs font-semibold text-white/40 transition-all hover:border-red-500/50 hover:text-red-400 hover:bg-red-500/5 disabled:opacity-30 disabled:pointer-events-none"
                             >
                                 {t("matchCard.cancelSubmission")}
                             </button>
-                            {/* Submit button */}
                             <button
                                 type="button"
                                 onClick={onSubmit}
                                 disabled={submitDisabled}
-                                className={`flex-1 rounded-lg py-2.5 text-sm font-bold text-white transition-colors disabled:opacity-50 disabled:pointer-events-none ${hasCurrentSelection || justCancelled
-                                    ? "bg-primary hover:bg-primary/90"
-                                    : "bg-primary/40"
+                                className={`mc-btn-submit flex-1 rounded-xl px-3 py-2.5 text-xs font-bold text-white transition-all duration-200 disabled:opacity-30 disabled:pointer-events-none
+                                    ${hasCurrentSelection || justCancelled
+                                        ? "bg-gradient-to-r from-primary to-secondary shadow-[0_4px_15px_rgba(109,63,199,0.4)] hover:shadow-[0_6px_25px_rgba(109,63,199,0.5)] hover:scale-[1.02] active:scale-[0.98]"
+                                        : "bg-white/[0.06] text-white/30"
                                     }`}
                             >
-                                {isSaving ? t("common.saving") : t("matchCard.submitPrediction")}
+                                {isSaving ? (
+                                    <span className="flex items-center justify-center gap-2">
+                                        <span className="h-3 w-3 animate-spin rounded-full border border-white/30 border-t-white" />
+                                        {t("common.saving")}
+                                    </span>
+                                ) : (
+                                    t("matchCard.submitPrediction")
+                                )}
                             </button>
                         </div>
                     )}
@@ -343,7 +382,7 @@ export function MatchCard({ match, isCompleted = false, onPredictionChange }: Ma
 
             {/* Cancel Confirmation Dialog */}
             <AlertDialog open={cancelConfirmOpen} onOpenChange={setCancelConfirmOpen}>
-                <AlertDialogContent className="border-border bg-card">
+                <AlertDialogContent className="border-white/10 bg-[#1e1e38]">
                     <AlertDialogHeader>
                         <AlertDialogTitle>{t("matchCard.removePrediction")}</AlertDialogTitle>
                         <AlertDialogDescription>
@@ -351,7 +390,7 @@ export function MatchCard({ match, isCompleted = false, onPredictionChange }: Ma
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
-                        <AlertDialogCancel className="border-border bg-surface text-foreground hover:bg-surface-dark">
+                        <AlertDialogCancel className="border-white/10 bg-white/5 text-foreground hover:bg-white/10">
                             {t("matchCard.keepPrediction")}
                         </AlertDialogCancel>
                         <AlertDialogAction

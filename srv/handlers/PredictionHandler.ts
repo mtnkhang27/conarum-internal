@@ -709,6 +709,74 @@ export class PredictionHandler {
     }
 
     /**
+     * Enrich CompletedMatchesView rows with the current user's prediction picks.
+     * Called as an `after READ` handler — the CDS view returns Match+Team data,
+     * then this handler does a single DB query for the user's predictions
+     * and maps them onto the rows.
+     */
+    async enrichCompletedMatchesView(rows: any[] | any, req: Request) {
+        const list = Array.isArray(rows) ? rows : rows ? [rows] : [];
+        if (list.length === 0) return;
+
+        const currentPlayerId = await this.getCurrentPlayerId(req);
+        if (!currentPlayerId) return;
+
+        const { Prediction } = cds.entities('cnma.prediction');
+        const matchIds = list.map((r: any) => r.ID).filter(Boolean);
+        if (matchIds.length === 0) return;
+
+        const predictions = await SELECT.from(Prediction)
+            .where({ player_ID: currentPlayerId, match_ID: { in: matchIds } });
+
+        const pickMap = new Map<string, string>();
+        for (const p of predictions) {
+            pickMap.set(p.match_ID, p.pick);
+        }
+
+        for (const row of list) {
+            row.myPick = pickMap.get(row.ID) ?? null;
+        }
+    }
+
+    /**
+     * Enrich RecentPredictionsView rows with score bet details.
+     * The CDS view provides prediction + match + team data;
+     * this handler adds the user's score bets for each match.
+     */
+    async enrichRecentPredictionsView(rows: any[] | any, req: Request) {
+        const list = Array.isArray(rows) ? rows : rows ? [rows] : [];
+        if (list.length === 0) return;
+
+        const currentPlayerId = await this.getCurrentPlayerId(req);
+        if (!currentPlayerId) return;
+
+        const { ScoreBet } = cds.entities('cnma.prediction');
+        const matchIds = [...new Set(list.map((r: any) => r.match_ID).filter(Boolean))];
+        if (matchIds.length === 0) return;
+
+        const allScoreBets = await SELECT.from(ScoreBet)
+            .where({ player_ID: currentPlayerId, match_ID: { in: matchIds } });
+
+        const scoreBetMap = new Map<string, any[]>();
+        for (const sb of allScoreBets as any[]) {
+            if (!scoreBetMap.has(sb.match_ID)) scoreBetMap.set(sb.match_ID, []);
+            scoreBetMap.get(sb.match_ID)!.push(sb);
+        }
+
+        for (const row of list) {
+            const bets = (row.match_ID ? scoreBetMap.get(row.match_ID) : undefined) ?? [];
+            row.scoreBets = bets.map((sb: any) => ({
+                betId: sb.ID,
+                predictedHomeScore: sb.predictedHomeScore,
+                predictedAwayScore: sb.predictedAwayScore,
+                status: sb.status,
+                isCorrect: sb.isCorrect,
+                payout: Number(sb.payout) || 0,
+            }));
+        }
+    }
+
+    /**
      * Get league standings for a league-format tournament.
      * Calculates W/D/L/GF/GA/GD/Points from finished matches.
      */
@@ -827,7 +895,7 @@ export class PredictionHandler {
             ? await SELECT.from(ScoreBet).where({
                 player_ID: playerId,
                 match_ID: { in: matchIds },
-              })
+            })
             : [];
 
         // Build a map: matchId → ScoreBet[]

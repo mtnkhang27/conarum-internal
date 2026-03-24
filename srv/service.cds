@@ -163,6 +163,75 @@ service PlayerService {
                 false                 as isMe : Boolean
         };
 
+    /**
+     * Completed matches with team info pre-joined.
+     * Single OData GET replaces Matches + Teams $expand.
+     * `myPick` is a virtual field populated by an after-READ handler
+     * with the current user's prediction pick.
+     * Supports $filter, $skip, $top, $count for server-side pagination.
+     */
+    @readonly
+    entity CompletedMatchesView     as
+        select from db.Match as m
+            left join db.Team as home
+                on home.ID = m.homeTeam.ID
+            left join db.Team as away
+                on away.ID = m.awayTeam.ID {
+            key m.ID               as ID,
+                m.tournament.ID    as tournament_ID,
+                m.kickoff          as kickoff,
+                m.stage            as stage,
+                m.homeScore        as homeScore,
+                m.awayScore        as awayScore,
+                home.ID            as homeTeam_ID,
+                home.name          as homeTeamName,
+                home.flagCode      as homeTeamFlag,
+                home.crest         as homeTeamCrest,
+                away.ID            as awayTeam_ID,
+                away.name          as awayTeamName,
+                away.flagCode      as awayTeamFlag,
+                away.crest         as awayTeamCrest,
+                null               as myPick : String
+        } where m.status = 'finished';
+
+    /**
+     * Recent predictions with match + team + tournament data pre-joined.
+     * Replaces the getMyRecentPredictions() function.
+     * `scoreBets` is populated by an after-READ handler.
+     * Use $filter=player_ID eq '<id>' (injected by before-READ handler).
+     */
+    @readonly
+    entity RecentPredictionsView    as
+        select from db.Prediction as p
+            left join db.Match as m
+                on m.ID = p.match.ID
+            left join db.Team as home
+                on home.ID = m.homeTeam.ID
+            left join db.Team as away
+                on away.ID = m.awayTeam.ID
+            left join db.Tournament as t
+                on t.ID = p.tournament.ID {
+            key p.ID               as ID,
+                p.player.ID        as player_ID,
+                p.match.ID         as match_ID,
+                p.tournament.ID    as tournament_ID,
+                p.pick             as pick,
+                p.status           as status,
+                p.isCorrect        as isCorrect,
+                p.pointsEarned     as pointsEarned,
+                p.submittedAt      as submittedAt,
+                m.kickoff          as kickoff,
+                m.homeScore        as homeScore,
+                m.awayScore        as awayScore,
+                home.name          as homeTeam,
+                home.flagCode      as homeFlag,
+                home.crest         as homeCrest,
+                away.name          as awayTeam,
+                away.flagCode      as awayFlag,
+                away.crest         as awayCrest,
+                t.name             as tournamentName
+        };
+
     // ── User-Specific Views ──────────────────────────────────
 
     /** Current user's match outcome predictions. */

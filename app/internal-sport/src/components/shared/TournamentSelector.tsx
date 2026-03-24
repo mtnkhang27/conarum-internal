@@ -7,11 +7,13 @@ import type { TournamentInfo } from "@/types";
 interface TournamentSelectorProps {
     selectedId: string;
     onSelect: (id: string) => void;
+    /** Callback to pass the selected tournament name to parent */
+    onTournamentName?: (name: string) => void;
     /** If true, includes an "All Tournaments" option. */
     allowAll?: boolean;
 }
 
-export function TournamentSelector({ selectedId, onSelect, allowAll = false }: TournamentSelectorProps) {
+export function TournamentSelector({ selectedId, onSelect, onTournamentName, allowAll = false }: TournamentSelectorProps) {
     const { t } = useTranslation();
     const [tournaments, setTournaments] = useState<TournamentInfo[]>([]);
     const [open, setOpen] = useState(false);
@@ -30,6 +32,7 @@ export function TournamentSelector({ selectedId, onSelect, allowAll = false }: T
             if (!selectedId && list.length > 0) {
                 const active = list.find((t) => t.status === "active") ?? list[0];
                 onSelect(active.ID);
+                onTournamentName?.(active.name);
             }
         }).catch(() => { });
     }, []); // eslint-disable-line react-hooks/exhaustive-deps
@@ -64,7 +67,7 @@ export function TournamentSelector({ selectedId, onSelect, allowAll = false }: T
                             <button
                                 key={t.ID}
                                 type="button"
-                                onClick={() => { onSelect(t.ID); setOpen(false); }}
+                                onClick={() => { onSelect(t.ID); onTournamentName?.(t.name); setOpen(false); }}
                                 className={`flex w-full items-center gap-3 px-4 py-3 text-left text-sm transition-colors hover:bg-surface ${t.ID === selectedId ? "bg-primary/10 text-primary" : "text-foreground"}`}
                             >
                                 <Trophy className="h-4 w-4 text-muted-foreground" />
@@ -94,7 +97,7 @@ export function TournamentSelector({ selectedId, onSelect, allowAll = false }: T
                                 {tournaments.length > 0 && <div className="mx-4 border-t border-border" />}
                                 <button
                                     type="button"
-                                    onClick={() => { onSelect(""); setOpen(false); }}
+                                    onClick={() => { onSelect(""); onTournamentName?.(""); setOpen(false); }}
                                     className={`flex w-full items-center gap-3 px-4 py-3 text-left text-sm transition-colors hover:bg-surface ${!selectedId ? "bg-primary/10 text-primary" : "text-foreground"}`}
                                 >
                                     <Trophy className="h-4 w-4 text-muted-foreground" />

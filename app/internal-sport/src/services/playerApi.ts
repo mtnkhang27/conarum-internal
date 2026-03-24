@@ -584,33 +584,67 @@ export const playerTournamentsApi = {
     },
 };
 
+// ─── Shared player data (fetched once, passed to multiple functions) ─────
+
+export interface SharedPlayerData {
+    predictions: ODataPrediction[];
+    scoreBets: ODataScoreBet[];
+    slotPredictions: ODataSlotPrediction[];
+    slotScoreBets: ODataSlotScoreBet[];
+}
+
+// In-flight dedup cache: concurrent callers with the same key share a single fetch
+const _sharedCache = new Map<string, { promise: Promise<SharedPlayerData>; ts: number }>();
+const SHARED_TTL = 5_000; // 5 seconds
+
+async function fetchSharedPlayerData(tournamentId?: string): Promise<SharedPlayerData> {
+    const cacheKey = tournamentId ?? "__all__";
+    const now = Date.now();
+    const cached = _sharedCache.get(cacheKey);
+    if (cached && now - cached.ts < SHARED_TTL) {
+        return cached.promise;
+    }
+
+    const tournamentScopedFilter = tournamentId
+        ? `?$filter=${encodeURIComponent(`tournament_ID eq '${tournamentId}'`)}`
+        : "";
+
+    const promise = Promise.all([
+        json<ODataPrediction[]>(`${BASE}/MyPredictions`).catch(() => [] as ODataPrediction[]),
+        json<ODataScoreBet[]>(`${BASE}/MyScoreBets`).catch(() => [] as ODataScoreBet[]),
+        json<ODataSlotPrediction[]>(
+            `${BASE}/MySlotPredictions${tournamentScopedFilter}`
+        ).catch(() => [] as ODataSlotPrediction[]),
+        json<ODataSlotScoreBet[]>(
+            `${BASE}/MySlotScoreBets${tournamentScopedFilter}`
+        ).catch(() => [] as ODataSlotScoreBet[]),
+    ]).then(([predictions, scoreBets, slotPredictions, slotScoreBets]) => {
+        return { predictions, scoreBets, slotPredictions, slotScoreBets };
+    });
+
+    _sharedCache.set(cacheKey, { promise, ts: now });
+    return promise;
+}
+
 export const playerMatchesApi = {
     /** Available (upcoming) matches for prediction cards, optionally filtered by tournament. */
-    async getAvailable(tournamentId?: string): Promise<Match[]> {
+    async getAvailable(tournamentId?: string, shared?: SharedPlayerData): Promise<Match[]> {
         let filter = "status eq 'upcoming'";
         if (tournamentId) filter += ` and tournament_ID eq '${tournamentId}'`;
 
         let slotFilter = "winner_ID eq null";
         if (tournamentId) slotFilter += ` and tournament_ID eq '${tournamentId}'`;
-        const tournamentScopedFilter = tournamentId
-            ? `?$filter=${encodeURIComponent(`tournament_ID eq '${tournamentId}'`)}`
-            : "";
 
-        const [matches, predictions, scoreBets, slots, slotPredictions, slotScoreBets] = await Promise.all([
+        const sharedData = shared ?? await fetchSharedPlayerData(tournamentId);
+        const { predictions, scoreBets, slotPredictions, slotScoreBets } = sharedData;
+
+        const [matches, slots] = await Promise.all([
             json<ODataMatch[]>(
                 `${BASE}/Matches?$filter=${encodeURIComponent(filter)}&$expand=homeTeam,awayTeam,scoreBetConfig&$orderby=kickoff asc`
             ),
-            json<ODataPrediction[]>(`${BASE}/MyPredictions`).catch(() => [] as ODataPrediction[]),
-            json<ODataScoreBet[]>(`${BASE}/MyScoreBets`).catch(() => [] as ODataScoreBet[]),
             json<ODataBracketSlot[]>(
                 `${BASE}/BracketSlots?$filter=${encodeURIComponent(slotFilter)}&$expand=homeTeam,awayTeam&$orderby=stage asc,position asc`
             ).catch(() => [] as ODataBracketSlot[]),
-            json<ODataSlotPrediction[]>(
-                `${BASE}/MySlotPredictions${tournamentScopedFilter}`
-            ).catch(() => [] as ODataSlotPrediction[]),
-            json<ODataSlotScoreBet[]>(
-                `${BASE}/MySlotScoreBets${tournamentScopedFilter}`
-            ).catch(() => [] as ODataSlotScoreBet[]),
         ]);
 
         const pickMap = new Map<string, string>();
@@ -811,20 +845,61 @@ export const playerMatchesApi = {
         });
     },
 
-    /** Completed (finished) matches, optionally filtered by tournament. */
-    async getCompleted(tournamentId?: string): Promise<Match[]> {
+    /** Completed (finished) matches — paged via OData $skip/$top/$count. */
+    async getCompletedPaged(
+        tournamentId?: string,
+        page = 1,
+        pageSize = 10,
+        shared?: SharedPlayerData,
+    ): Promise<{ items: Match[]; totalCount: number }> {
+        let filter = "status eq 'finished'";
+        if (tournamentId) filter += ` and tournament_ID eq '${tournamentId}'`;
+        const skip = (page - 1) * pageSize;
+
+        const sharedData = shared ?? await fetchSharedPlayerData(tournamentId);
+
+        const res = await fetch(
+            `${BASE}/Matches?$filter=${encodeURIComponent(filter)}&$expand=homeTeam,awayTeam&$orderby=kickoff desc&$skip=${skip}&$top=${pageSize}&$count=true`
+        );
+        if (!res.ok) throw new Error(`Request failed: ${res.status}`);
+        const data = await res.json();
+        const rawMatches: ODataMatch[] = mapExternalAssetUrls(data.value ?? []);
+        const totalCount: number = data["@odata.count"] ?? data["$count"] ?? rawMatches.length;
+
+        const pickMap = new Map<string, string>();
+        for (const p of sharedData.predictions) pickMap.set(p.match_ID, p.pick);
+
+        const items = rawMatches.map((m) => {
+            const match = toMatch(m);
+            match.timeLabel = "Locked";
+            match.kickoffIso = m.kickoff;
+            match.stage = m.stage;
+            if (m.homeScore !== null && m.awayScore !== null) {
+                match.finalScore = { home: m.homeScore, away: m.awayScore };
+            }
+            const rawPick = pickMap.get(m.ID);
+            if (rawPick === "home") match.selectedOption = "home";
+            else if (rawPick === "away") match.selectedOption = "away";
+            else if (rawPick === "draw") match.selectedOption = "draw";
+            return match;
+        });
+
+        return { items, totalCount };
+    },
+
+    /** Completed (finished) matches, optionally filtered by tournament. Uses shared data if provided. */
+    async getCompleted(tournamentId?: string, shared?: SharedPlayerData): Promise<Match[]> {
         let filter = "status eq 'finished'";
         if (tournamentId) filter += ` and tournament_ID eq '${tournamentId}'`;
 
-        const [matches, predictions] = await Promise.all([
-            json<ODataMatch[]>(
-                `${BASE}/Matches?$filter=${encodeURIComponent(filter)}&$expand=homeTeam,awayTeam&$orderby=kickoff desc`
-            ),
-            json<ODataPrediction[]>(`${BASE}/MyPredictions`).catch(() => [] as ODataPrediction[]),
-        ]);
+        const sharedData = shared ?? await fetchSharedPlayerData(tournamentId);
+
+        const matches = await json<ODataMatch[]>(
+            `${BASE}/Matches?$filter=${encodeURIComponent(filter)}&$expand=homeTeam,awayTeam&$orderby=kickoff desc`
+        );
 
         const pickMap = new Map<string, string>();
-        for (const p of predictions) pickMap.set(p.match_ID, p.pick);
+        for (const p of sharedData.predictions) pickMap.set(p.match_ID, p.pick);
 
         return matches.map((m) => {
             const match = toMatch(m);
@@ -842,21 +917,19 @@ export const playerMatchesApi = {
         });
     },
 
-    /** Live matches. */
-    async getLive(): Promise<LiveMatch[]> {
-        const [matches, predictions, slotPredictions] = await Promise.all([
-            json<ODataMatch[]>(
-                `${BASE}/Matches?$filter=status eq 'live'&$expand=homeTeam,awayTeam`
-            ),
-            json<ODataPrediction[]>(`${BASE}/MyPredictions`).catch(() => [] as ODataPrediction[]),
-            json<ODataSlotPrediction[]>(`${BASE}/MySlotPredictions`).catch(() => [] as ODataSlotPrediction[]),
-        ]);
+    /** Live matches. Uses shared data if provided. */
+    async getLive(shared?: SharedPlayerData): Promise<LiveMatch[]> {
+        const sharedData = shared ?? await fetchSharedPlayerData();
+
+        const matches = await json<ODataMatch[]>(
+            `${BASE}/Matches?$filter=status eq 'live'&$expand=homeTeam,awayTeam`
+        );
 
         const pickMap = new Map<string, string>();
-        for (const p of predictions) pickMap.set(p.match_ID, p.pick);
+        for (const p of sharedData.predictions) pickMap.set(p.match_ID, p.pick);
 
         const slotPickMap = new Map<string, string>();
-        for (const sp of slotPredictions) slotPickMap.set(sp.slot_ID, sp.pick);
+        for (const sp of sharedData.slotPredictions) slotPickMap.set(sp.slot_ID, sp.pick);
 
         return matches.map((m) => {
             const rawPick = pickMap.get(m.ID);
@@ -884,6 +957,30 @@ export const playerMatchesApi = {
             `${BASE}/Matches?$filter=${encodeURIComponent("status eq 'upcoming' and homeTeam_ID ne null and awayTeam_ID ne null")}&$expand=homeTeam,awayTeam&$orderby=kickoff asc`
         );
         return matches.map(toExactScoreMatch);
+    },
+
+    /**
+     * Load all match data in one call, fetching shared player data once.
+     * Replaces calling getAvailable + getUpcoming + getLive separately.
+     */
+    async loadAllMatchData(tournamentId?: string): Promise<{
+        available: Match[];
+        upcoming: UpcomingMatch[];
+        live: LiveMatch[];
+    }> {
+        const filterTid = tournamentId || undefined;
+
+        // Fetch shared player-prediction data ONCE
+        const shared = await fetchSharedPlayerData(filterTid);
+
+        // Now call all match functions in parallel, passing shared data
+        const [available, upcoming, live] = await Promise.all([
+            this.getAvailable(filterTid, shared),
+            this.getUpcoming(filterTid),
+            this.getLive(shared),
+        ]);
+
+        return { available, upcoming, live };
     },
 };
 

@@ -1,12 +1,14 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import { useTranslation } from "react-i18next";
+import { playerMatchesApi } from "@/services/playerApi";
+import { LoadingOverlay } from "@/components/shared/LoadingOverlay";
 import type { Match } from "@/types";
 
 const PAGE_SIZE = 10;
 type PaginationItem = number | "dots-left" | "dots-right";
 
 interface CompletedMatchesTableProps {
-    matches: Match[];
+    tournamentId: string;
 }
 
 function formatKickoffDisplay(iso?: string): string {
@@ -19,9 +21,12 @@ function formatKickoffDisplay(iso?: string): string {
     );
 }
 
-export function CompletedMatchesTable({ matches }: CompletedMatchesTableProps) {
+export function CompletedMatchesTable({ tournamentId }: CompletedMatchesTableProps) {
     const { t } = useTranslation();
     const [page, setPage] = useState(1);
+    const [matches, setMatches] = useState<Match[]>([]);
+    const [totalCount, setTotalCount] = useState(0);
+    const [loading, setLoading] = useState(true);
 
     function pickLabel(pick: string, home: string, away: string): string {
         if (pick === "home") return t("completedMatchesTable.homeWin", { team: home });
@@ -30,27 +35,42 @@ export function CompletedMatchesTable({ matches }: CompletedMatchesTableProps) {
         return pick || "—";
     }
 
-    const firstMatchId = matches[0]?.id ?? "";
-    const totalPages = Math.max(1, Math.ceil(matches.length / PAGE_SIZE));
+    const loadPage = useCallback(async (tid: string, pg: number) => {
+        setLoading(true);
+        try {
+            const filterTid = tid || undefined;
+            const { items, totalCount: count } = await playerMatchesApi.getCompletedPaged(
+                filterTid,
+                pg,
+                PAGE_SIZE,
+            );
+            setMatches(items);
+            setTotalCount(count);
+        } catch {
+            setMatches([]);
+            setTotalCount(0);
+        } finally {
+            setLoading(false);
+        }
+    }, []);
 
+    // Reset to page 1 when tournament changes
     useEffect(() => {
         setPage(1);
-    }, [matches.length, firstMatchId]);
+        loadPage(tournamentId, 1);
+    }, [tournamentId, loadPage]);
 
-    useEffect(() => {
-        if (page > totalPages) setPage(totalPages);
-    }, [page, totalPages]);
+    // Fetch data when page changes (but not on tournament change — handled above)
+    const handlePageChange = useCallback((newPage: number) => {
+        setPage(newPage);
+        loadPage(tournamentId, newPage);
+    }, [tournamentId, loadPage]);
 
-    const startIndex = (page - 1) * PAGE_SIZE;
-    const endIndex = startIndex + PAGE_SIZE;
+    const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE));
 
-    const pagedMatches = useMemo(
-        () => matches.slice(startIndex, endIndex),
-        [matches, startIndex, endIndex]
-    );
+    const from = totalCount === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
+    const to = Math.min(page * PAGE_SIZE, totalCount);
 
-    const from = matches.length === 0 ? 0 : startIndex + 1;
-    const to = Math.min(endIndex, matches.length);
     const paginationItems = useMemo<PaginationItem[]>(() => {
         if (totalPages <= 7) {
             return Array.from({ length: totalPages }, (_, idx) => idx + 1);
@@ -67,7 +87,11 @@ export function CompletedMatchesTable({ matches }: CompletedMatchesTableProps) {
         return [1, "dots-left", page - 1, page, page + 1, "dots-right", totalPages];
     }, [page, totalPages]);
 
-    if (matches.length === 0) {
+    if (loading && matches.length === 0) {
+        return <LoadingOverlay />;
+    }
+
+    if (!loading && matches.length === 0) {
         return (
             <p className="py-10 text-center text-sm text-muted-foreground">
                 {t("completedMatchesTable.noCompleted")}
@@ -90,7 +114,7 @@ export function CompletedMatchesTable({ matches }: CompletedMatchesTableProps) {
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-border">
-                        {pagedMatches.map((match) => {
+                        {matches.map((match) => {
                             const hasScore = match.finalScore !== undefined;
                             const hasPick = !!match.selectedOption;
 
@@ -182,14 +206,14 @@ export function CompletedMatchesTable({ matches }: CompletedMatchesTableProps) {
                 <div className="border-t border-border bg-surface/35 px-4 py-3">
                     <div className="flex flex-wrap items-center justify-between gap-2">
                         <p className="text-xs text-muted-foreground">
-                            {t("common.showing", { from, to, total: matches.length })}
+                            {t("common.showing", { from, to, total: totalCount })}
                         </p>
 
                         <div className="flex items-center justify-end gap-2">
                             <button
                                 type="button"
-                                onClick={() => setPage((prev) => Math.max(1, prev - 1))}
-                                disabled={page === 1}
+                                onClick={() => handlePageChange(Math.max(1, page - 1))}
+                                disabled={page === 1 || loading}
                                 className="inline-flex h-9 items-center rounded-md border border-border bg-surface-dark px-3 text-xs font-semibold text-foreground/90 transition-colors hover:border-primary hover:text-primary disabled:cursor-not-allowed disabled:opacity-45"
                                 aria-label="Previous completed page"
                             >
@@ -214,7 +238,8 @@ export function CompletedMatchesTable({ matches }: CompletedMatchesTableProps) {
                                         <button
                                             key={item}
                                             type="button"
-                                            onClick={() => setPage(item)}
+                                            onClick={() => handlePageChange(item)}
+                                            disabled={loading}
                                             className={`inline-flex h-7 min-w-7 items-center justify-center rounded px-2 text-xs font-semibold transition-colors ${
                                                 isActive
                                                     ? "bg-primary text-white shadow-[0_0_0_1px_rgba(255,255,255,0.08)_inset]"
@@ -231,8 +256,8 @@ export function CompletedMatchesTable({ matches }: CompletedMatchesTableProps) {
 
                             <button
                                 type="button"
-                                onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
-                                disabled={page === totalPages}
+                                onClick={() => handlePageChange(Math.min(totalPages, page + 1))}
+                                disabled={page === totalPages || loading}
                                 className="inline-flex h-9 items-center rounded-md border border-border bg-surface-dark px-3 text-xs font-semibold text-foreground/90 transition-colors hover:border-primary hover:text-primary disabled:cursor-not-allowed disabled:opacity-45"
                                 aria-label="Next completed page"
                             >
@@ -244,6 +269,13 @@ export function CompletedMatchesTable({ matches }: CompletedMatchesTableProps) {
                             </div>
                         </div>
                     </div>
+                </div>
+            )}
+
+            {/* Inline loading indicator for page transitions */}
+            {loading && matches.length > 0 && (
+                <div className="absolute inset-0 flex items-center justify-center bg-background/50 backdrop-blur-[1px]">
+                    <div className="h-5 w-5 animate-spin rounded-full border-2 border-primary border-t-transparent" />
                 </div>
             )}
         </div>

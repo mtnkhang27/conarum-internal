@@ -1,4 +1,4 @@
-import { StrictMode } from "react";
+
 import { createRoot } from "react-dom/client";
 import { HashRouter } from "react-router-dom";
 import { Toaster } from "@/components/ui/sonner";
@@ -12,7 +12,6 @@ import { initFLPMessageListener } from "./hooks/useFLPSync";
 initFLPMessageListener();
 
 createRoot(document.getElementById("root")!).render(
-  <StrictMode>
     <HashRouter>
       <FioriThemeProvider>
         <App />
@@ -27,6 +26,5 @@ createRoot(document.getElementById("root")!).render(
           }}
         />
       </FioriThemeProvider>
-    </HashRouter>
-  </StrictMode>,
+    </HashRouter>,
 );

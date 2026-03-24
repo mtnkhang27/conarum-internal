@@ -13,11 +13,9 @@ import { useActiveSection } from "@/hooks/useActiveSection";
 import {
     playerMatchesApi,
     playerTournamentQueryApi,
-    playerTournamentsApi,
 } from "@/services/playerApi";
 import type {
     Match,
-    UpcomingMatch,
     LiveMatch,
     RecentPredictionItem,
 } from "@/types";
@@ -65,12 +63,21 @@ export function SportPage() {
     const { t } = useTranslation();
     const [tournamentId, setTournamentId] = useState("");
     const [tournamentName, setTournamentName] = useState("");
+    const [tournamentReady, setTournamentReady] = useState(false);
+
+    // Wrap setTournamentId to also mark as ready (prevents double-fire)
+    const handleTournamentSelect = useCallback((id: string) => {
+        setTournamentId(id);
+        setTournamentReady(true);
+    }, []);
+
+    const handleTournamentName = useCallback((name: string) => {
+        setTournamentName(name);
+    }, []);
 
     // Matches data
     const [matches, setMatches] = useState<Match[]>([]);
-    const [upcoming, setUpcoming] = useState<UpcomingMatch[]>([]);
     const [live, setLive] = useState<LiveMatch[]>([]);
-    const [completed, setCompleted] = useState<Match[]>([]);
     const [loadingMatches, setLoadingMatches] = useState(true);
 
     // Recent predictions
@@ -85,18 +92,10 @@ export function SportPage() {
         if (showLoading) {
             setLoadingMatches(true);
         }
-        const filterTid = tid || undefined;
         try {
-            const [m, u, l, c] = await Promise.all([
-                playerMatchesApi.getAvailable(filterTid),
-                playerMatchesApi.getUpcoming(filterTid),
-                playerMatchesApi.getLive(),
-                playerMatchesApi.getCompleted(filterTid),
-            ]);
-            setMatches(m);
-            setUpcoming(u);
-            setLive(l);
-            setCompleted(c);
+            const { available, live: liveData } = await playerMatchesApi.loadAllMatchData(tid);
+            setMatches(available);
+            setLive(liveData);
         } catch {
             // fall back silently
         } finally {
@@ -118,25 +117,16 @@ export function SportPage() {
         }
     }, []);
 
+    // Only fetch once tournament is resolved (prevents double-fire)
     useEffect(() => {
+        if (!tournamentReady) return;
         loadMatchData(tournamentId, { showLoading: true });
-    }, [tournamentId, loadMatchData, location.key]);
+    }, [tournamentId, tournamentReady, loadMatchData]);
 
     useEffect(() => {
+        if (!tournamentReady) return;
         loadPredictions();
-    }, [loadPredictions, location.key]);
-
-    // Resolve tournament name when tournamentId changes
-    useEffect(() => {
-        if (!tournamentId) {
-            setTournamentName("");
-            return;
-        }
-        playerTournamentsApi.getAll().then((list) => {
-            const found = list.find((t) => t.ID === tournamentId);
-            setTournamentName(found?.name ?? "");
-        }).catch(() => setTournamentName(""));
-    }, [tournamentId]);
+    }, [tournamentReady, loadPredictions]);
 
     // Callback for MatchCard to trigger refresh after submit/cancel
     const refreshAll = useCallback(async () => {
@@ -214,7 +204,8 @@ export function SportPage() {
                 </div>
                 <TournamentSelector
                     selectedId={tournamentId}
-                    onSelect={setTournamentId}
+                    onSelect={handleTournamentSelect}
+                    onTournamentName={handleTournamentName}
                     allowAll
                 />
             </div>
@@ -313,10 +304,10 @@ export function SportPage() {
                         subtitle={t("sport.sections.completedSubtitle")}
                     />
 
-                    {loadingMatches ? (
-                        <LoadingOverlay />
+                    {tournamentReady ? (
+                        <CompletedMatchesTable tournamentId={tournamentId} />
                     ) : (
-                        <CompletedMatchesTable matches={completed} />
+                        <LoadingOverlay />
                     )}
                 </section>
 

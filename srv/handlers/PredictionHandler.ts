@@ -695,73 +695,17 @@ export class PredictionHandler {
     }
 
     /**
-     * Get prediction leaderboard for a specific tournament (UC2).
-     * Sort by totalPoints DESC, then displayName ASC (alphabetical tiebreak).
+     * Decorate leaderboard rows from PredictionLeaderboard view.
+     * Keeps transport as pure OData GET while still marking the current user.
      */
-    async getPredictionLeaderboard(req: Request) {
-        const { tournamentId } = req.data;
-        const { PlayerTournamentStats, Player, Team } = cds.entities('cnma.prediction');
+    async decoratePredictionLeaderboard(rows: any[] | any, req: Request) {
         const currentPlayerId = await this.getCurrentPlayerId(req);
+        const list = Array.isArray(rows) ? rows : rows ? [rows] : [];
 
-        const stats = await SELECT.from(PlayerTournamentStats)
-            .where({ tournament_ID: tournamentId })
-            .orderBy('totalPoints desc');
-
-        // Batch-fetch all players
-        const playerIds = [...new Set(stats.map((s: any) => s.player_ID).filter(Boolean))];
-        const players = playerIds.length > 0 ? await SELECT.from(Player).where({ ID: { in: playerIds } }) : [];
-        const playerMap: Map<string, any> = new Map(players.map((p: any) => [p.ID as string, p]));
-
-        // Batch-fetch favorite teams
-        const favTeamIds = [...new Set(players.map((p: any) => p.favoriteTeam_ID).filter(Boolean))];
-        const favTeams = favTeamIds.length > 0 ? await SELECT.from(Team).columns('ID', 'name').where({ ID: { in: favTeamIds } }) : [];
-        const favTeamMap: Map<string, any> = new Map(favTeams.map((t: any) => [t.ID as string, t]));
-
-        // Enrich with player details and sort with name tiebreak
-        const enriched = stats.map((s: any) => {
-            const player = playerMap.get(s.player_ID);
-            const displayName = this.playerResolver.resolveDisplayName(player);
-            const email = this.playerResolver.asTrimmedString(player?.email) ?? '';
-            const bio = this.playerResolver.asTrimmedString(player?.bio) ?? '';
-            const country = this.playerResolver.asTrimmedString(player?.country) ?? this.playerResolver.asTrimmedString(player?.country_code) ?? '';
-            const favoriteTeamId = this.playerResolver.asTrimmedString(player?.favoriteTeam_ID);
-            const favoriteTeam = favoriteTeamId ? (favTeamMap.get(favoriteTeamId)?.name ?? '') : '';
-
-            return {
-                playerId: s.player_ID,
-                displayName,
-                avatarUrl: player?.avatarUrl ?? '',
-                email,
-                favoriteTeam,
-                bio,
-                country,
-                totalPoints: Number(s.totalPoints),
-                totalCorrect: s.totalCorrect,
-                totalPredictions: s.totalPredictions,
-                _name: displayName.toLowerCase(),
-            };
-        });
-
-        // Sort: points desc, then name asc
-        enriched.sort((a: any, b: any) => {
-            if (b.totalPoints !== a.totalPoints) return b.totalPoints - a.totalPoints;
-            return a._name.localeCompare(b._name);
-        });
-
-        return enriched.map((e: any, i: number) => ({
-            rank: i + 1,
-            playerId: e.playerId,
-            displayName: e.displayName,
-            avatarUrl: e.avatarUrl,
-            email: e.email,
-            favoriteTeam: e.favoriteTeam,
-            bio: e.bio,
-            country: e.country,
-            totalPoints: e.totalPoints,
-            totalCorrect: e.totalCorrect,
-            totalPredictions: e.totalPredictions,
-            isMe: currentPlayerId !== null && e.playerId === currentPlayerId,
-        }));
+        for (const row of list) {
+            const rowPlayerId = this.playerResolver.asTrimmedString(row?.playerId);
+            row.isMe = Boolean(currentPlayerId && rowPlayerId && rowPlayerId === currentPlayerId);
+        }
     }
 
     /**

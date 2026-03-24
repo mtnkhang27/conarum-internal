@@ -4,6 +4,7 @@ import { Trophy, User, Settings, Home } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { scrollToSection, SECTION } from "@/pages/sport/SportPage";
 import { playerProfileApi } from "@/services/playerApi";
+import { isLocalDevAuthBypass } from "@/lib/authMode";
 
 const sportSections = [
     // { id: SECTION.leaderboard, label: "Leaderboard" },
@@ -16,9 +17,17 @@ const sportSections = [
 export function Header() {
     const { pathname, hash } = useLocation();
     const isOnSportPage = pathname === "/";
-    const [isAdmin, setIsAdmin] = useState(() => playerProfileApi.getCachedProfile()?.isAdmin ?? false);
+    const [isAdmin, setIsAdmin] = useState(() => {
+        if (isLocalDevAuthBypass()) return true;
+        return playerProfileApi.getCachedProfile()?.isAdmin ?? false;
+    });
 
     useEffect(() => {
+        if (isLocalDevAuthBypass()) {
+            setIsAdmin(true);
+            return;
+        }
+
         let active = true;
         playerProfileApi
             .refreshMyProfile()

@@ -3,6 +3,7 @@ import { Navigate, NavLink, Outlet, useLocation } from "react-router-dom";
 import { Header } from "@/components/layout/Header";
 import { MobileBottomNav } from "@/components/layout/MobileBottomNav";
 import { playerProfileApi } from "@/services/playerApi";
+import { isLocalDevAuthBypass } from "@/lib/authMode";
 import {
     Banknote,
     Calendar,
@@ -22,11 +23,17 @@ const adminNavItems = [
 export function AdminLayout() {
     const { pathname } = useLocation();
     const [isAdmin, setIsAdmin] = useState<boolean | null>(() => {
+        if (isLocalDevAuthBypass()) return true;
         const cached = playerProfileApi.getCachedProfile();
         return cached ? cached.isAdmin : null;
     });
 
     useEffect(() => {
+        if (isLocalDevAuthBypass()) {
+            setIsAdmin(true);
+            return;
+        }
+
         let active = true;
 
         playerProfileApi

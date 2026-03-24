@@ -40,6 +40,60 @@ type TournamentLookup = {
     name?: string | null;
 };
 
+type PlayerTournamentStatsLookup = {
+    ID?: string | null;
+    player_ID?: string | null;
+    tournament_ID?: string | null;
+    rank?: number | null;
+    totalPoints?: number | null;
+    totalCorrect?: number | null;
+    totalPredictions?: number | null;
+};
+
+type CompletedMatchLookup = {
+    ID?: string | null;
+    tournament_ID?: string | null;
+    kickoff?: string | null;
+    stage?: string | null;
+    homeScore?: number | null;
+    awayScore?: number | null;
+    homeTeam_ID?: string | null;
+    awayTeam_ID?: string | null;
+};
+
+type PredictionLookup = {
+    ID?: string | null;
+    player_ID?: string | null;
+    match_ID?: string | null;
+    tournament_ID?: string | null;
+    pick?: string | null;
+    status?: string | null;
+    isCorrect?: boolean | null;
+    pointsEarned?: number | null;
+    submittedAt?: string | null;
+};
+
+type BracketSlotLookup = {
+    ID?: string | null;
+    tournament_ID?: string | null;
+    stage?: string | null;
+    position?: number | null;
+    label?: string | null;
+    homeTeam_ID?: string | null;
+    awayTeam_ID?: string | null;
+    leg1_ID?: string | null;
+    leg2_ID?: string | null;
+    leg1ExternalId?: number | null;
+    leg2ExternalId?: number | null;
+    homeAgg?: number | null;
+    awayAgg?: number | null;
+    homePen?: number | null;
+    awayPen?: number | null;
+    winner_ID?: string | null;
+    nextSlot_ID?: string | null;
+    nextSlotSide?: string | null;
+};
+
 const toIdMap = <T extends { ID?: string | null }>(rows: readonly T[]) =>
     new Map<string, T>(
         rows.flatMap((row) =>
@@ -695,6 +749,346 @@ export class PredictionHandler {
     }
 
     /**
+     * Materialize CompletedMatchesView without requiring the generated HANA view
+     * to be deployed. This keeps the API as a plain GET endpoint in hybrid/local runs.
+     */
+    async readCompletedMatchesView(req: Request) {
+        const { Match, Team } = cds.entities('cnma.prediction');
+        const query = SELECT.from(Match).columns(
+            'ID',
+            'tournament_ID',
+            'kickoff',
+            'stage',
+            'homeScore',
+            'awayScore',
+            'homeTeam_ID',
+            'awayTeam_ID',
+        );
+
+        this.copyReadClauses(req, query);
+        this.andWhere(query, [{ ref: ['status'] }, '=', { val: 'finished' }]);
+
+        const matches = (await query) as CompletedMatchLookup[];
+        const teamIds = [
+            ...new Set(
+                matches
+                    .flatMap((match) => [match.homeTeam_ID, match.awayTeam_ID])
+                    .filter((value): value is string => typeof value === 'string' && value.length > 0)
+            ),
+        ];
+        const teams = teamIds.length > 0
+            ? (await SELECT.from(Team).where({ ID: { in: teamIds } })) as TeamLookup[]
+            : [];
+        const teamMap = toIdMap(teams);
+
+        let totalCount = matches.length;
+        if (req.query.SELECT?.count) {
+            const countQuery = SELECT.from(Match).columns('ID');
+            this.copyReadClauses(req, countQuery, { includeOrderBy: false, includeLimit: false });
+            this.andWhere(countQuery, [{ ref: ['status'] }, '=', { val: 'finished' }]);
+            const countRows = await countQuery;
+            totalCount = Array.isArray(countRows) ? countRows.length : 0;
+        }
+
+        const rows = matches.map((match) => {
+            const home = match.homeTeam_ID ? teamMap.get(match.homeTeam_ID) : undefined;
+            const away = match.awayTeam_ID ? teamMap.get(match.awayTeam_ID) : undefined;
+            return {
+                ID: match.ID ?? null,
+                tournament_ID: match.tournament_ID ?? null,
+                kickoff: match.kickoff ?? null,
+                stage: match.stage ?? null,
+                homeScore: match.homeScore ?? null,
+                awayScore: match.awayScore ?? null,
+                homeTeam_ID: match.homeTeam_ID ?? null,
+                homeTeamName: home?.name ?? null,
+                homeTeamFlag: home?.flagCode ?? null,
+                homeTeamCrest: home?.crest ?? null,
+                awayTeam_ID: match.awayTeam_ID ?? null,
+                awayTeamName: away?.name ?? null,
+                awayTeamFlag: away?.flagCode ?? null,
+                awayTeamCrest: away?.crest ?? null,
+                myPick: null,
+            };
+        });
+
+        if (Array.isArray(rows) && req.query.SELECT?.count) {
+            (rows as any).$count = totalCount;
+        }
+
+        return this.finalizeReadResult(rows, req);
+    }
+
+    /**
+     * Materialize PredictionLeaderboard through base tables so hybrid/local
+     * runs do not depend on redeploying generated HANA service views.
+     */
+    async readPredictionLeaderboard(req: Request) {
+        const { PlayerTournamentStats, Player, Team } = cds.entities('cnma.prediction');
+        const query = SELECT.from(PlayerTournamentStats).columns(
+            'ID',
+            'player_ID',
+            'tournament_ID',
+            'rank',
+            'totalPoints',
+            'totalCorrect',
+            'totalPredictions',
+        );
+
+        this.copyReadClauses(req, query, { includeOrderBy: false, includeLimit: false });
+
+        const stats = (await query) as PlayerTournamentStatsLookup[];
+        const playerIds = [
+            ...new Set(
+                stats
+                    .map((row) => row.player_ID)
+                    .filter((value): value is string => typeof value === 'string' && value.length > 0)
+            ),
+        ];
+        const players = playerIds.length > 0
+            ? (await SELECT.from(Player)
+                .columns('ID', 'displayName', 'avatarUrl', 'email', 'bio', 'country_code', 'favoriteTeam_ID')
+                .where({ ID: { in: playerIds } })) as PlayerLookup[]
+            : [];
+        const playerMap = toIdMap(players);
+
+        const favoriteTeamIds = [
+            ...new Set(
+                players
+                    .map((player) => player.favoriteTeam_ID)
+                    .filter((value): value is string => typeof value === 'string' && value.length > 0)
+            ),
+        ];
+        const teams = favoriteTeamIds.length > 0
+            ? (await SELECT.from(Team).where({ ID: { in: favoriteTeamIds } })) as TeamLookup[]
+            : [];
+        const teamMap = toIdMap(teams);
+
+        const rows = stats.map((stat) => {
+            const player = stat.player_ID ? playerMap.get(stat.player_ID) : undefined;
+            const favoriteTeam = player?.favoriteTeam_ID ? teamMap.get(player.favoriteTeam_ID) : undefined;
+            return {
+                ID: stat.ID ?? null,
+                tournament_ID: stat.tournament_ID ?? null,
+                rank: stat.rank ?? 0,
+                playerId: stat.player_ID ?? null,
+                displayName: player?.displayName ?? '',
+                avatarUrl: player?.avatarUrl ?? null,
+                email: player?.email ?? null,
+                favoriteTeam: favoriteTeam?.name ?? null,
+                bio: player?.bio ?? null,
+                country: player?.country_code ?? null,
+                totalPoints: Number(stat.totalPoints) || 0,
+                totalCorrect: Number(stat.totalCorrect) || 0,
+                totalPredictions: Number(stat.totalPredictions) || 0,
+                isMe: false,
+            };
+        });
+
+        const sorted = this.applyInMemoryOrder(
+            rows,
+            req.query.SELECT?.orderBy ?? [
+                { ref: ['totalPoints'], sort: 'desc' },
+                { ref: ['displayName'], sort: 'asc' },
+            ]
+        );
+        const limited = this.applyInMemoryLimit(sorted, req.query.SELECT?.limit);
+        return this.finalizeReadResult(limited, req);
+    }
+
+    /**
+     * Materialize RecentPredictionsView through underlying prediction/match/team tables.
+     * before/after READ hooks still apply, so current-user filtering and score-bet enrichment stay unchanged.
+     */
+    async readRecentPredictionsView(req: Request) {
+        const { Prediction, Match, Team, Tournament } = cds.entities('cnma.prediction');
+        const query = SELECT.from(Prediction).columns(
+            'ID',
+            'player_ID',
+            'match_ID',
+            'tournament_ID',
+            'pick',
+            'status',
+            'isCorrect',
+            'pointsEarned',
+            'submittedAt',
+        );
+
+        this.copyReadClauses(req, query);
+
+        const predictions = (await query) as PredictionLookup[];
+        const matchIds = [
+            ...new Set(
+                predictions
+                    .map((row) => row.match_ID)
+                    .filter((value): value is string => typeof value === 'string' && value.length > 0)
+            ),
+        ];
+        const matches = matchIds.length > 0
+            ? (await SELECT.from(Match)
+                .columns('ID', 'kickoff', 'homeScore', 'awayScore', 'homeTeam_ID', 'awayTeam_ID')
+                .where({ ID: { in: matchIds } })) as MatchLookup[]
+            : [];
+        const matchMap = toIdMap(matches);
+
+        const teamIds = [
+            ...new Set(
+                matches
+                    .flatMap((match) => [match.homeTeam_ID, match.awayTeam_ID])
+                    .filter((value): value is string => typeof value === 'string' && value.length > 0)
+            ),
+        ];
+        const teams = teamIds.length > 0
+            ? (await SELECT.from(Team).where({ ID: { in: teamIds } })) as TeamLookup[]
+            : [];
+        const teamMap = toIdMap(teams);
+
+        const tournamentIds = [
+            ...new Set(
+                predictions
+                    .map((row) => row.tournament_ID)
+                    .filter((value): value is string => typeof value === 'string' && value.length > 0)
+            ),
+        ];
+        const tournaments = tournamentIds.length > 0
+            ? (await SELECT.from(Tournament).columns('ID', 'name').where({ ID: { in: tournamentIds } })) as TournamentLookup[]
+            : [];
+        const tournamentMap = toIdMap(tournaments);
+
+        const rows = predictions.map((prediction) => {
+            const match = prediction.match_ID ? matchMap.get(prediction.match_ID) : undefined;
+            const home = match?.homeTeam_ID ? teamMap.get(match.homeTeam_ID) : undefined;
+            const away = match?.awayTeam_ID ? teamMap.get(match.awayTeam_ID) : undefined;
+            const tournament = prediction.tournament_ID ? tournamentMap.get(prediction.tournament_ID) : undefined;
+
+            return {
+                ID: prediction.ID ?? null,
+                player_ID: prediction.player_ID ?? null,
+                match_ID: prediction.match_ID ?? null,
+                tournament_ID: prediction.tournament_ID ?? null,
+                pick: prediction.pick ?? null,
+                status: prediction.status ?? null,
+                isCorrect: prediction.isCorrect ?? null,
+                pointsEarned: Number(prediction.pointsEarned) || 0,
+                submittedAt: prediction.submittedAt ?? null,
+                kickoff: match?.kickoff ?? null,
+                homeScore: match?.homeScore ?? null,
+                awayScore: match?.awayScore ?? null,
+                homeTeam: home?.name ?? null,
+                homeFlag: home?.flagCode ?? null,
+                homeCrest: home?.crest ?? null,
+                awayTeam: away?.name ?? null,
+                awayFlag: away?.flagCode ?? null,
+                awayCrest: away?.crest ?? null,
+                tournamentName: tournament?.name ?? null,
+            };
+        });
+
+        return this.finalizeReadResult(rows, req);
+    }
+
+    /**
+     * Materialize TournamentBracketView through base tables so the GET endpoint
+     * keeps working before HDI schema is redeployed.
+     */
+    async readTournamentBracketView(req: Request) {
+        const { BracketSlot, Team, Match } = cds.entities('cnma.prediction');
+        const query = SELECT.from(BracketSlot).columns(
+            'ID',
+            'tournament_ID',
+            'stage',
+            'position',
+            'label',
+            'homeTeam_ID',
+            'awayTeam_ID',
+            'leg1_ID',
+            'leg2_ID',
+            'leg1ExternalId',
+            'leg2ExternalId',
+            'homeAgg',
+            'awayAgg',
+            'homePen',
+            'awayPen',
+            'winner_ID',
+            'nextSlot_ID',
+            'nextSlotSide',
+        );
+
+        this.copyReadClauses(req, query);
+
+        const slots = (await query) as BracketSlotLookup[];
+        const teamIds = [
+            ...new Set(
+                slots
+                    .flatMap((slot) => [slot.homeTeam_ID, slot.awayTeam_ID, slot.winner_ID])
+                    .filter((value): value is string => typeof value === 'string' && value.length > 0)
+            ),
+        ];
+        const teams = teamIds.length > 0
+            ? (await SELECT.from(Team).where({ ID: { in: teamIds } })) as TeamLookup[]
+            : [];
+        const teamMap = toIdMap(teams);
+
+        const matchIds = [
+            ...new Set(
+                slots
+                    .flatMap((slot) => [slot.leg1_ID, slot.leg2_ID])
+                    .filter((value): value is string => typeof value === 'string' && value.length > 0)
+            ),
+        ];
+        const matches = matchIds.length > 0
+            ? (await SELECT.from(Match)
+                .columns('ID', 'homeScore', 'awayScore', 'status')
+                .where({ ID: { in: matchIds } })) as MatchLookup[]
+            : [];
+        const matchMap = toIdMap(matches);
+
+        const rows = slots.map((slot) => {
+            const home = slot.homeTeam_ID ? teamMap.get(slot.homeTeam_ID) : undefined;
+            const away = slot.awayTeam_ID ? teamMap.get(slot.awayTeam_ID) : undefined;
+            const winner = slot.winner_ID ? teamMap.get(slot.winner_ID) : undefined;
+            const leg1 = slot.leg1_ID ? matchMap.get(slot.leg1_ID) : undefined;
+            const leg2 = slot.leg2_ID ? matchMap.get(slot.leg2_ID) : undefined;
+
+            return {
+                slotId: slot.ID ?? null,
+                tournament_ID: slot.tournament_ID ?? null,
+                stage: slot.stage ?? null,
+                position: slot.position ?? 0,
+                label: slot.label ?? null,
+                homeTeamId: slot.homeTeam_ID ?? null,
+                homeTeamName: home?.name ?? null,
+                homeTeamFlag: home?.flagCode ?? null,
+                homeTeamCrest: home?.crest ?? null,
+                awayTeamId: slot.awayTeam_ID ?? null,
+                awayTeamName: away?.name ?? null,
+                awayTeamFlag: away?.flagCode ?? null,
+                awayTeamCrest: away?.crest ?? null,
+                leg1Id: slot.leg1_ID ?? null,
+                leg1ExternalId: slot.leg1ExternalId ?? null,
+                leg1HomeScore: leg1?.homeScore ?? null,
+                leg1AwayScore: leg1?.awayScore ?? null,
+                leg1Status: leg1?.status ?? null,
+                leg2Id: slot.leg2_ID ?? null,
+                leg2ExternalId: slot.leg2ExternalId ?? null,
+                leg2HomeScore: leg2?.homeScore ?? null,
+                leg2AwayScore: leg2?.awayScore ?? null,
+                leg2Status: leg2?.status ?? null,
+                homeAgg: slot.homeAgg ?? 0,
+                awayAgg: slot.awayAgg ?? 0,
+                homePen: slot.homePen ?? null,
+                awayPen: slot.awayPen ?? null,
+                winnerId: slot.winner_ID ?? null,
+                winnerName: winner?.name ?? null,
+                nextSlotId: slot.nextSlot_ID ?? null,
+                nextSlotSide: slot.nextSlotSide ?? null,
+            };
+        });
+
+        return this.finalizeReadResult(rows, req);
+    }
+
+    /**
      * Decorate leaderboard rows from PredictionLeaderboard view.
      * Keeps transport as pure OData GET while still marking the current user.
      */
@@ -773,6 +1167,71 @@ export class PredictionHandler {
                 isCorrect: sb.isCorrect,
                 payout: Number(sb.payout) || 0,
             }));
+        }
+    }
+
+    /**
+     * Enrich TournamentBracketView for slots where leg matches are not linked by ID yet
+     * but can be resolved via external IDs.
+     */
+    async enrichTournamentBracketView(rows: any[] | any) {
+        const list = Array.isArray(rows) ? rows : rows ? [rows] : [];
+        if (list.length === 0) return;
+
+        const externalIds = [
+            ...new Set(
+                list
+                    .flatMap((row: any) => [row?.leg1ExternalId, row?.leg2ExternalId])
+                    .filter((value: any) => typeof value === 'number')
+            ),
+        ] as number[];
+        if (externalIds.length === 0) return;
+
+        const tournamentIds = [
+            ...new Set(
+                list
+                    .map((row: any) => this.playerResolver.asTrimmedString(row?.tournament_ID))
+                    .filter((value: string | null): value is string => !!value)
+            ),
+        ];
+        if (tournamentIds.length === 0) return;
+
+        const { Match } = cds.entities('cnma.prediction');
+        const matches = (await SELECT.from(Match).where({
+            tournament_ID: { in: tournamentIds },
+            externalId: { in: externalIds },
+        })) as MatchLookup[];
+
+        const byTournamentExternal = new Map<string, MatchLookup>();
+        for (const match of matches) {
+            const tournamentId = this.playerResolver.asTrimmedString((match as any)?.tournament_ID);
+            if (!tournamentId || typeof match.externalId !== 'number') continue;
+            byTournamentExternal.set(`${tournamentId}:${match.externalId}`, match);
+        }
+
+        for (const row of list) {
+            const tournamentId = this.playerResolver.asTrimmedString(row?.tournament_ID);
+            if (!tournamentId) continue;
+
+            if (!row.leg1Id && typeof row.leg1ExternalId === 'number') {
+                const leg1 = byTournamentExternal.get(`${tournamentId}:${row.leg1ExternalId}`);
+                if (leg1) {
+                    row.leg1Id = leg1.ID ?? row.leg1Id ?? null;
+                    row.leg1HomeScore = leg1.homeScore ?? row.leg1HomeScore ?? null;
+                    row.leg1AwayScore = leg1.awayScore ?? row.leg1AwayScore ?? null;
+                    row.leg1Status = leg1.status ?? row.leg1Status ?? null;
+                }
+            }
+
+            if (!row.leg2Id && typeof row.leg2ExternalId === 'number') {
+                const leg2 = byTournamentExternal.get(`${tournamentId}:${row.leg2ExternalId}`);
+                if (leg2) {
+                    row.leg2Id = leg2.ID ?? row.leg2Id ?? null;
+                    row.leg2HomeScore = leg2.homeScore ?? row.leg2HomeScore ?? null;
+                    row.leg2AwayScore = leg2.awayScore ?? row.leg2AwayScore ?? null;
+                    row.leg2Status = leg2.status ?? row.leg2Status ?? null;
+                }
+            }
         }
     }
 
@@ -871,180 +1330,6 @@ export class PredictionHandler {
     }
 
     /**
-     * Get the current user's recent predictions with match details.
-     * Ordered by submittedAt DESC.
-     */
-    async getMyRecentPredictions(req: Request) {
-        const { limit: rawLimit } = req.data;
-        const limit = rawLimit && rawLimit > 0 ? Math.min(rawLimit, 50) : 20;
-        const { Prediction, ScoreBet, Match, Team, Tournament } = cds.entities('cnma.prediction');
-
-        const playerId = await this.getCurrentPlayerId(req);
-        if (!playerId) return [];
-
-        const predictions = await SELECT.from(Prediction)
-            .where({ player_ID: playerId })
-            .orderBy('submittedAt desc')
-            .limit(limit);
-
-        // Collect all unique match IDs to batch-fetch score bets
-        const matchIds = [...new Set(predictions.map((p: any) => p.match_ID))];
-
-        // Batch-fetch score bets for all relevant matches for this player
-        const allScoreBets = matchIds.length > 0
-            ? await SELECT.from(ScoreBet).where({
-                player_ID: playerId,
-                match_ID: { in: matchIds },
-            })
-            : [];
-
-        // Build a map: matchId → ScoreBet[]
-        const scoreBetMap = new Map<string, any[]>();
-        for (const sb of allScoreBets as any[]) {
-            if (!scoreBetMap.has(sb.match_ID)) scoreBetMap.set(sb.match_ID, []);
-            scoreBetMap.get(sb.match_ID)!.push(sb);
-        }
-
-        // Batch-fetch all matches and teams for this batch of predictions
-        const allMatches = matchIds.length > 0 ? await SELECT.from(Match).where({ ID: { in: matchIds } }) : [];
-        const matchMap: Map<string, any> = new Map(allMatches.map((m: any) => [m.ID as string, m]));
-
-        const teamIds = [...new Set(allMatches.flatMap((m: any) => [m.homeTeam_ID, m.awayTeam_ID]).filter(Boolean))];
-        const teams = teamIds.length > 0 ? await SELECT.from(Team).where({ ID: { in: teamIds } }) : [];
-        const teamMap: Map<string, any> = new Map(teams.map((t: any) => [t.ID as string, t]));
-
-        const tournamentIds = [...new Set(predictions.map((p: any) => p.tournament_ID).filter(Boolean))];
-        const tournaments = tournamentIds.length > 0 ? await SELECT.from(Tournament).where({ ID: { in: tournamentIds } }) : [];
-        const tournamentMap: Map<string, any> = new Map(tournaments.map((t: any) => [t.ID as string, t]));
-
-        const results = [];
-        for (const p of predictions) {
-            const match = matchMap.get(p.match_ID);
-            if (!match) continue;
-            const home = match.homeTeam_ID ? teamMap.get(match.homeTeam_ID) : undefined;
-            const away = match.awayTeam_ID ? teamMap.get(match.awayTeam_ID) : undefined;
-            const tournament = p.tournament_ID ? tournamentMap.get(p.tournament_ID) : null;
-
-            const scoreBets = ((match.ID ? scoreBetMap.get(match.ID) : undefined) ?? []).map((sb: any) => ({
-                betId: sb.ID,
-                predictedHomeScore: sb.predictedHomeScore,
-                predictedAwayScore: sb.predictedAwayScore,
-                status: sb.status,
-                isCorrect: sb.isCorrect,
-                payout: Number(sb.payout) || 0,
-            }));
-
-            results.push({
-                predictionId: p.ID,
-                matchId: match.ID,
-                homeTeam: home?.name ?? '',
-                homeFlag: home?.flagCode ?? '',
-                homeCrest: home?.crest ?? '',
-                awayTeam: away?.name ?? '',
-                awayFlag: away?.flagCode ?? '',
-                awayCrest: away?.crest ?? '',
-                tournamentName: tournament?.name ?? '',
-                pick: p.pick,
-                status: p.status,
-                isCorrect: p.isCorrect,
-                pointsEarned: Number(p.pointsEarned) || 0,
-                submittedAt: p.submittedAt,
-                kickoff: match.kickoff,
-                homeScore: match.homeScore,
-                awayScore: match.awayScore,
-                scoreBets,
-            });
-        }
-        return results;
-    }
-
-    /**
-     * Get the full knockout bracket tree for a tournament.
-     * Returns all bracket slots with team info, match scores, and progression.
-     */
-    async getTournamentBracket(req: Request) {
-        const { tournamentId } = req.data;
-        const { BracketSlot, Match, Team } = cds.entities('cnma.prediction');
-
-        const slots = await SELECT.from(BracketSlot)
-            .where({ tournament_ID: tournamentId })
-            .orderBy('stage asc', 'position asc');
-
-        // Batch-fetch all referenced teams
-        const teamIds = [...new Set(slots.flatMap((s: any) => [s.homeTeam_ID, s.awayTeam_ID, s.winner_ID]).filter(Boolean))];
-        const teams = teamIds.length > 0 ? await SELECT.from(Team).where({ ID: { in: teamIds } }) : [];
-        const teamMap: Map<string, any> = new Map(teams.map((t: any) => [t.ID as string, t]));
-
-        // Batch-fetch all referenced matches (by ID and by externalId)
-        const matchIds = [...new Set(slots.flatMap((s: any) => [s.leg1_ID, s.leg2_ID]).filter(Boolean))];
-        const matchExternalIds = [...new Set(
-            slots.flatMap((s: any) => {
-                const ids: number[] = [];
-                if (!s.leg1_ID && s.leg1ExternalId != null) ids.push(s.leg1ExternalId);
-                if (!s.leg2_ID && s.leg2ExternalId != null) ids.push(s.leg2ExternalId);
-                return ids;
-            })
-        )];
-
-        const matchesById: MatchLookup[] = matchIds.length > 0
-            ? (await SELECT.from(Match).where({ ID: { in: matchIds } })) as MatchLookup[]
-            : [];
-        const matchesByExtId: MatchLookup[] = matchExternalIds.length > 0
-            ? (await SELECT.from(Match).where({ tournament_ID: tournamentId, externalId: { in: matchExternalIds } })) as MatchLookup[]
-            : [];
-
-        const matchMap: Map<string, any> = new Map(matchesById.map((m: any) => [m.ID as string, m]));
-        const matchByExtIdMap: Map<number, any> = new Map(matchesByExtId.map((m: any) => [m.externalId as number, m]));
-
-        const results = slots.map((slot: any) => {
-            const homeTeam = teamMap.get(slot.homeTeam_ID) ?? null;
-            const awayTeam = teamMap.get(slot.awayTeam_ID) ?? null;
-            const winnerTeam = teamMap.get(slot.winner_ID) ?? null;
-
-            const leg1 = slot.leg1_ID
-                ? matchMap.get(slot.leg1_ID) ?? null
-                : (slot.leg1ExternalId != null ? matchByExtIdMap.get(slot.leg1ExternalId) ?? null : null);
-            const leg2 = slot.leg2_ID
-                ? matchMap.get(slot.leg2_ID) ?? null
-                : (slot.leg2ExternalId != null ? matchByExtIdMap.get(slot.leg2ExternalId) ?? null : null);
-
-            return {
-                slotId: slot.ID,
-                stage: slot.stage,
-                position: slot.position,
-                label: slot.label,
-                homeTeamId: slot.homeTeam_ID,
-                homeTeamName: homeTeam?.name ?? '',
-                homeTeamFlag: homeTeam?.flagCode ?? '',
-                homeTeamCrest: homeTeam?.crest ?? '',
-                awayTeamId: slot.awayTeam_ID,
-                awayTeamName: awayTeam?.name ?? '',
-                awayTeamFlag: awayTeam?.flagCode ?? '',
-                awayTeamCrest: awayTeam?.crest ?? '',
-                leg1Id: leg1?.ID ?? slot.leg1_ID,
-                leg1ExternalId: slot.leg1ExternalId ?? leg1?.externalId ?? null,
-                leg1HomeScore: leg1?.homeScore ?? null,
-                leg1AwayScore: leg1?.awayScore ?? null,
-                leg1Status: leg1?.status ?? null,
-                leg2Id: leg2?.ID ?? slot.leg2_ID,
-                leg2ExternalId: slot.leg2ExternalId ?? leg2?.externalId ?? null,
-                leg2HomeScore: leg2?.homeScore ?? null,
-                leg2AwayScore: leg2?.awayScore ?? null,
-                leg2Status: leg2?.status ?? null,
-                homeAgg: slot.homeAgg ?? 0,
-                awayAgg: slot.awayAgg ?? 0,
-                homePen: slot.homePen ?? null,
-                awayPen: slot.awayPen ?? null,
-                winnerId: slot.winner_ID,
-                winnerName: winnerTeam?.name ?? '',
-                nextSlotId: slot.nextSlot_ID,
-                nextSlotSide: slot.nextSlotSide,
-            };
-        });
-        return results;
-    }
-
-    /**
      * Get champion pick counts by team for a tournament.
      * Returns how many players picked each team, with team info.
      */
@@ -1086,5 +1371,89 @@ export class PredictionHandler {
 
     private async getOrCreatePlayerId(req: Request): Promise<string> {
         return this.playerResolver.getOrCreatePlayerId(req);
+    }
+
+    private copyReadClauses(
+        req: Request,
+        query: any,
+        options: { includeOrderBy?: boolean; includeLimit?: boolean } = {}
+    ) {
+        const includeOrderBy = options.includeOrderBy !== false;
+        const includeLimit = options.includeLimit !== false;
+        const select = req.query.SELECT;
+
+        if (select?.where) {
+            query.SELECT.where = select.where;
+        }
+        if (includeOrderBy && select?.orderBy) {
+            query.SELECT.orderBy = select.orderBy;
+        }
+        if (includeLimit && select?.limit) {
+            query.SELECT.limit = select.limit;
+        }
+    }
+
+    private andWhere(query: any, extraWhere: any[]) {
+        const existingWhere = query.SELECT.where;
+        query.SELECT.where = existingWhere && existingWhere.length > 0
+            ? ['(', ...existingWhere, ')', 'and', ...extraWhere]
+            : extraWhere;
+    }
+
+    private finalizeReadResult<T>(rows: T[], req: Request): T[] | T | null {
+        if (req.query.SELECT?.one) {
+            return rows[0] ?? null;
+        }
+        return rows;
+    }
+
+    private applyInMemoryOrder<T extends Record<string, any>>(rows: T[], orderBy?: any[]): T[] {
+        if (!orderBy || orderBy.length === 0) {
+            return rows;
+        }
+
+        return [...rows].sort((left, right) => {
+            for (const clause of orderBy) {
+                const refPath = Array.isArray(clause?.ref) ? clause.ref : [];
+                const property = typeof refPath[refPath.length - 1] === 'string'
+                    ? refPath[refPath.length - 1]
+                    : null;
+                if (!property) continue;
+
+                const comparison = this.compareReadValues(left[property], right[property]);
+                if (comparison !== 0) {
+                    return clause.sort === 'desc' ? -comparison : comparison;
+                }
+            }
+            return 0;
+        });
+    }
+
+    private applyInMemoryLimit<T>(rows: T[], limit: any): T[] {
+        const rowLimit = this.readNumericLimit(limit?.rows);
+        const offset = this.readNumericLimit(limit?.offset) ?? 0;
+        if (rowLimit == null) {
+            return rows.slice(offset);
+        }
+        return rows.slice(offset, offset + rowLimit);
+    }
+
+    private readNumericLimit(value: any): number | null {
+        const raw = value?.val ?? value;
+        if (raw == null) return null;
+        const parsed = Number(raw);
+        return Number.isFinite(parsed) ? parsed : null;
+    }
+
+    private compareReadValues(left: unknown, right: unknown): number {
+        if (left == null && right == null) return 0;
+        if (left == null) return 1;
+        if (right == null) return -1;
+
+        if (typeof left === 'number' && typeof right === 'number') {
+            return left - right;
+        }
+
+        return String(left).localeCompare(String(right));
     }
 }

@@ -254,8 +254,9 @@ export function TournamentBracket({
         if (!tournamentId) return;
 
         setLoading(true);
+        const filter = encodeURIComponent(`tournament_ID eq '${tournamentId}'`);
         fetch(
-            `/api/player/getTournamentBracket(tournamentId='${tournamentId}')`
+            `/api/player/TournamentBracketView?$filter=${filter}&$orderby=stage asc,position asc`
         )
             .then(async (res) => {
                 if (!res.ok) throw new Error("Failed to load bracket");

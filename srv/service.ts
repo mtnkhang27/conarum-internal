@@ -42,9 +42,11 @@ export class PlayerService extends cds.ApplicationService {
         this.on('getLatestResults', this.predictionHandler.getLatestResults.bind(this.predictionHandler));
         this.on('getUpcomingMatches', this.predictionHandler.getUpcomingMatches.bind(this.predictionHandler));
         this.on('getStandings', this.predictionHandler.getStandings.bind(this.predictionHandler));
-        this.on('getMyRecentPredictions', this.predictionHandler.getMyRecentPredictions.bind(this.predictionHandler));
-        this.on('getTournamentBracket', this.predictionHandler.getTournamentBracket.bind(this.predictionHandler));
         this.on('getChampionPickCounts', this.predictionHandler.getChampionPickCounts.bind(this.predictionHandler));
+        this.on('READ', 'CompletedMatchesView', this.predictionHandler.readCompletedMatchesView.bind(this.predictionHandler));
+        this.on('READ', 'PredictionLeaderboard', this.predictionHandler.readPredictionLeaderboard.bind(this.predictionHandler));
+        this.on('READ', 'RecentPredictionsView', this.predictionHandler.readRecentPredictionsView.bind(this.predictionHandler));
+        this.on('READ', 'TournamentBracketView', this.predictionHandler.readTournamentBracketView.bind(this.predictionHandler));
         this.after('READ', 'PredictionLeaderboard', this.predictionHandler.decoratePredictionLeaderboard.bind(this.predictionHandler));
 
         // ── Auto-filter MyPredictions / MyScoreBets / MyChampionPick to current user ──
@@ -58,6 +60,7 @@ export class PlayerService extends cds.ApplicationService {
         this.after('READ', 'CompletedMatchesView', this.predictionHandler.enrichCompletedMatchesView.bind(this.predictionHandler));
         this.before('READ', 'RecentPredictionsView', this.predictionHandler.filterByCurrentUser.bind(this.predictionHandler));
         this.after('READ', 'RecentPredictionsView', this.predictionHandler.enrichRecentPredictionsView.bind(this.predictionHandler));
+        this.after('READ', 'TournamentBracketView', this.predictionHandler.enrichTournamentBracketView.bind(this.predictionHandler));
 
         return super.init();
     }

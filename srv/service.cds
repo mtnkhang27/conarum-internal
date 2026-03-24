@@ -136,6 +136,33 @@ service PlayerService {
             tournament : redirected to Tournaments
         };
 
+    /**
+     * Player leaderboard (UC2) as a read-only view.
+     * Intended for plain OData GET with $filter/$orderby.
+     */
+    @readonly
+    entity PredictionLeaderboard    as
+        select from db.PlayerTournamentStats as stats
+            left join db.Player as player
+                on player.ID = stats.player.ID
+            left join db.Team as favTeam
+                on favTeam.ID = player.favoriteTeam.ID {
+            key stats.ID              as ID,
+                stats.tournament.ID   as tournament_ID,
+                stats.rank            as rank,
+                stats.player.ID       as playerId,
+                player.displayName    as displayName,
+                player.avatarUrl      as avatarUrl,
+                player.email          as email,
+                favTeam.name          as favoriteTeam,
+                player.bio            as bio,
+                player.country        as country,
+                stats.totalPoints     as totalPoints,
+                stats.totalCorrect    as totalCorrect,
+                stats.totalPredictions as totalPredictions,
+                false                 as isMe : Boolean
+        };
+
     // ── User-Specific Views ──────────────────────────────────
 
     /** Current user's match outcome predictions. */
@@ -315,24 +342,6 @@ service PlayerService {
     }
 
     function getUpcomingMatches(tournamentId: UUID) returns many UpcomingMatchItem;
-
-    /** Prediction leaderboard for a tournament (UC2). */
-    type LeaderboardItem {
-        rank         : Integer;
-        playerId     : UUID;
-        displayName  : String;
-        avatarUrl    : String;
-        email        : String;
-        favoriteTeam : String;
-        bio          : String;
-        country      : String;
-        totalPoints  : Decimal;
-        totalCorrect : Integer;
-        totalPredictions : Integer;
-        isMe         : Boolean;
-    }
-
-    function getPredictionLeaderboard(tournamentId: UUID) returns many LeaderboardItem;
 
     /** Score bet detail within a recent prediction. */
     type ScoreBetDetail {

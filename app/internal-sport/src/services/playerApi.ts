@@ -995,8 +995,9 @@ export const playerLeaderboardApi = {
 
     /** Tournament-specific prediction leaderboard (UC2). */
     async getByTournament(tournamentId: string): Promise<TournamentLeaderboardItem[]> {
+        const filter = encodeURIComponent(`tournament_ID eq '${tournamentId}'`);
         return json<TournamentLeaderboardItem[]>(
-            `${BASE}/getPredictionLeaderboard(tournamentId='${tournamentId}')`
+            `${BASE}/PredictionLeaderboard?$filter=${filter}&$orderby=totalPoints desc,displayName asc`
         );
     },
 };

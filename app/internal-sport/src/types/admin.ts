@@ -279,3 +279,114 @@ export interface PayoutAwardInput {
     evidenceUrl?: string;
 }
 
+// === CDS View Types (pre-joined, flat structure) ===
+
+export interface AdminMatchListItem {
+    ID: string;
+    createdAt: string | null;
+    modifiedAt: string | null;
+    tournament_ID: string;
+    tournamentName: string | null;
+    homeTeam_ID: string | null;
+    homeTeamName: string | null;
+    homeTeamFlag: string | null;
+    homeTeamCrest: string | null;
+    homeTeamShort: string | null;
+    awayTeam_ID: string | null;
+    awayTeamName: string | null;
+    awayTeamFlag: string | null;
+    awayTeamCrest: string | null;
+    awayTeamShort: string | null;
+    kickoff: string;
+    venue: string | null;
+    stage: AdminMatch["stage"];
+    status: AdminMatch["status"];
+    matchNumber: number | null;
+    matchday: number | null;
+    outcomePoints: number;
+    homeScore: number | null;
+    awayScore: number | null;
+    outcome: "home" | "draw" | "away" | null;
+    externalId: number | null;
+    bettingLocked: boolean;
+    isHotMatch: boolean;
+    bracketSlot_ID: string | null;
+    leg: number | null;
+}
+
+export interface AdminPredictionView {
+    ID: string;
+    player_ID: string;
+    match_ID: string;
+    tournament_ID: string | null;
+    pick: "home" | "draw" | "away";
+    isCorrect: boolean | null;
+    pointsEarned: number;
+    status: string;
+    submittedAt: string | null;
+    playerName: string | null;
+    playerAvatar: string | null;
+    playerEmail: string | null;
+}
+
+export interface AdminScoreBetView {
+    ID: string;
+    player_ID: string;
+    match_ID: string;
+    predictedHomeScore: number;
+    predictedAwayScore: number;
+    status: string;
+    isCorrect: boolean | null;
+    payout: number;
+    isPaidOut: boolean;
+    submittedAt: string | null;
+    playerName: string | null;
+    playerAvatar: string | null;
+    playerEmail: string | null;
+}
+
+export interface AdminChampionPickView {
+    ID: string;
+    player_ID: string;
+    team_ID: string;
+    tournament_ID: string;
+    submittedAt: string | null;
+    isCorrect: boolean | null;
+    playerName: string | null;
+    playerAvatar: string | null;
+    playerEmail: string | null;
+    teamName: string | null;
+    teamCrest: string | null;
+    teamFlag: string | null;
+}
+
+export interface AdminTournamentStatsView {
+    ID: string;
+    player_ID: string;
+    tournament_ID: string;
+    totalPoints: number;
+    totalCorrect: number;
+    totalPredictions: number;
+    currentStreak: number;
+    bestStreak: number;
+    rank: number | null;
+    playerName: string | null;
+    playerAvatar: string | null;
+    playerEmail: string | null;
+}
+
+export interface AdminTournamentTeamView {
+    ID: string;
+    tournament_ID: string;
+    team_ID: string;
+    groupName: string | null;
+    isEliminated: boolean;
+    finalPosition: number | null;
+    teamName: string | null;
+    teamCrest: string | null;
+    teamFlag: string | null;
+    teamShort: string | null;
+    confederation: string | null;
+    fifaRanking: number | null;
+}
+

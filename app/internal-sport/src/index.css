@@ -190,6 +190,19 @@ body::before {
   }
 }
 
+/* === Sidebar collapse animation === */
+.sidebar-collapse {
+  transition: width 0.2s ease;
+}
+
+.sidebar-expanded {
+  width: 240px;
+}
+
+.sidebar-collapsed {
+  width: 52px;
+}
+
 .glow-purple {
   box-shadow: 0 0 20px rgba(109, 63, 199, 0.4);
 }

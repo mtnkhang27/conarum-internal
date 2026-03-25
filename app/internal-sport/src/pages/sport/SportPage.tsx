@@ -12,7 +12,8 @@ import { TournamentBracket } from "./components/TournamentBracket";
 import { LoadingOverlay } from "@/components/shared/LoadingOverlay";
 import { useActiveSection } from "@/hooks/useActiveSection";
 import { playerMatchesApi } from "@/services/playerApi";
-import type { LiveMatch } from "@/types";
+import type { LiveMatch, Match } from "@/types";
+import { BettingBannerPopup } from "@/components/shared/BettingBannerPopup";
 
 // ─── Section heading helper ────────────────────────────────────
 function SectionHeading({
@@ -43,6 +44,8 @@ export function SportPage() {
   const { t } = useTranslation();
   const [tournamentId, setTournamentId] = useState("");
   const [tournamentReady, setTournamentReady] = useState(false);
+  const [bannerMatches, setBannerMatches] = useState<Match[]>([]);
+  const [loadingBannerMatches, setLoadingBannerMatches] = useState(true);
   const [recentPredictionsRefreshKey, setRecentPredictionsRefreshKey] =
     useState(0);
 
@@ -53,6 +56,30 @@ export function SportPage() {
   }, []);
 
   const [live, setLive] = useState<LiveMatch[]>([]);
+
+  // Fetch matches for the betting banner popup (lightweight, first page)
+  useEffect(() => {
+    if (!tournamentReady) return;
+    let cancelled = false;
+
+    const loadBannerMatches = async () => {
+      try {
+        const { items } = await playerMatchesApi.getAvailablePaged({
+          tournamentId: tournamentId || undefined,
+          page: 1,
+          pageSize: 5,
+        });
+        if (!cancelled) setBannerMatches(items);
+      } catch {
+        if (!cancelled) setBannerMatches([]);
+      } finally {
+        if (!cancelled) setLoadingBannerMatches(false);
+      }
+    };
+
+    void loadBannerMatches();
+    return () => { cancelled = true; };
+  }, [tournamentId, tournamentReady]);
 
   useEffect(() => {
     if (!tournamentReady) return;
@@ -144,6 +171,11 @@ export function SportPage() {
 
   return (
     <div className="flex flex-col">
+      <BettingBannerPopup
+                matches={bannerMatches}
+                loading={loadingBannerMatches}
+                onBetNow={() => scrollToSection(SECTION.matches)}
+            />
       {/* ── Sticky top controls ── */}
       <div className="sticky top-0 z-20 border-b border-border/60 bg-background/95 backdrop-blur-sm">
         <div className="flex flex-col gap-3 px-4 py-3 sm:px-5 lg:flex-row lg:items-center lg:justify-between xl:px-6">

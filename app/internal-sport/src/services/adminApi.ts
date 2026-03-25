@@ -1,21 +1,22 @@
 import type {
     AdminMatch,
+    AdminMatchListItem,
     AdminTeam,
     AdminTeamMember,
     AdminTournament,
-    AdminTournamentTeam,
     AdminPlayer,
-    AdminPlayerTournamentStats,
     MatchScoreBetConfig,
     ActionResult,
     MatchResultResponse,
     SyncMatchResult,
     CompetitionItem,
     ImportTournamentResult,
-    AdminPrediction,
-    AdminScoreBet,
-    AdminChampionPick,
+    AdminPredictionView,
+    AdminScoreBetView,
+    AdminChampionPickView,
     AdminBracketSlot,
+    AdminTournamentStatsView,
+    AdminTournamentTeamView,
     PayoutItem,
     PayoutAwardInput,
 } from "@/types/admin";
@@ -48,9 +49,10 @@ function odataList<T>(path: string) {
 // ── Matches ────────────────────────────────────────────────
 
 export const matchesApi = {
+    /** Use CDS view with pre-joined team/tournament data (no $expand). */
     list: () =>
-        odataList<AdminMatch>(
-            "/Matches?$expand=homeTeam,awayTeam,tournament&$orderby=kickoff asc"
+        odataList<AdminMatchListItem>(
+            "/AdminMatchListView?$orderby=kickoff asc"
         ),
     get: (id: string) =>
         odata<AdminMatch>(
@@ -167,12 +169,13 @@ export const teamMembersApi = {
         odata<void>(`/TeamMembers('${id}')`, { method: "DELETE" }),
 };
 
-// ── Tournament Teams ───────────────────────────────────────
+// ── Tournament Teams (CDS view) ───────────────────────────
 
 export const tournamentTeamsApi = {
+    /** Use CDS view with pre-joined team data (no $expand). */
     listByTournament: (tournamentId: string) =>
-        odataList<AdminTournamentTeam>(
-            `/TournamentTeams?$filter=tournament_ID eq '${tournamentId}'&$expand=team`
+        odataList<AdminTournamentTeamView>(
+            `/AdminTournamentTeamsView?$filter=tournament_ID eq '${tournamentId}'`
         ),
 };
 
@@ -246,39 +249,43 @@ export const competitionImportApi = {
         }),
 };
 
-// ── Predictions (Admin read-only) ──────────────────────────
+// ── Predictions (Admin read-only — CDS view) ──────────────
 
 export const predictionsApi = {
+    /** Use CDS view with pre-joined player data (no $expand). */
     listByMatch: (matchId: string) =>
-        odataList<AdminPrediction>(
-            `/AllPredictions?$filter=match_ID eq '${matchId}'&$expand=player&$orderby=submittedAt desc`
+        odataList<AdminPredictionView>(
+            `/AdminMatchPredictionsView?$filter=match_ID eq '${matchId}'&$orderby=submittedAt desc`
         ),
 };
 
-// ── Score Bets (Admin read-only) ───────────────────────────
+// ── Score Bets (Admin read-only — CDS view) ────────────────
 
 export const scoreBetsApi = {
+    /** Use CDS view with pre-joined player data (no $expand). */
     listByMatch: (matchId: string) =>
-        odataList<AdminScoreBet>(
-            `/AllScoreBets?$filter=match_ID eq '${matchId}'&$expand=player&$orderby=submittedAt desc`
+        odataList<AdminScoreBetView>(
+            `/AdminMatchScoreBetsView?$filter=match_ID eq '${matchId}'&$orderby=submittedAt desc`
         ),
 };
 
-// ── Champion Picks (Admin read-only) ───────────────────────
+// ── Champion Picks (Admin read-only — CDS view) ────────────
 
 export const championPicksApi = {
+    /** Use CDS view with pre-joined player+team data (no $expand). */
     listByTournament: (tournamentId: string) =>
-        odataList<AdminChampionPick>(
-            `/AllChampionPicks?$filter=tournament_ID eq '${tournamentId}'&$expand=player,team&$orderby=submittedAt desc`
+        odataList<AdminChampionPickView>(
+            `/AdminChampionPicksView?$filter=tournament_ID eq '${tournamentId}'&$orderby=submittedAt desc`
         ),
 };
 
-// ── Player Tournament Stats (Admin read-only) ────────────────
+// ── Player Tournament Stats (Admin read-only — CDS view) ───
 
 export const playerTournamentStatsApi = {
+    /** Use CDS view with pre-joined player data (no $expand). */
     listByTournament: (tournamentId: string) =>
-        odataList<AdminPlayerTournamentStats>(
-            `/PlayerTournamentStats?$filter=tournament_ID eq '${tournamentId}'&$expand=player&$orderby=totalPoints desc`
+        odataList<AdminTournamentStatsView>(
+            `/AdminTournamentStatsView?$filter=tournament_ID eq '${tournamentId}'&$orderby=totalPoints desc`
         ),
 };
 

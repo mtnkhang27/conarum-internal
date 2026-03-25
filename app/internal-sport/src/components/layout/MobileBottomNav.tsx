@@ -13,10 +13,10 @@ import { scrollToSection, SECTION } from "@/pages/sport/sectionNavigation";
 import { useActiveSection } from "@/hooks/useActiveSection";
 
 const sportNavItems = [
-    { section: SECTION.leaderboard, icon: Trophy, label: "Leaders" },
     { section: SECTION.matches, icon: Home, label: "Matches" },
-    { section: SECTION.completed, icon: BarChart3, label: "Results" },
+    { section: SECTION.leaderboard, icon: Trophy, label: "Leaders" },
     { section: SECTION.recent, icon: Clock, label: "Mine" },
+    { section: SECTION.completed, icon: BarChart3, label: "Results" },
 ];
 
 const adminNavItems = [

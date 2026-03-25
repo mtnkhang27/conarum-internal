@@ -44,8 +44,8 @@ import type {
   AdminMatch,
   AdminTeam,
   MatchScoreBetConfig,
-  AdminPrediction,
-  AdminScoreBet,
+  AdminPredictionView,
+  AdminScoreBetView,
   AdminBracketSlot,
 } from "@/types/admin";
 
@@ -136,11 +136,11 @@ export function MatchDetail() {
   const [scoreBettingEnabled, setScoreBettingEnabled] = useState(false);
 
   // Predictions tab state
-  const [predictions, setPredictions] = useState<AdminPrediction[]>([]);
+  const [predictions, setPredictions] = useState<AdminPredictionView[]>([]);
   const [loadingPredictions, setLoadingPredictions] = useState(false);
 
   // Score bets tab state
-  const [scoreBets, setScoreBets] = useState<AdminScoreBet[]>([]);
+  const [scoreBets, setScoreBets] = useState<AdminScoreBetView[]>([]);
   const [loadingScoreBets, setLoadingScoreBets] = useState(false);
 
   // Edit tab state
@@ -646,14 +646,14 @@ export function MatchDetail() {
                   <div key={p.ID} className="rounded-xl border border-border/70 bg-surface/30 p-4">
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex min-w-0 items-center gap-3">
-                        {p.player?.avatarUrl ? (
-                          <img src={p.player.avatarUrl} alt="" className="h-9 w-9 rounded-full object-cover" />
+                        {p.playerAvatar ? (
+                          <img src={p.playerAvatar} alt="" className="h-9 w-9 rounded-full object-cover" />
                         ) : (
                           <div className="flex h-9 w-9 items-center justify-center rounded-full border border-border bg-surface text-xs font-bold text-white">
-                            {(p.player?.displayName ?? p.player_ID).charAt(0).toUpperCase()}
+                            {(p.playerName ?? p.player_ID).charAt(0).toUpperCase()}
                           </div>
                         )}
-                        <span className="truncate font-medium text-white">{p.player?.displayName ?? p.player_ID}</span>
+                        <span className="truncate font-medium text-white">{p.playerName ?? p.player_ID}</span>
                       </div>
                       <div className="text-right">
                         <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">{t("admin.matchDetail.points")}</p>
@@ -694,10 +694,10 @@ export function MatchDetail() {
                     <tr key={p.ID} className="border-b border-border/50">
                       <td className="px-4 py-2.5">
                         <div className="flex items-center gap-2">
-                          {p.player?.avatarUrl && (
-                            <img src={p.player.avatarUrl} alt="" className="h-6 w-6 rounded-full object-cover" />
+                          {p.playerAvatar && (
+                            <img src={p.playerAvatar} alt="" className="h-6 w-6 rounded-full object-cover" />
                           )}
-                          <span className="font-medium text-white">{p.player?.displayName ?? p.player_ID}</span>
+                          <span className="font-medium text-white">{p.playerName ?? p.player_ID}</span>
                         </div>
                       </td>
                       <td className="px-4 py-2.5">
@@ -753,14 +753,14 @@ export function MatchDetail() {
                   >
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex min-w-0 items-center gap-3">
-                        {sb.player?.avatarUrl ? (
-                          <img src={sb.player.avatarUrl} alt="" className="h-9 w-9 rounded-full object-cover" />
+                        {sb.playerAvatar ? (
+                          <img src={sb.playerAvatar} alt="" className="h-9 w-9 rounded-full object-cover" />
                         ) : (
                           <div className="flex h-9 w-9 items-center justify-center rounded-full border border-border bg-surface text-xs font-bold text-white">
-                            {(sb.player?.displayName ?? sb.player_ID).charAt(0).toUpperCase()}
+                            {(sb.playerName ?? sb.player_ID).charAt(0).toUpperCase()}
                           </div>
                         )}
-                        <span className="truncate font-medium text-white">{sb.player?.displayName ?? sb.player_ID}</span>
+                        <span className="truncate font-medium text-white">{sb.playerName ?? sb.player_ID}</span>
                       </div>
                       <span>
                         {sb.isCorrect === true && <CheckCircle2 className="inline h-4 w-4 text-green-400" />}
@@ -811,10 +811,10 @@ export function MatchDetail() {
                     <tr key={sb.ID} className={`border-b border-border/50 ${sb.isCorrect === true ? "bg-green-500/5" : ""}`}>
                       <td className="px-4 py-2.5">
                         <div className="flex items-center gap-2">
-                          {sb.player?.avatarUrl && (
-                            <img src={sb.player.avatarUrl} alt="" className="h-6 w-6 rounded-full object-cover" />
+                          {sb.playerAvatar && (
+                            <img src={sb.playerAvatar} alt="" className="h-6 w-6 rounded-full object-cover" />
                           )}
-                          <span className="font-medium text-white">{sb.player?.displayName ?? sb.player_ID}</span>
+                          <span className="font-medium text-white">{sb.playerName ?? sb.player_ID}</span>
                         </div>
                       </td>
                       <td className="px-4 py-2.5 text-center font-mono font-bold text-white">

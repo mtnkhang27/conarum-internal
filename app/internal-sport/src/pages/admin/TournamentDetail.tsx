@@ -26,9 +26,9 @@ import {
 } from "@/services/adminApi";
 import type {
     AdminTournament,
-    AdminChampionPick,
-    AdminPlayerTournamentStats,
-    AdminTournamentTeam,
+    AdminChampionPickView,
+    AdminTournamentStatsView,
+    AdminTournamentTeamView,
 } from "@/types/admin";
 
 function ConfigRow({
@@ -80,9 +80,9 @@ export function TournamentDetail() {
     const [championPrizePool, setChampionPrizePool] = useState("iPhone 15 Pro Max 256GB");
     const [championBettingStatus, setChampionBettingStatus] = useState<"open" | "locked">("open");
     const [championLockDate, setChampionLockDate] = useState<string | null>(null);
-    const [championPicks, setChampionPicks] = useState<AdminChampionPick[]>([]);
-    const [tournamentStats, setTournamentStats] = useState<AdminPlayerTournamentStats[]>([]);
-    const [tournamentTeams, setTournamentTeams] = useState<AdminTournamentTeam[]>([]);
+    const [championPicks, setChampionPicks] = useState<AdminChampionPickView[]>([]);
+    const [tournamentStats, setTournamentStats] = useState<AdminTournamentStatsView[]>([]);
+    const [tournamentTeams, setTournamentTeams] = useState<AdminTournamentTeamView[]>([]);
     const isTournamentLocked = tournament?.status === "completed" || tournament?.status === "cancelled";
 
     // Champion resolution state
@@ -283,7 +283,7 @@ export function TournamentDetail() {
                             <p className="mb-2 text-sm text-blue-400">
                                 <strong>{t("admin.tournamentDetail.resolveChampion")}</strong> {t("admin.tournamentDetail.resolveChampionDesc")}
                                 {championTeam && (
-                                    <span className="ml-1">({t("admin.tournamentDetail.detectedChampion", { team: championTeam.team?.name })})</span>
+                                    <span className="ml-1">({t("admin.tournamentDetail.detectedChampion", { team: championTeam.teamName })})</span>
                                 )}
                             </p>
                             <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
@@ -294,11 +294,11 @@ export function TournamentDetail() {
                                 >
                                     <option value="">{t("admin.tournamentDetail.selectChampionTeam")}</option>
                                     {tournamentTeams
-                                        .filter((tt) => tt.team)
-                                        .sort((a, b) => (a.team?.name ?? "").localeCompare(b.team?.name ?? ""))
+                                        .filter((tt) => tt.teamName)
+                                        .sort((a, b) => (a.teamName ?? "").localeCompare(b.teamName ?? ""))
                                         .map((tt) => (
                                             <option key={tt.team_ID} value={tt.team_ID}>
-                                                {tt.team?.name}
+                                                {tt.teamName}
                                             </option>
                                         ))}
                                 </select>
@@ -323,12 +323,12 @@ export function TournamentDetail() {
                         <>
                             {/* Group by team */}
                             {(() => {
-                                const byTeam = new Map<string, { teamName: string; teamCrest: string | null; picks: AdminChampionPick[] }>();
+                                const byTeam = new Map<string, { teamName: string; teamCrest: string | null; picks: AdminChampionPickView[] }>();
                                 for (const pick of championPicks) {
                                     const teamId = pick.team_ID;
                                     const entry = byTeam.get(teamId) ?? {
-                                        teamName: pick.team?.name ?? teamId,
-                                        teamCrest: pick.team?.crest ?? null,
+                                        teamName: pick.teamName ?? teamId,
+                                        teamCrest: pick.teamCrest ?? null,
                                         picks: [],
                                     };
                                     entry.picks.push(pick);
@@ -354,10 +354,10 @@ export function TournamentDetail() {
                                                 <div className="flex flex-wrap gap-2">
                                                     {winners.map((w) => (
                                                         <Badge key={w.ID} className="bg-green-500/20 text-green-300 border-green-500/30">
-                                                            {w.player?.avatarUrl && (
-                                                                <img src={w.player.avatarUrl} alt="" className="mr-1.5 h-4 w-4 rounded-full object-cover" />
+                                                            {w.playerAvatar && (
+                                                                <img src={w.playerAvatar} alt="" className="mr-1.5 h-4 w-4 rounded-full object-cover" />
                                                             )}
-                                                            {w.player?.displayName ?? w.player_ID} → {w.team?.name}
+                                                            {w.playerName ?? w.player_ID} → {w.teamName}
                                                         </Badge>
                                                     ))}
                                                 </div>
@@ -396,10 +396,10 @@ export function TournamentDetail() {
                                                     <div className="space-y-1">
                                                         {picks.map((p) => (
                                                             <div key={p.ID} className="flex items-center gap-2 text-xs">
-                                                                {p.player?.avatarUrl && (
-                                                                    <img src={p.player.avatarUrl} alt="" className="h-4 w-4 rounded-full object-cover" />
+                                                                {p.playerAvatar && (
+                                                                    <img src={p.playerAvatar} alt="" className="h-4 w-4 rounded-full object-cover" />
                                                                 )}
-                                                                <span className="text-muted-foreground">{p.player?.displayName ?? p.player_ID}</span>
+                                                                <span className="text-muted-foreground">{p.playerName ?? p.player_ID}</span>
                                                                 {p.isCorrect === true && <CheckCircle2 className="ml-auto h-3 w-3 text-green-400" />}
                                                             </div>
                                                         ))}
@@ -430,12 +430,12 @@ export function TournamentDetail() {
                                     {t("admin.tournamentDetail.uc2Winner", { prize: outcomePrize || "—" })}
                                 </div>
                                 <div className="flex items-center gap-3 mt-2">
-                                    {uc2Leader.player?.avatarUrl && (
-                                        <img src={uc2Leader.player.avatarUrl} alt="" className="h-8 w-8 rounded-full object-cover" />
+                                    {uc2Leader.playerAvatar && (
+                                        <img src={uc2Leader.playerAvatar} alt="" className="h-8 w-8 rounded-full object-cover" />
                                     )}
                                     <div>
                                         <p className="text-sm font-semibold text-white">
-                                            {uc2Leader.player?.displayName ?? uc2Leader.player_ID}
+                                            {uc2Leader.playerName ?? uc2Leader.player_ID}
                                         </p>
                                         <p className="text-xs text-muted-foreground">
                                             {uc2Leader.totalPoints} pts · {uc2Leader.totalCorrect}/{uc2Leader.totalPredictions} correct
@@ -457,11 +457,11 @@ export function TournamentDetail() {
                                     <span className={`w-6 text-center font-bold ${idx === 0 ? "text-primary" : "text-muted-foreground"}`}>
                                         {idx + 1}
                                     </span>
-                                    {s.player?.avatarUrl && (
-                                        <img src={s.player.avatarUrl} alt="" className="h-5 w-5 rounded-full object-cover" />
+                                    {s.playerAvatar && (
+                                        <img src={s.playerAvatar} alt="" className="h-5 w-5 rounded-full object-cover" />
                                     )}
                                     <span className="flex-1 text-white">
-                                        {s.player?.displayName ?? s.player_ID}
+                                        {s.playerName ?? s.player_ID}
                                     </span>
                                     <span className="text-xs text-muted-foreground">
                                         {s.totalCorrect}/{s.totalPredictions}

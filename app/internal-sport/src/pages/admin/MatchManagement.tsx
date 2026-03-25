@@ -52,7 +52,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 import { bracketSlotsApi, matchesApi, teamsApi, tournamentsApi, tournamentActionsApi } from "@/services/adminApi";
-import type { AdminBracketSlot, AdminMatch, AdminTeam, AdminTournament } from "@/types/admin";
+import type { AdminBracketSlot, AdminMatchListItem, AdminTeam, AdminTournament } from "@/types/admin";
 
 const STAGES = [
     { value: "group", label: "admin.matchManagement.stages.group" },
@@ -80,7 +80,7 @@ const STAGE_ORDER: Record<string, number> = {
     relegation: 8,
 };
 
-const MATCH_STATUSES: { value: AdminMatch["status"]; label: string }[] = [
+const MATCH_STATUSES: { value: AdminMatchListItem["status"]; label: string }[] = [
     { value: "upcoming", label: "common.status.upcoming" },
     { value: "live", label: "common.status.live" },
     { value: "finished", label: "common.status.finished" },
@@ -128,7 +128,7 @@ function formatKickoff(kickoff?: string | null) {
 export function MatchManagement() {
     const navigate = useNavigate();
     const { t } = useTranslation();
-    const [matches, setMatches] = useState<AdminMatch[]>([]);
+    const [matches, setMatches] = useState<AdminMatchListItem[]>([]);
     const [teams, setTeams] = useState<AdminTeam[]>([]);
     const [tournaments, setTournaments] = useState<AdminTournament[]>([]);
     const [bracketSlots, setBracketSlots] = useState<AdminBracketSlot[]>([]);
@@ -142,19 +142,19 @@ export function MatchManagement() {
 
     // Dialog state
     const [dialogOpen, setDialogOpen] = useState(false);
-    const [editing, setEditing] = useState<AdminMatch | null>(null);
+    const [editing, setEditing] = useState<AdminMatchListItem | null>(null);
     const [deleteId, setDeleteId] = useState<string | null>(null);
 
     // Result entry dialog
     const [resultDialogOpen, setResultDialogOpen] = useState(false);
-    const [resultMatch, setResultMatch] = useState<AdminMatch | null>(null);
+    const [resultMatch, setResultMatch] = useState<AdminMatchListItem | null>(null);
     const [resultHome, setResultHome] = useState("");
     const [resultAway, setResultAway] = useState("");
     const [isCorrection, setIsCorrection] = useState(false);
 
     // Penalty winner dialog
     const [penaltyDialogOpen, setPenaltyDialogOpen] = useState(false);
-    const [penaltyMatch, setPenaltyMatch] = useState<AdminMatch | null>(null);
+    const [penaltyMatch, setPenaltyMatch] = useState<AdminMatchListItem | null>(null);
     const [penHome, setPenHome] = useState("");
     const [penAway, setPenAway] = useState("");
 
@@ -224,7 +224,7 @@ export function MatchManagement() {
         setDialogOpen(true);
     }
 
-    function openEdit(match: AdminMatch) {
+    function openEdit(match: AdminMatchListItem) {
         setEditing(match);
         setForm({
             homeTeam_ID: match.homeTeam_ID || "",
@@ -240,7 +240,7 @@ export function MatchManagement() {
         setDialogOpen(true);
     }
 
-    function openResult(match: AdminMatch) {
+    function openResult(match: AdminMatchListItem) {
         setResultMatch(match);
         setIsCorrection(false);
         setResultHome(String(match.homeScore ?? ""));
@@ -248,7 +248,7 @@ export function MatchManagement() {
         setResultDialogOpen(true);
     }
 
-    function openCorrectResult(match: AdminMatch) {
+    function openCorrectResult(match: AdminMatchListItem) {
         setResultMatch(match);
         setIsCorrection(true);
         setResultHome(String(match.homeScore ?? ""));
@@ -258,14 +258,14 @@ export function MatchManagement() {
 
     async function handleSave() {
         try {
-            const nextStatus = form.status as AdminMatch["status"];
+            const nextStatus = form.status as AdminMatchListItem["status"];
             const data: Record<string, any> = {
                 homeTeam_ID: form.homeTeam_ID || null,
                 awayTeam_ID: form.awayTeam_ID || null,
                 tournament_ID: form.tournament_ID,
                 kickoff: new Date(form.kickoff).toISOString(),
                 venue: form.venue || null,
-                stage: form.stage as AdminMatch["stage"],
+                stage: form.stage as AdminMatchListItem["stage"],
                 status: nextStatus,
                 matchday: form.matchday ? parseInt(form.matchday) : null,
                 isHotMatch: !!form.isHotMatch,
@@ -355,7 +355,7 @@ export function MatchManagement() {
         }
     }
 
-    async function handleToggleMatchLock(match: AdminMatch) {
+    async function handleToggleMatchLock(match: AdminMatchListItem) {
         setLockingMatchId(match.ID);
         try {
             const res = await matchesApi.lockBetting(match.ID, !match.bettingLocked);
@@ -452,7 +452,7 @@ export function MatchManagement() {
         return map;
     }, [bracketSlots]);
 
-    function unresolvedTeamName(match: AdminMatch, side: "home" | "away") {
+    function unresolvedTeamName(match: AdminMatchListItem, side: "home" | "away") {
         const directTeamId = side === "home" ? match.homeTeam_ID : match.awayTeam_ID;
         if (directTeamId) {
             return teamName(directTeamId);
@@ -511,7 +511,7 @@ export function MatchManagement() {
             const kickB = new Date(b.kickoff).getTime();
             if (Number.isFinite(kickA) && Number.isFinite(kickB) && kickA !== kickB) return kickA - kickB;
             if (a.matchday != null && b.matchday != null && a.matchday !== b.matchday) return a.matchday - b.matchday;
-            return (a.homeTeam?.name || "").localeCompare(b.homeTeam?.name || "");
+            return (a.homeTeamName || "").localeCompare(b.homeTeamName || "");
         });
 
     const lockableMatches = filteredMatches.filter((m) => m.status !== "finished");
@@ -709,23 +709,23 @@ export function MatchManagement() {
                                     <div className="flex items-start justify-between gap-3">
                                         <div className="min-w-0 flex-1 space-y-2">
                                             <div className="flex items-center gap-2">
-                                                {m.homeTeam?.crest
-                                                    ? <img src={m.homeTeam.crest} alt="" className="h-5 w-5 flex-shrink-0 object-contain" />
-                                                    : m.homeTeam?.flagCode
-                                                        ? <span className={`fi fi-${m.homeTeam.flagCode} flex-shrink-0`} />
+                                                {m.homeTeamCrest
+                                                    ? <img src={m.homeTeamCrest} alt="" className="h-5 w-5 flex-shrink-0 object-contain" />
+                                                    : m.homeTeamFlag
+                                                        ? <span className={`fi fi-${m.homeTeamFlag} flex-shrink-0`} />
                                                         : null}
                                                 <span className="truncate text-sm font-bold text-white">
-                                                    {m.homeTeam?.name || homeFallbackName}
+                                                    {m.homeTeamName || homeFallbackName}
                                                 </span>
                                             </div>
                                             <div className="flex items-center gap-2">
-                                                {m.awayTeam?.crest
-                                                    ? <img src={m.awayTeam.crest} alt="" className="h-5 w-5 flex-shrink-0 object-contain" />
-                                                    : m.awayTeam?.flagCode
-                                                        ? <span className={`fi fi-${m.awayTeam.flagCode} flex-shrink-0`} />
+                                                {m.awayTeamCrest
+                                                    ? <img src={m.awayTeamCrest} alt="" className="h-5 w-5 flex-shrink-0 object-contain" />
+                                                    : m.awayTeamFlag
+                                                        ? <span className={`fi fi-${m.awayTeamFlag} flex-shrink-0`} />
                                                         : null}
                                                 <span className="truncate text-sm font-bold text-white">
-                                                    {m.awayTeam?.name || awayFallbackName}
+                                                    {m.awayTeamName || awayFallbackName}
                                                 </span>
                                             </div>
                                         </div>
@@ -879,14 +879,14 @@ export function MatchManagement() {
                                     {/* Home team */}
                                     <td className="px-4 py-3">
                                         <div className="flex items-center justify-end gap-1.5 font-medium text-white">
-                                            {m.homeTeam?.name
+                                            {m.homeTeamName
                                                 ? (
                                                     <>
-                                                        <span>{m.homeTeam.name}</span>
-                                                        {m.homeTeam.crest
-                                                            ? <img src={m.homeTeam.crest} alt="" className="h-5 w-5 flex-shrink-0 object-contain" />
-                                                            : m.homeTeam.flagCode
-                                                                ? <span className={`fi fi-${m.homeTeam.flagCode} flex-shrink-0`} />
+                                                        <span>{m.homeTeamName}</span>
+                                                        {m.homeTeamCrest
+                                                            ? <img src={m.homeTeamCrest} alt="" className="h-5 w-5 flex-shrink-0 object-contain" />
+                                                            : m.homeTeamFlag
+                                                                ? <span className={`fi fi-${m.homeTeamFlag} flex-shrink-0`} />
                                                                 : null}
                                                     </>
                                                 )
@@ -909,15 +909,15 @@ export function MatchManagement() {
                                     {/* Away team */}
                                     <td className="px-4 py-3">
                                         <div className="flex items-center gap-1.5 font-medium text-white">
-                                            {m.awayTeam?.name
+                                            {m.awayTeamName
                                                 ? (
                                                     <>
-                                                        {m.awayTeam.crest
-                                                            ? <img src={m.awayTeam.crest} alt="" className="h-5 w-5 flex-shrink-0 object-contain" />
-                                                            : m.awayTeam.flagCode
-                                                                ? <span className={`fi fi-${m.awayTeam.flagCode} flex-shrink-0`} />
+                                                        {m.awayTeamCrest
+                                                            ? <img src={m.awayTeamCrest} alt="" className="h-5 w-5 flex-shrink-0 object-contain" />
+                                                            : m.awayTeamFlag
+                                                                ? <span className={`fi fi-${m.awayTeamFlag} flex-shrink-0`} />
                                                                 : null}
-                                                        <span>{m.awayTeam.name}</span>
+                                                        <span>{m.awayTeamName}</span>
                                                     </>
                                                 )
                                                 : (
@@ -1255,9 +1255,9 @@ export function MatchManagement() {
                     {resultMatch && (
                         <div className="space-y-4 py-4">
                             <p className="text-center text-sm text-muted-foreground">
-                                {resultMatch.homeTeam?.name || unresolvedTeamName(resultMatch, "home")}{" "}
+                                {resultMatch.homeTeamName || unresolvedTeamName(resultMatch, "home")}{" "}
                                 vs{" "}
-                                {resultMatch.awayTeam?.name || unresolvedTeamName(resultMatch, "away")}
+                                {resultMatch.awayTeamName || unresolvedTeamName(resultMatch, "away")}
                             </p>
                             {isCorrection && (
                                 <p className="text-center text-xs text-amber-400">
@@ -1324,7 +1324,7 @@ export function MatchManagement() {
                             </p>
                             <div className="flex items-end justify-center gap-3">
                                 <div className="space-y-1 text-center">
-                                    <label className="text-xs text-muted-foreground">{penaltyMatch.homeTeam?.name || unresolvedTeamName(penaltyMatch, "home")}</label>
+                                    <label className="text-xs text-muted-foreground">{penaltyMatch.homeTeamName || unresolvedTeamName(penaltyMatch, "home")}</label>
                                     <input
                                         type="number" min="0" max="99"
                                         className="w-20 rounded border border-border bg-card text-center text-lg text-white"
@@ -1335,7 +1335,7 @@ export function MatchManagement() {
                                 </div>
                                 <span className="mb-2 text-sm text-muted-foreground">–</span>
                                 <div className="space-y-1 text-center">
-                                    <label className="text-xs text-muted-foreground">{penaltyMatch.awayTeam?.name || unresolvedTeamName(penaltyMatch, "away")}</label>
+                                    <label className="text-xs text-muted-foreground">{penaltyMatch.awayTeamName || unresolvedTeamName(penaltyMatch, "away")}</label>
                                     <input
                                         type="number" min="0" max="99"
                                         className="w-20 rounded border border-border bg-card text-center text-lg text-white"

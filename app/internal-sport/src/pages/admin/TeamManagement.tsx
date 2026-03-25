@@ -31,7 +31,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import { teamsApi, tournamentsApi, tournamentTeamsApi } from "@/services/adminApi";
-import type { AdminTeam, AdminTournament, AdminTournamentTeam } from "@/types/admin";
+import type { AdminTeam, AdminTournament, AdminTournamentTeamView } from "@/types/admin";
 
 const CONFEDERATIONS = [
     { value: "UEFA", label: "admin.confederation.uefa" },
@@ -47,7 +47,7 @@ export function TeamManagement() {
     const { t } = useTranslation();
     const [allTeams, setAllTeams] = useState<AdminTeam[]>([]);
     const [tournaments, setTournaments] = useState<AdminTournament[]>([]);
-    const [tournamentTeams, setTournamentTeams] = useState<AdminTournamentTeam[]>([]);
+    const [tournamentTeams, setTournamentTeams] = useState<AdminTournamentTeamView[]>([]);
     const [selectedTournament, setSelectedTournament] = useState<string>("all");
     const [loading, setLoading] = useState(true);
     const [dialogOpen, setDialogOpen] = useState(false);
@@ -105,13 +105,20 @@ export function TeamManagement() {
     }
 
     // Filter teams: show tournament-specific teams or all
-    const displayTeams: (AdminTeam & { tournamentTeam?: AdminTournamentTeam })[] =
+    const displayTeams: (AdminTeam & { tournamentTeam?: AdminTournamentTeamView })[] =
         selectedTournament === "all"
             ? allTeams
             : tournamentTeams
-                  .filter((tt) => tt.team)
+                  .filter((tt) => tt.teamName)
                   .map((tt) => ({
-                      ...tt.team!,
+                      ID: tt.team_ID,
+                      name: tt.teamName ?? "",
+                      shortName: tt.teamShort ?? null,
+                      tla: null,
+                      crest: tt.teamCrest ?? null,
+                      flagCode: tt.teamFlag ?? "",
+                      confederation: tt.confederation ?? null,
+                      fifaRanking: tt.fifaRanking ?? null,
                       tournamentTeam: tt,
                   }));
 
@@ -249,7 +256,7 @@ export function TeamManagement() {
             <Card className="border-border bg-card">
                 <div className="space-y-3 p-3 md:hidden">
                     {displayTeams.map((team) => {
-                        const tt = (team as any).tournamentTeam as AdminTournamentTeam | undefined;
+                        const tt = (team as any).tournamentTeam as AdminTournamentTeamView | undefined;
 
                         return (
                             <div
@@ -356,7 +363,7 @@ export function TeamManagement() {
                         <tbody>
                             {displayTeams.map((team) => {
                                 const tt = (team as any).tournamentTeam as
-                                    | AdminTournamentTeam
+                                    | AdminTournamentTeamView
                                     | undefined;
                                 return (
                                     <tr

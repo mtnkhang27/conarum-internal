@@ -755,6 +755,173 @@ service AdminService {
             leaderboardStat : redirected to PlayerTournamentStats
         };
 
+    // ── Pre-Joined Read-Only Views ──────────────────────────
+    // Same pattern as PlayerService views — push JOINs to database,
+    // eliminate client-side $expand overhead.
+
+    /**
+     * Match list with team names/crests and tournament name pre-joined.
+     * Replaces: /Matches?$expand=homeTeam,awayTeam,tournament&$orderby=kickoff asc
+     */
+    @readonly
+    entity AdminMatchListView       as
+        select from db.Match as m
+            left join db.Team as home
+                on home.ID = m.homeTeam.ID
+            left join db.Team as away
+                on away.ID = m.awayTeam.ID
+            left join db.Tournament as tournament
+                on tournament.ID = m.tournament.ID {
+            key m.ID               as ID,
+                m.createdAt        as createdAt,
+                m.modifiedAt       as modifiedAt,
+                m.tournament.ID    as tournament_ID,
+                tournament.name    as tournamentName,
+                m.homeTeam.ID      as homeTeam_ID,
+                home.name          as homeTeamName,
+                home.flagCode      as homeTeamFlag,
+                home.crest         as homeTeamCrest,
+                home.shortName     as homeTeamShort,
+                m.awayTeam.ID      as awayTeam_ID,
+                away.name          as awayTeamName,
+                away.flagCode      as awayTeamFlag,
+                away.crest         as awayTeamCrest,
+                away.shortName     as awayTeamShort,
+                m.kickoff          as kickoff,
+                m.venue            as venue,
+                m.stage            as stage,
+                m.status           as status,
+                m.matchNumber      as matchNumber,
+                m.matchday         as matchday,
+                m.outcomePoints    as outcomePoints,
+                m.homeScore        as homeScore,
+                m.awayScore        as awayScore,
+                m.outcome          as outcome,
+                m.externalId       as externalId,
+                m.bettingLocked    as bettingLocked,
+                m.isHotMatch       as isHotMatch,
+                m.bracketSlot.ID   as bracketSlot_ID,
+                m.leg              as leg
+        };
+
+    /**
+     * Predictions for a match with player info pre-joined.
+     * Replaces: /AllPredictions?$filter=match_ID eq '...'&$expand=player
+     */
+    @readonly
+    entity AdminMatchPredictionsView as
+        select from db.Prediction as prediction
+            left join db.Player as player
+                on player.ID = prediction.player.ID {
+            key prediction.ID          as ID,
+                prediction.player.ID   as player_ID,
+                prediction.match.ID    as match_ID,
+                prediction.tournament.ID as tournament_ID,
+                prediction.pick        as pick,
+                prediction.isCorrect   as isCorrect,
+                prediction.pointsEarned as pointsEarned,
+                prediction.status      as status,
+                prediction.submittedAt as submittedAt,
+                player.displayName     as playerName,
+                player.avatarUrl       as playerAvatar,
+                player.email           as playerEmail
+        };
+
+    /**
+     * Score bets for a match with player info pre-joined.
+     * Replaces: /AllScoreBets?$filter=match_ID eq '...'&$expand=player
+     */
+    @readonly
+    entity AdminMatchScoreBetsView  as
+        select from db.ScoreBet as bet
+            left join db.Player as player
+                on player.ID = bet.player.ID {
+            key bet.ID                 as ID,
+                bet.player.ID          as player_ID,
+                bet.match.ID           as match_ID,
+                bet.predictedHomeScore as predictedHomeScore,
+                bet.predictedAwayScore as predictedAwayScore,
+                bet.status             as status,
+                bet.isCorrect          as isCorrect,
+                bet.payout             as payout,
+                bet.isPaidOut          as isPaidOut,
+                bet.submittedAt        as submittedAt,
+                player.displayName     as playerName,
+                player.avatarUrl       as playerAvatar,
+                player.email           as playerEmail
+        };
+
+    /**
+     * Champion picks for a tournament with player and team info pre-joined.
+     * Replaces: /AllChampionPicks?$filter=tournament_ID eq '...'&$expand=player,team
+     */
+    @readonly
+    entity AdminChampionPicksView   as
+        select from db.ChampionPick as pick
+            left join db.Player as player
+                on player.ID = pick.player.ID
+            left join db.Team as team
+                on team.ID = pick.team.ID {
+            key pick.ID                as ID,
+                pick.player.ID         as player_ID,
+                pick.team.ID           as team_ID,
+                pick.tournament.ID     as tournament_ID,
+                pick.submittedAt       as submittedAt,
+                pick.isCorrect         as isCorrect,
+                player.displayName     as playerName,
+                player.avatarUrl       as playerAvatar,
+                player.email           as playerEmail,
+                team.name              as teamName,
+                team.crest             as teamCrest,
+                team.flagCode          as teamFlag
+        };
+
+    /**
+     * Tournament stats with player info pre-joined.
+     * Replaces: /PlayerTournamentStats?$filter=tournament_ID eq '...'&$expand=player
+     */
+    @readonly
+    entity AdminTournamentStatsView as
+        select from db.PlayerTournamentStats as stats
+            left join db.Player as player
+                on player.ID = stats.player.ID {
+            key stats.ID               as ID,
+                stats.player.ID        as player_ID,
+                stats.tournament.ID    as tournament_ID,
+                stats.totalPoints      as totalPoints,
+                stats.totalCorrect     as totalCorrect,
+                stats.totalPredictions as totalPredictions,
+                stats.currentStreak    as currentStreak,
+                stats.bestStreak       as bestStreak,
+                stats.rank             as rank,
+                player.displayName     as playerName,
+                player.avatarUrl       as playerAvatar,
+                player.email           as playerEmail
+        };
+
+    /**
+     * Tournament teams with team info pre-joined.
+     * Replaces: /TournamentTeams?$filter=tournament_ID eq '...'&$expand=team
+     */
+    @readonly
+    entity AdminTournamentTeamsView as
+        select from db.TournamentTeam as tt
+            left join db.Team as team
+                on team.ID = tt.team.ID {
+            key tt.ID                  as ID,
+                tt.tournament.ID       as tournament_ID,
+                tt.team.ID             as team_ID,
+                tt.groupName           as groupName,
+                tt.isEliminated        as isEliminated,
+                tt.finalPosition       as finalPosition,
+                team.name              as teamName,
+                team.crest             as teamCrest,
+                team.flagCode          as teamFlag,
+                team.shortName         as teamShort,
+                team.confederation     as confederation,
+                team.fifaRanking       as fifaRanking
+        };
+
     // ── Admin Actions ────────────────────────────────────────
 
     type ActionResult {

@@ -11,12 +11,21 @@ interface TournamentSelectorProps {
     onTournamentName?: (name: string) => void;
     /** If true, includes an "All Tournaments" option. */
     allowAll?: boolean;
+    /** Optional preloaded tournaments to avoid duplicate page-level fetches. */
+    tournaments?: TournamentInfo[];
 }
 
-export function TournamentSelector({ selectedId, onSelect, onTournamentName, allowAll = false }: TournamentSelectorProps) {
+export function TournamentSelector({
+    selectedId,
+    onSelect,
+    onTournamentName,
+    allowAll = false,
+    tournaments: providedTournaments,
+}: TournamentSelectorProps) {
     const { t } = useTranslation();
-    const [tournaments, setTournaments] = useState<TournamentInfo[]>([]);
+    const [internalTournaments, setInternalTournaments] = useState<TournamentInfo[]>([]);
     const [open, setOpen] = useState(false);
+    const tournaments = providedTournaments ?? internalTournaments;
 
     const FORMAT_LABELS: Record<string, string> = {
         knockout: t("tournamentSelector.format.knockout"),
@@ -26,16 +35,24 @@ export function TournamentSelector({ selectedId, onSelect, onTournamentName, all
     };
 
     useEffect(() => {
+        if (providedTournaments) {
+            return;
+        }
+
         playerTournamentsApi.getAll().then((list) => {
-            setTournaments(list);
-            // Always auto-select first active tournament if nothing selected
-            if (!selectedId && list.length > 0) {
-                const active = list.find((t) => t.status === "active") ?? list[0];
-                onSelect(active.ID);
-                onTournamentName?.(active.name);
-            }
+            setInternalTournaments(list);
         }).catch(() => { });
-    }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [providedTournaments]);
+
+    useEffect(() => {
+        if (selectedId || tournaments.length === 0) {
+            return;
+        }
+
+        const active = tournaments.find((t) => t.status === "active") ?? tournaments[0];
+        onSelect(active.ID);
+        onTournamentName?.(active.name);
+    }, [selectedId, tournaments, onSelect, onTournamentName]);
 
     const selected = tournaments.find((t) => t.ID === selectedId);
     const label = selected ? selected.name : allowAll ? t("tournamentSelector.allTournaments") : t("tournamentSelector.selectTournament");

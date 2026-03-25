@@ -241,6 +241,21 @@ export interface ODataChampionPick {
   team?: ODataTeam;
 }
 
+export interface ChampionPickerViewRow {
+  ID: string;
+  tournament_ID: string;
+  tournamentStatus: ODataTournament["status"] | null;
+  championBettingStatus: ODataTournament["championBettingStatus"] | null;
+  teamId: string | null;
+  teamName: string | null;
+  teamFlag: string | null;
+  teamCrest: string | null;
+  confederation: string | null;
+  fifaRanking: number | null;
+  selectedTeamId: string | null;
+  pickCount: number;
+}
+
 // ─── UI-shape types (matching existing components) ───────────
 
 import type {
@@ -260,6 +275,16 @@ import type {
   RecentPredictionItem,
   UserProfile,
 } from "@/types";
+
+export type PlayerChampionPickerTeam = ChampionTeam & {
+  pickCount: number;
+};
+
+export interface PlayerChampionPickerSnapshot {
+  teams: PlayerChampionPickerTeam[];
+  tournamentStatus?: TournamentInfo["status"];
+  championBettingStatus?: TournamentInfo["championBettingStatus"];
+}
 
 // ─── Transform helpers ──────────────────────────────────────
 
@@ -870,6 +895,30 @@ export const playerTeamsApi = {
     const map: Record<string, string> = {};
     for (const t of teams) map[t.name] = t.flagCode;
     return map;
+  },
+
+  /** Champion picker snapshot from a server-side view. */
+  async getChampionPickerByTournament(
+    tournamentId: string,
+  ): Promise<PlayerChampionPickerSnapshot> {
+    const filter = encodeURIComponent(`tournament_ID eq '${tournamentId}'`);
+    const rows = await json<ChampionPickerViewRow[]>(
+      `${BASE}/ChampionPickerView?$filter=${filter}&$orderby=fifaRanking asc,teamName asc`,
+    );
+
+    return {
+      tournamentStatus: rows[0]?.tournamentStatus ?? undefined,
+      championBettingStatus: rows[0]?.championBettingStatus ?? undefined,
+      teams: rows.map((row) => ({
+        ID: row.teamId ?? row.ID,
+        name: row.teamName ?? "",
+        flag: row.teamFlag ?? "",
+        crest: row.teamCrest ?? undefined,
+        confederation: row.confederation ?? "",
+        selected: Boolean(row.selectedTeamId),
+        pickCount: Number(row.pickCount) || 0,
+      })),
+    };
   },
 };
 

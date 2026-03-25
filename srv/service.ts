@@ -7,7 +7,7 @@ import { ProfileHandler } from './handlers/ProfileHandler';
 const AUTH_TRACE_ENABLED = process.env.AUTH_TRACE === '1';
 
 /**
- * PlayerService — Authenticated employee-facing OData service.
+ * PlayerService - Authenticated employee-facing OData service.
  * Handles prediction submissions for UC1 (Score), UC2 (Outcome), UC3 (Champion).
  */
 export class PlayerService extends cds.ApplicationService {
@@ -17,9 +17,9 @@ export class PlayerService extends cds.ApplicationService {
     async init() {
         this.predictionHandler = new PredictionHandler(this);
         this.profileHandler = new ProfileHandler(this);
+
         this.before('*', (req) => {
-            // Never block user requests on profile sync to avoid cascading timeouts
-            // when remote DB is slow. Sync still happens in background.
+            // Never block every request on profile sync.
             void syncAuthenticatedUser(req).catch((err: any) => {
                 if (AUTH_TRACE_ENABLED) {
                     console.warn('[PlayerService] background user sync failed:', err?.message ?? err);
@@ -27,7 +27,17 @@ export class PlayerService extends cds.ApplicationService {
             });
         });
 
-        // ── Actions ──────────────────────────────────────────
+        this.before('READ', 'ChampionPickerView', async (req) => {
+            // ChampionPickerView resolves the current user's pick from Player metadata,
+            // so make sure that metadata is synchronized before the CDS view executes.
+            await syncAuthenticatedUser(req).catch((err: any) => {
+                if (AUTH_TRACE_ENABLED) {
+                    console.warn('[PlayerService] champion picker user sync failed:', err?.message ?? err);
+                }
+            });
+        });
+
+        // Actions
         this.on('submitPredictions', this.predictionHandler.submitPredictions.bind(this.predictionHandler));
         this.on('submitScoreBet', this.predictionHandler.submitScoreBet.bind(this.predictionHandler));
         this.on('submitMatchPrediction', this.predictionHandler.submitMatchPrediction.bind(this.predictionHandler));
@@ -38,7 +48,7 @@ export class PlayerService extends cds.ApplicationService {
         this.on('getMyProfile', this.profileHandler.getMyProfile.bind(this.profileHandler));
         this.on('updateMyProfile', this.profileHandler.updateMyProfile.bind(this.profileHandler));
 
-        // ── Functions (read-only queries) ────────────────────
+        // Functions and read-only queries
         this.on('getLatestResults', this.predictionHandler.getLatestResults.bind(this.predictionHandler));
         this.on('getUpcomingMatches', this.predictionHandler.getUpcomingMatches.bind(this.predictionHandler));
         this.on('getStandings', this.predictionHandler.getStandings.bind(this.predictionHandler));
@@ -50,14 +60,14 @@ export class PlayerService extends cds.ApplicationService {
         this.on('READ', 'TournamentBracketView', this.predictionHandler.readTournamentBracketView.bind(this.predictionHandler));
         this.after('READ', 'PredictionLeaderboard', this.predictionHandler.decoratePredictionLeaderboard.bind(this.predictionHandler));
 
-        // ── Auto-filter MyPredictions / MyScoreBets / MyChampionPick to current user ──
+        // Auto-filter user-scoped entities
         this.before('READ', 'MyPredictions', this.predictionHandler.filterByCurrentUser.bind(this.predictionHandler));
         this.before('READ', 'MyScoreBets', this.predictionHandler.filterByCurrentUser.bind(this.predictionHandler));
         this.before('READ', 'MySlotPredictions', this.predictionHandler.filterByCurrentUser.bind(this.predictionHandler));
         this.before('READ', 'MySlotScoreBets', this.predictionHandler.filterByCurrentUser.bind(this.predictionHandler));
         this.before('READ', 'MyChampionPick', this.predictionHandler.filterByCurrentUser.bind(this.predictionHandler));
 
-        // ── Filter view-based entities to current user ──
+        // Enrich hybrid/runtime-backed views
         this.after('READ', 'CompletedMatchesView', this.predictionHandler.enrichCompletedMatchesView.bind(this.predictionHandler));
         this.after('READ', 'AvailableMatchesView', this.predictionHandler.enrichAvailableMatchesView.bind(this.predictionHandler));
         this.before('READ', 'RecentPredictionsView', this.predictionHandler.filterByCurrentUser.bind(this.predictionHandler));
@@ -69,7 +79,7 @@ export class PlayerService extends cds.ApplicationService {
 }
 
 /**
- * AdminService — Admin-only OData service.
+ * AdminService - Admin-only OData service.
  * Handles match result entry, leaderboard recalculation, and config management.
  */
 export class AdminService extends cds.ApplicationService {
@@ -98,7 +108,7 @@ export class AdminService extends cds.ApplicationService {
             });
         });
 
-        // ── Actions ──────────────────────────────────────────
+        // Actions
         this.on('enterMatchResult', this.adminHandler.enterMatchResult.bind(this.adminHandler));
         this.on('correctMatchResult', this.adminHandler.correctMatchResult.bind(this.adminHandler));
         this.on('setPenaltyWinner', this.adminHandler.setPenaltyWinner.bind(this.adminHandler));
@@ -115,12 +125,11 @@ export class AdminService extends cds.ApplicationService {
         this.on('resetAllPayoutStatus', this.adminHandler.resetAllPayoutStatus.bind(this.adminHandler));
         this.on('getPayoutSummary', this.adminHandler.getPayoutSummary.bind(this.adminHandler));
 
-        // ── Guard: block match creation/update for completed/cancelled tournaments ──
+        // Guard: block match creation/update for completed/cancelled tournaments
         this.before(['CREATE', 'UPDATE'], 'Matches', async (req: any) => {
             const { Tournament, Match } = cds.entities('cnma.prediction');
             let tournamentId = req.data?.tournament_ID;
 
-            // For UPDATE (PATCH): tournament_ID may not be in the payload — resolve from DB
             if (!tournamentId && req.params?.[0]) {
                 const matchId = (req.params[0] as any).ID ?? req.params[0];
                 const existing = await SELECT.one.from(Match).columns('tournament_ID').where({ ID: matchId });
@@ -135,7 +144,6 @@ export class AdminService extends cds.ApplicationService {
         });
 
         // Preserve bracket linkage metadata when a knockout match is deleted manually.
-        // This keeps enough information for syncMatchResults to restore the match into its slot.
         this.before('DELETE', 'Matches', async (req: any) => {
             const { Match, BracketSlot } = cds.entities('cnma.prediction');
             const param0 = req.params?.[0];

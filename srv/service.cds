@@ -231,6 +231,69 @@ service PlayerService {
         } where m.status = 'upcoming';
 
     /**
+     * Aggregated champion-pick counts per tournament/team.
+     * Helper view for ChampionPickerView.
+     */
+    @readonly
+    @cds.api.ignore
+    entity ChampionPickCountsView   as
+        select from db.ChampionPick {
+            key tournament.ID as tournament_ID,
+            key team.ID       as teamId,
+                count(1)      as pickCount : Integer
+        }
+        group by tournament.ID, team.ID;
+
+    /**
+     * Current user's champion pick by tournament/team.
+     * Helper view for ChampionPickerView.
+     * Relies on Player.loginName/email being synced to the authenticated user.
+     */
+    @readonly
+    @cds.api.ignore
+    entity MyChampionPickByUserView as
+        select from db.ChampionPick as pick
+            left join db.Player as player
+                on player.ID = pick.player.ID {
+            key pick.tournament.ID as tournament_ID,
+            key pick.team.ID       as teamId
+        } where player.loginName = $user.id
+            or player.email = $user.id
+            or player.userUUID = $user.id;
+
+    /**
+     * Champion picker rows for a tournament.
+     * Single OData GET replaces TournamentTeams + MyChampionPick + getChampionPickCounts
+     * on the player-facing champion page.
+     */
+    @readonly
+    entity ChampionPickerView       as
+        select from db.TournamentTeam as tt
+            left join db.Team as team
+                on team.ID = tt.team.ID
+            left join db.Tournament as tournament
+                on tournament.ID = tt.tournament.ID
+            left join ChampionPickCountsView as counts
+                on counts.tournament_ID = tt.tournament.ID
+                and counts.teamId = tt.team.ID
+            left join MyChampionPickByUserView as myPick
+                on myPick.tournament_ID = tt.tournament.ID
+                and myPick.teamId = tt.team.ID {
+            key tt.ID              as ID,
+                tt.tournament.ID   as tournament_ID,
+                tournament.status  as tournamentStatus,
+                tournament.championBettingStatus as championBettingStatus,
+                team.ID            as teamId,
+                team.name          as teamName,
+                team.flagCode      as teamFlag,
+                team.crest         as teamCrest,
+                team.confederation as confederation,
+                team.fifaRanking   as fifaRanking,
+                myPick.teamId      as selectedTeamId,
+                counts.pickCount   as pickCount
+        } where tt.isEliminated = false;
+
+    /**
      * Recent predictions with match + team + tournament data pre-joined.
      * Replaces the getMyRecentPredictions() function.
      * `scoreBets` is populated by an after-READ handler.

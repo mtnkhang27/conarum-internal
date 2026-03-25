@@ -8,6 +8,8 @@ type TeamLookup = {
   name?: string | null;
   flagCode?: string | null;
   crest?: string | null;
+  confederation?: string | null;
+  fifaRanking?: number | null;
 };
 
 type PlayerLookup = {

@@ -9,7 +9,7 @@ import {
     Trophy,
     Users,
 } from "lucide-react";
-import { scrollToSection, SECTION } from "@/pages/sport/SportPage";
+import { scrollToSection, SECTION } from "@/pages/sport/sectionNavigation";
 import { useActiveSection } from "@/hooks/useActiveSection";
 
 const sportNavItems = [

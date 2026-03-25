@@ -701,9 +701,15 @@ export const playerMatchesApi = {
   // async getCompleted(tournamentId?: string): Promise<Match[]> { ... }
 
   /** Live matches — fetches targeted predictions only for live match IDs. */
-  async getLive(): Promise<LiveMatch[]> {
+  async getLive(tournamentId?: string): Promise<LiveMatch[]> {
+    const filterClauses = ["status eq 'live'"];
+    if (tournamentId) {
+      filterClauses.push(`tournament_ID eq '${tournamentId}'`);
+    }
+
+    const filter = encodeURIComponent(filterClauses.join(" and "));
     const matches = await json<ODataMatch[]>(
-      `${BASE}/Matches?$filter=status eq 'live'&$expand=homeTeam,awayTeam`,
+      `${BASE}/Matches?$filter=${filter}&$expand=homeTeam,awayTeam`,
     );
 
     if (matches.length === 0) return [];
@@ -713,7 +719,11 @@ export const playerMatchesApi = {
       .filter((m) => m.bracketSlot_ID)
       .map((m) => m.bracketSlot_ID!)
       .filter(Boolean);
-    const sharedData = await fetchPlayerDataForMatches(matchIds, slotIds);
+    const sharedData = await fetchPlayerDataForMatches(
+      matchIds,
+      slotIds,
+      tournamentId,
+    );
 
     const pickMap = new Map<string, string>();
     for (const p of sharedData.predictions) pickMap.set(p.match_ID, p.pick);

@@ -131,6 +131,16 @@ export interface CompletedMatchViewRow {
 }
 
 /** Response shape from AvailableMatchesView CDS view. */
+export interface ExpandedScoreBetViewRow {
+  betId: string;
+  matchId: string;
+  predictedHomeScore: number;
+  predictedAwayScore: number;
+  status: string;
+  isCorrect: boolean | null;
+  payout: number;
+}
+
 export interface AvailableMatchViewRow {
   ID: string;
   tournament_ID: string;
@@ -151,7 +161,7 @@ export interface AvailableMatchViewRow {
   awayTeamFlag: string | null;
   awayTeamCrest: string | null;
   myPick: string | null;
-  myScores?: { homeScore: number; awayScore: number }[];
+  myScores?: ExpandedScoreBetViewRow[];
   scoreBettingEnabled: boolean;
   maxBets: number;
 }
@@ -166,8 +176,7 @@ export interface AvailableMatchesQueryOptions {
 }
 
 type TournamentBracketViewRow = Record<string, unknown> & {
-  ID?: string | null;
-  slotId?: string | null;
+  slotId: string;
 };
 
 export interface ODataLeaderboardEntry {
@@ -241,6 +250,21 @@ export interface ODataChampionPick {
   team?: ODataTeam;
 }
 
+export interface ChampionPickerViewRow {
+  ID: string;
+  tournament_ID: string;
+  tournamentStatus: ODataTournament["status"] | null;
+  championBettingStatus: ODataTournament["championBettingStatus"] | null;
+  teamId: string | null;
+  teamName: string | null;
+  teamFlag: string | null;
+  teamCrest: string | null;
+  confederation: string | null;
+  fifaRanking: number | null;
+  selectedTeamId: string | null;
+  pickCount: number;
+}
+
 // ─── UI-shape types (matching existing components) ───────────
 
 import type {
@@ -260,6 +284,16 @@ import type {
   RecentPredictionItem,
   UserProfile,
 } from "@/types";
+
+export type PlayerChampionPickerTeam = ChampionTeam & {
+  pickCount: number;
+};
+
+export interface PlayerChampionPickerSnapshot {
+  teams: PlayerChampionPickerTeam[];
+  tournamentStatus?: TournamentInfo["status"];
+  championBettingStatus?: TournamentInfo["championBettingStatus"];
+}
 
 // ─── Transform helpers ──────────────────────────────────────
 
@@ -343,8 +377,8 @@ function toAvailableMatch(row: AvailableMatchViewRow): Match {
     selectedOption: mapPickToSelectedOption(row.myPick ?? undefined),
     existingScores:
       row.myScores?.map((score) => ({
-        home: score.homeScore,
-        away: score.awayScore,
+        home: score.predictedHomeScore,
+        away: score.predictedAwayScore,
       })) ?? [],
     scoreBettingEnabled: row.scoreBettingEnabled ?? false,
     maxBets: row.maxBets ?? 3,
@@ -763,9 +797,10 @@ export const playerMatchesApi = {
     const skip = (safePage - 1) * safePageSize;
     const filter = buildAvailableMatchesFilter(options);
     const filterParam = filter ? `$filter=${encodeURIComponent(filter)}&` : "";
+    const expandScores = "$expand=myScores($select=betId,matchId,predictedHomeScore,predictedAwayScore,status,isCorrect,payout)&";
 
     const { items, totalCount } = await odataCollection<AvailableMatchViewRow>(
-      `${BASE}/AvailableMatchesView?${filterParam}$orderby=kickoff asc&$skip=${skip}&$top=${safePageSize}&$count=true`,
+      `${BASE}/AvailableMatchesView?${filterParam}${expandScores}$orderby=kickoff asc&$skip=${skip}&$top=${safePageSize}&$count=true`,
     );
 
     return {
@@ -784,7 +819,7 @@ export const playerMatchesApi = {
 
     const filterParam = filter ? `$filter=${encodeURIComponent(filter)}&` : "";
     const res = await fetch(
-      `${BASE}/AvailableMatchesView?${filterParam}$orderby=kickoff asc`,
+      `${BASE}/AvailableMatchesView?${filterParam}$expand=myScores($select=betId,matchId,predictedHomeScore,predictedAwayScore,status,isCorrect,payout)&$orderby=kickoff asc`,
     );
     if (!res.ok) throw new Error(`Request failed: ${res.status}`);
     const data = await res.json();
@@ -870,6 +905,30 @@ export const playerTeamsApi = {
     const map: Record<string, string> = {};
     for (const t of teams) map[t.name] = t.flagCode;
     return map;
+  },
+
+  /** Champion picker snapshot from a server-side view. */
+  async getChampionPickerByTournament(
+    tournamentId: string,
+  ): Promise<PlayerChampionPickerSnapshot> {
+    const filter = encodeURIComponent(`tournament_ID eq '${tournamentId}'`);
+    const rows = await json<ChampionPickerViewRow[]>(
+      `${BASE}/ChampionPickerView?$filter=${filter}&$orderby=fifaRanking asc,teamName asc`,
+    );
+
+    return {
+      tournamentStatus: rows[0]?.tournamentStatus ?? undefined,
+      championBettingStatus: rows[0]?.championBettingStatus ?? undefined,
+      teams: rows.map((row) => ({
+        ID: row.teamId ?? row.ID,
+        name: row.teamName ?? "",
+        flag: row.teamFlag ?? "",
+        crest: row.teamCrest ?? undefined,
+        confederation: row.confederation ?? "",
+        selected: Boolean(row.selectedTeamId),
+        pickCount: Number(row.pickCount) || 0,
+      })),
+    };
   },
 };
 
@@ -1085,18 +1144,16 @@ export const playerTournamentQueryApi = {
       : "";
 
     return odataCollection<RecentPredictionItem>(
-      `${BASE}/RecentPredictionsView?${filter}$orderby=submittedAt desc&$skip=${skip}&$top=${safePageSize}&$count=true`,
+      `${BASE}/RecentPredictionsView?${filter}$expand=scoreBets($select=betId,matchId,predictedHomeScore,predictedAwayScore,status,isCorrect,payout)&$orderby=submittedAt desc&$skip=${skip}&$top=${safePageSize}&$count=true`,
     );
   },
 
   /** Get the tournament bracket (knockout tree). */
   async getTournamentBracket(tournamentId: string) {
     const filter = encodeURIComponent(`tournament_ID eq '${tournamentId}'`);
-    const rows = await json<TournamentBracketViewRow[]>(
+    return json<TournamentBracketViewRow[]>(
       `${BASE}/TournamentBracketView?$filter=${filter}&$orderby=stage asc,position asc`,
     );
-    // CDS view key is `ID`; remap to `slotId` for the frontend BracketSlot interface.
-    return rows.map((row) => ({ ...row, slotId: row.ID ?? row.slotId ?? null }));
   },
 
   /** Get champion pick counts by team for a tournament. */

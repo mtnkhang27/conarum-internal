@@ -48,6 +48,14 @@ const asTrimmedString = (value: unknown): string | null => {
     return trimmed.length > 0 ? trimmed : null;
 };
 
+const toLegacySyntheticEmail = (loginName: string | null): string | null => {
+    const normalizedLogin = asTrimmedString(loginName);
+    if (!normalizedLogin) return null;
+
+    const localPart = normalizedLogin.replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 80) || 'user';
+    return `${localPart}@local.user.invalid`.toLowerCase();
+};
+
 const toFirstString = (value: unknown): string | null => {
     if (Array.isArray(value)) {
         for (const item of value) {
@@ -462,6 +470,12 @@ export const syncAuthenticatedUser = async (req: Request): Promise<ResolvedUserC
         }
         if (!player && context.email) {
             player = await SELECT.one.from(Player).where({ email: context.email });
+        }
+        if (!player) {
+            const legacyEmail = toLegacySyntheticEmail(context.loginName);
+            if (legacyEmail && legacyEmail !== context.email) {
+                player = await SELECT.one.from(Player).where({ email: legacyEmail });
+            }
         }
 
         if (player) {

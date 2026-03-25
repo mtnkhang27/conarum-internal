@@ -213,19 +213,19 @@ export function TournamentManagement() {
     }
 
     return (
-        <div className="space-y-6 p-6">
+        <div className="space-y-5 p-4 sm:space-y-6 sm:p-6">
             {/* Header */}
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                 <div>
                     <h1 className="text-2xl font-bold text-white">{t("admin.tournamentManagement.title")}</h1>
                     <p className="text-sm text-muted-foreground">{t("admin.tournamentManagement.subtitle")}</p>
                 </div>
-                <div className="flex gap-2">
-                    <Button variant="outline" onClick={openImportDialog}>
+                <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+                    <Button className="w-full sm:w-auto" variant="outline" onClick={openImportDialog}>
                         <Download className="mr-2 h-4 w-4" />
                         {t("admin.tournamentManagement.importCompetition")}
                     </Button>
-                    <Button onClick={openAdd}>
+                    <Button className="w-full sm:w-auto" onClick={openAdd}>
                         <Plus className="mr-2 h-4 w-4" />
                         {t("admin.tournamentManagement.addManually")}
                     </Button>
@@ -309,7 +309,7 @@ export function TournamentManagement() {
                     </DialogHeader>
 
                     {/* API Key + Search row */}
-                    <div className="flex gap-2 pt-2">
+                    <div className="flex flex-col gap-2 pt-2 sm:flex-row">
                         <div className="relative flex-1">
                             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                             <Input
@@ -326,7 +326,7 @@ export function TournamentManagement() {
                             onChange={(e) => setImportApiKey(e.target.value)}
                             className="w-52"
                         /> */}
-                        <Button variant="outline" size="icon"
+                        <Button className="w-full sm:w-10" variant="outline" size="icon"
                             title={t("admin.tournamentManagement.refreshList")}
                             onClick={() => fetchCompetitions(importApiKey)}
                             disabled={compLoading || importing}>
@@ -472,7 +472,7 @@ export function TournamentManagement() {
                                 onChange={(e) => setForm({ ...form, name: e.target.value })}
                                 placeholder={t("admin.tournamentManagement.namePlaceholder")} />
                         </div>
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                             <div className="space-y-2">
                                 <label className="text-xs font-medium text-muted-foreground">{t("admin.tournamentManagement.startDate")}</label>
                                 <Input type="date" value={form.startDate}
@@ -503,9 +503,9 @@ export function TournamentManagement() {
                                 placeholder={t("admin.tournamentManagement.descriptionPlaceholder")} />
                         </div>
                     </div>
-                    <DialogFooter>
-                        <Button variant="outline" onClick={() => setDialogOpen(false)}>{t("common.cancel")}</Button>
-                        <Button onClick={handleSave}>{editing ? t("common.update") : t("common.create")} {t("admin.tournamentManagement.tournament")}</Button>
+                    <DialogFooter className="gap-2">
+                        <Button className="w-full sm:w-auto" variant="outline" onClick={() => setDialogOpen(false)}>{t("common.cancel")}</Button>
+                        <Button className="w-full sm:w-auto" onClick={handleSave}>{editing ? t("common.update") : t("common.create")} {t("admin.tournamentManagement.tournament")}</Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>

@@ -159,6 +159,37 @@ body::before {
   display: none;
 }
 
+.app-frame {
+  min-height: 100vh;
+  min-height: 100svh;
+  height: 100vh;
+  height: 100svh;
+}
+
+.app-scroll-area {
+  min-height: 0;
+  overscroll-behavior: contain;
+  padding-bottom: calc(5rem + env(safe-area-inset-bottom, 0px));
+}
+
+.mobile-nav-shell {
+  padding-bottom: calc(0.5rem + env(safe-area-inset-bottom, 0px));
+}
+
+.mobile-safe-section {
+  padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
+}
+
+@media (min-width: 1280px) {
+  .app-scroll-area {
+    padding-bottom: 0;
+  }
+
+  .mobile-safe-section {
+    padding-bottom: 0;
+  }
+}
+
 .glow-purple {
   box-shadow: 0 0 20px rgba(109, 63, 199, 0.4);
 }
@@ -203,6 +234,7 @@ body::before {
 
 /* Pick button full-width */
 .mc-pick-btn {
+  overflow: visible;
   width: 100%;
   cursor: pointer;
 }
@@ -222,6 +254,10 @@ body::before {
 
 /* Team badge hover scale */
 .mc-team-badge {
+  display: inline-flex;
+  overflow: visible;
+  position: relative;
+  z-index: 1;
   transition: transform 0.2s ease;
 }
 .mc-card:hover .mc-team-badge {
@@ -231,6 +267,7 @@ body::before {
 /* Winner dot animation */
 .mc-winner-dot {
   animation: mc-pop-in 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  z-index: 2;
 }
 
 @keyframes mc-pop-in {

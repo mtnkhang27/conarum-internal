@@ -261,7 +261,10 @@ export function TournamentBracket({
             .then(async (res) => {
                 if (!res.ok) throw new Error("Failed to load bracket");
                 const data = await res.json();
-                const bracketSlots = (data.value ?? data) as BracketSlot[];
+                const bracketSlots = ((data.value ?? data) as any[]).map((r: any) => ({
+                    ...r,
+                    slotId: r.ID ?? r.slotId,
+                })) as BracketSlot[];
                 setSlots(mapExternalAssetUrls(bracketSlots));
             })
             .catch((e) => setError(e.message))
@@ -307,8 +310,9 @@ export function TournamentBracket({
     const hasLegs = slots.some((s) => s.leg2Id !== null);
 
     return (
-        <div className="w-full">
-            <div className="flex items-start gap-3 p-4">
+        <div className="w-full overflow-hidden rounded-2xl border border-border/70 bg-card/40">
+            <div className="overflow-x-auto">
+                <div className="flex min-w-max items-stretch gap-3 p-3 sm:p-4">
                 {orderedStages.map((stage) => {
                     const stageSlots = stageGroups.get(stage)!;
                     stageSlots.sort((a, b) => a.position - b.position);
@@ -317,7 +321,7 @@ export function TournamentBracket({
                     const showLegs = hasLegs && stage !== "final";
 
                     return (
-                        <div key={stage} className="flex flex-1 flex-col items-center gap-2">
+                        <div key={stage} className="flex min-w-[240px] flex-1 snap-start flex-col items-center gap-2 sm:min-w-[260px] xl:min-w-[280px]">
                             {/* Stage header */}
                             <div className="mb-2 text-center">
                                 <h3 className="text-xs font-bold uppercase tracking-widest text-primary/80">
@@ -332,7 +336,7 @@ export function TournamentBracket({
                             <div
                                 className="flex w-full flex-col justify-center gap-3"
                                 style={{
-                                    minHeight: compact ? undefined : `${stageSlots.length * 100}px`,
+                                    minHeight: compact ? undefined : `${Math.max(stageSlots.length * 92, 220)}px`,
                                 }}
                             >
                                 {stageSlots.map((slot) => (
@@ -342,6 +346,7 @@ export function TournamentBracket({
                         </div>
                     );
                 })}
+                </div>
             </div>
         </div>
     );

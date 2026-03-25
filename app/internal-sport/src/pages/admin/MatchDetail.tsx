@@ -61,14 +61,14 @@ function ConfigRow({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex items-center justify-between gap-4 border-b border-border/30 py-3 last:border-b-0">
+    <div className="flex flex-col items-start gap-3 border-b border-border/30 py-3 last:border-b-0 sm:flex-row sm:items-center sm:justify-between">
       <div className="min-w-0 flex-1">
         <h4 className="text-sm font-medium text-white">{label}</h4>
         {description && (
           <p className="text-xs text-muted-foreground">{description}</p>
         )}
       </div>
-      <div className="flex-shrink-0">{children}</div>
+      <div className="w-full sm:w-auto sm:flex-shrink-0">{children}</div>
     </div>
   );
 }
@@ -418,16 +418,16 @@ export function MatchDetail() {
   ];
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-5 p-4 sm:space-y-6 sm:p-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <Button variant="ghost" size="sm" onClick={() => navigate("/admin/matches")}>
+      <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
+          <Button variant="ghost" size="sm" className="w-fit" onClick={() => navigate("/admin/matches")}>
             <ArrowLeft className="mr-2 h-4 w-4" />
             {t("common.back")}
           </Button>
-          <div>
-            <h1 className="text-2xl font-bold text-white">
+          <div className="min-w-0">
+            <h1 className="text-xl font-bold leading-tight text-white sm:text-2xl">
               {homeTeamResolved &&
                 (homeTeamResolved.crest ? (
                   <img src={homeTeamResolved.crest} alt="" className="mr-2 inline h-6 w-6 object-contain align-middle" />
@@ -444,7 +444,7 @@ export function MatchDetail() {
                 ))}
               {awayTeamName}
             </h1>
-            <div className="mt-1 flex items-center gap-3 text-sm text-muted-foreground">
+            <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
               <span className="flex items-center gap-1">
                 <Calendar className="h-3.5 w-3.5" />
                 {new Date(match.kickoff).toLocaleDateString()}{" "}
@@ -466,21 +466,21 @@ export function MatchDetail() {
             </div>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 xl:justify-end">
           {canEnterResult && (
-            <Button variant="outline" onClick={() => { setIsCorrection(false); setResultHome(""); setResultAway(""); setResultDialogOpen(true); }}>
+            <Button className="w-full sm:w-auto" variant="outline" onClick={() => { setIsCorrection(false); setResultHome(""); setResultAway(""); setResultDialogOpen(true); }}>
               <Target className="mr-2 h-4 w-4" />
               {t("admin.matchManagement.enterResult")}
             </Button>
           )}
           {isFinished && (
-            <Button variant="outline" onClick={() => { setIsCorrection(true); setResultHome(String(match.homeScore ?? "")); setResultAway(String(match.awayScore ?? "")); setResultDialogOpen(true); }}>
+            <Button className="w-full sm:w-auto" variant="outline" onClick={() => { setIsCorrection(true); setResultHome(String(match.homeScore ?? "")); setResultAway(String(match.awayScore ?? "")); setResultDialogOpen(true); }}>
               <Edit className="mr-2 h-4 w-4" />
               {t("admin.matchManagement.correctResult")}
             </Button>
           )}
           {showPenaltyButton && (
-            <Button variant="outline" className="border-amber-500/50 text-amber-400 hover:bg-amber-500/10" onClick={() => { setPenHome(""); setPenAway(""); setPenaltyDialogOpen(true); }}>
+            <Button className="w-full sm:w-auto border-amber-500/50 text-amber-400 hover:bg-amber-500/10" variant="outline" onClick={() => { setPenHome(""); setPenAway(""); setPenaltyDialogOpen(true); }}>
               {t("admin.matchManagement.penaltyShootout")}
             </Button>
           )}
@@ -490,7 +490,7 @@ export function MatchDetail() {
       {/* Result banner */}
       {isFinished && (
         <Card className="border-border bg-card p-4">
-          <div className="flex items-center justify-center gap-6 text-lg">
+          <div className="flex flex-col items-center justify-center gap-3 text-center text-lg sm:flex-row sm:gap-6">
             <span className="font-bold text-white">{homeTeamName}</span>
             <span className="font-mono text-2xl font-bold text-primary">
               {match.homeScore} – {match.awayScore}
@@ -501,34 +501,36 @@ export function MatchDetail() {
       )}
 
       {/* Tabs */}
-      <div className="flex gap-1 border-b border-border">
-        {tabs.map((tab) => (
-          <button
-            key={tab.key}
-            type="button"
-            onClick={() => setActiveTab(tab.key)}
-            className={`relative px-4 py-2.5 text-sm font-medium transition-colors ${
-              activeTab === tab.key
-                ? "text-primary after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:bg-primary"
-                : "text-muted-foreground hover:text-white"
-            }`}
-          >
-            {tab.label}
-            {tab.count != null && tab.count > 0 && (
-              <span className="ml-1.5 rounded-full bg-surface-dark px-1.5 py-0.5 text-[10px]">
-                {tab.count}
-              </span>
-            )}
-          </button>
-        ))}
+      <div className="overflow-x-auto">
+        <div className="inline-flex min-w-full gap-1 rounded-2xl border border-border bg-card/60 p-1 sm:min-w-0">
+          {tabs.map((tab) => (
+            <button
+              key={tab.key}
+              type="button"
+              onClick={() => setActiveTab(tab.key)}
+              className={`inline-flex min-h-11 shrink-0 items-center justify-center gap-1.5 rounded-xl px-4 py-2.5 text-sm font-medium transition-colors sm:flex-1 ${
+                activeTab === tab.key
+                  ? "bg-primary/15 text-primary shadow-[0_0_0_1px_rgba(109,63,199,0.18)_inset]"
+                  : "text-muted-foreground hover:bg-surface hover:text-white"
+              }`}
+            >
+              <span>{tab.label}</span>
+              {tab.count != null && tab.count > 0 && (
+                <span className="rounded-full bg-surface-dark px-1.5 py-0.5 text-[10px]">
+                  {tab.count}
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* ── Tab: Config ──────────────────────────────────────── */}
       {activeTab === "config" && (
         <Card className="border-border bg-card p-5">
-          <div className="mb-4 flex items-center justify-between">
+          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <h3 className="text-sm font-semibold uppercase text-muted-foreground">{t("admin.matchDetail.bettingConfig")}</h3>
-            <Button size="sm" onClick={handleSaveConfig} disabled={saving}>
+            <Button className="w-full sm:w-auto" size="sm" onClick={handleSaveConfig} disabled={saving}>
               <Save className="mr-2 h-4 w-4" />
               {saving ? t("common.saving") : t("admin.matchDetail.saveConfig")}
             </Button>
@@ -544,7 +546,7 @@ export function MatchDetail() {
             />
           </ConfigRow>
           <ConfigRow label={t("admin.matchManagement.hotMatch")} description={t("admin.matchDetail.hotMatchDesc")}>
-            <div className="flex items-center gap-4">
+            <div className="flex flex-wrap items-center gap-4">
               <label className="inline-flex items-center gap-2 text-sm text-white">
                 <input
                   type="radio"
@@ -608,7 +610,7 @@ export function MatchDetail() {
       {activeTab === "predictions" && (
         <div className="space-y-4">
           {/* Summary stats */}
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
             <Card className="border-border bg-card p-3 text-center">
               <p className="text-lg font-bold text-white">{predictions.length}</p>
               <p className="text-[11px] text-muted-foreground">{t("admin.matchDetail.total")}</p>
@@ -639,6 +641,45 @@ export function MatchDetail() {
             <p className="py-8 text-center text-sm text-muted-foreground">{t("admin.matchDetail.noPredictions")}</p>
           ) : (
             <Card className="border-border bg-card">
+              <div className="space-y-3 p-3 md:hidden">
+                {predictions.map((p) => (
+                  <div key={p.ID} className="rounded-xl border border-border/70 bg-surface/30 p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex min-w-0 items-center gap-3">
+                        {p.player?.avatarUrl ? (
+                          <img src={p.player.avatarUrl} alt="" className="h-9 w-9 rounded-full object-cover" />
+                        ) : (
+                          <div className="flex h-9 w-9 items-center justify-center rounded-full border border-border bg-surface text-xs font-bold text-white">
+                            {(p.player?.displayName ?? p.player_ID).charAt(0).toUpperCase()}
+                          </div>
+                        )}
+                        <span className="truncate font-medium text-white">{p.player?.displayName ?? p.player_ID}</span>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">{t("admin.matchDetail.points")}</p>
+                        <p className="font-mono text-sm text-white">
+                          {p.pointsEarned > 0 ? `+${p.pointsEarned}` : p.pointsEarned}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="mt-4 flex flex-wrap items-center gap-2">
+                      <Badge
+                        variant={p.pick === "home" ? "default" : p.pick === "draw" ? "secondary" : "destructive"}
+                        className="text-xs"
+                      >
+                        {p.pick === "home" ? homeTeamName : p.pick === "away" ? awayTeamName : t("admin.matchDetail.draw")}
+                      </Badge>
+                      <span className="ml-auto">
+                        {p.isCorrect === true && <CheckCircle2 className="inline h-4 w-4 text-green-400" />}
+                        {p.isCorrect === false && <XCircle className="inline h-4 w-4 text-red-400" />}
+                        {p.isCorrect == null && <span className="text-xs text-muted-foreground">-</span>}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="hidden overflow-x-auto md:block">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-border text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
@@ -679,6 +720,7 @@ export function MatchDetail() {
                   ))}
                 </tbody>
               </table>
+              </div>
             </Card>
           )}
         </div>
@@ -701,6 +743,59 @@ export function MatchDetail() {
             <p className="py-8 text-center text-sm text-muted-foreground">{t("admin.matchDetail.noScoreBets")}</p>
           ) : (
             <Card className="border-border bg-card">
+              <div className="space-y-3 p-3 md:hidden">
+                {scoreBets.map((sb) => (
+                  <div
+                    key={sb.ID}
+                    className={`rounded-xl border border-border/70 bg-surface/30 p-4 ${
+                      sb.isCorrect === true ? "shadow-[0_0_0_1px_rgba(34,197,94,0.18)_inset]" : ""
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex min-w-0 items-center gap-3">
+                        {sb.player?.avatarUrl ? (
+                          <img src={sb.player.avatarUrl} alt="" className="h-9 w-9 rounded-full object-cover" />
+                        ) : (
+                          <div className="flex h-9 w-9 items-center justify-center rounded-full border border-border bg-surface text-xs font-bold text-white">
+                            {(sb.player?.displayName ?? sb.player_ID).charAt(0).toUpperCase()}
+                          </div>
+                        )}
+                        <span className="truncate font-medium text-white">{sb.player?.displayName ?? sb.player_ID}</span>
+                      </div>
+                      <span>
+                        {sb.isCorrect === true && <CheckCircle2 className="inline h-4 w-4 text-green-400" />}
+                        {sb.isCorrect === false && <XCircle className="inline h-4 w-4 text-red-400" />}
+                        {sb.isCorrect == null && <span className="text-xs text-muted-foreground">-</span>}
+                      </span>
+                    </div>
+
+                    <div className="mt-4 grid grid-cols-2 gap-2">
+                      <div className="rounded-lg border border-border/60 bg-card/50 px-3 py-2 text-center">
+                        <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
+                          {t("admin.matchDetail.predictedScore")}
+                        </p>
+                        <p className="mt-1 font-mono text-sm font-bold text-white">
+                          {sb.predictedHomeScore} - {sb.predictedAwayScore}
+                        </p>
+                      </div>
+                      <div className="rounded-lg border border-border/60 bg-card/50 px-3 py-2 text-center">
+                        <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
+                          {t("admin.matchDetail.payout")}
+                        </p>
+                        <p className="mt-1 font-mono text-sm text-foreground">
+                          {sb.payout > 0 ? `+${sb.payout.toLocaleString()}` : "0"}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="mt-3 flex flex-wrap items-center gap-2">
+                      <Badge variant="outline" className="text-xs">{sb.status}</Badge>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="hidden overflow-x-auto md:block">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-border text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
@@ -740,6 +835,7 @@ export function MatchDetail() {
                   ))}
                 </tbody>
               </table>
+              </div>
             </Card>
           )}
         </div>
@@ -748,15 +844,15 @@ export function MatchDetail() {
       {/* ── Tab: Edit Match ──────────────────────────────────── */}
       {activeTab === "edit" && (
         <Card className="border-border bg-card p-5">
-          <div className="mb-4 flex items-center justify-between">
+          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <h3 className="text-sm font-semibold uppercase text-muted-foreground">{t("admin.matchDetail.editDetails")}</h3>
-            <Button size="sm" onClick={handleSaveEdit} disabled={saving}>
+            <Button className="w-full sm:w-auto" size="sm" onClick={handleSaveEdit} disabled={saving}>
               <Save className="mr-2 h-4 w-4" />
               {saving ? t("common.saving") : t("admin.tournamentDetail.saveChanges")}
             </Button>
           </div>
           <div className="grid gap-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <label className="text-xs font-medium text-muted-foreground">{t("admin.matchManagement.homeTeam")}</label>
                 <Select value={editForm.homeTeam_ID} onValueChange={(v) => setEditForm({ ...editForm, homeTeam_ID: v })}>
@@ -780,7 +876,7 @@ export function MatchDetail() {
                 </Select>
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <label className="text-xs font-medium text-muted-foreground">{t("admin.matchManagement.dateAndTime")}</label>
                 <Input
@@ -801,7 +897,7 @@ export function MatchDetail() {
                 </Select>
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <label className="text-xs font-medium text-muted-foreground">{t("admin.matchManagement.venue")}</label>
                 <Input

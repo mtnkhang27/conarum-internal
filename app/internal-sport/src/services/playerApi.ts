@@ -913,33 +913,28 @@ export const playerMatchesApi = {
 
     /** Completed (finished) matches, optionally filtered by tournament. */
     async getCompleted(tournamentId?: string): Promise<Match[]> {
-        let filter = "status eq 'finished'";
-        if (tournamentId) filter += ` and tournament_ID eq '${tournamentId}'`;
+        let filter = "";
+        if (tournamentId) filter = `tournament_ID eq '${tournamentId}'`;
 
-        const matches = await json<ODataMatch[]>(
-            `${BASE}/Matches?$filter=${encodeURIComponent(filter)}&$expand=homeTeam,awayTeam&$orderby=kickoff desc`
+        const filterParam = filter ? `$filter=${encodeURIComponent(filter)}&` : "";
+        const rows = await json<CompletedMatchViewRow[]>(
+            `${BASE}/CompletedMatchesView?${filterParam}$orderby=kickoff desc`
         );
 
-        const matchIds = matches.map(m => m.ID);
-        const sharedData = await fetchPlayerDataForMatches(matchIds, []);
-
-        const pickMap = new Map<string, string>();
-        for (const p of sharedData.predictions) pickMap.set(p.match_ID, p.pick);
-
-        return matches.map((m) => {
-            const match = toMatch(m);
-            match.timeLabel = "Locked";
-            match.kickoffIso = m.kickoff;
-            match.stage = m.stage;
-            if (m.homeScore !== null && m.awayScore !== null) {
-                match.finalScore = { home: m.homeScore, away: m.awayScore };
-            }
-            const rawPick = pickMap.get(m.ID);
-            if (rawPick === "home") match.selectedOption = "home";
-            else if (rawPick === "away") match.selectedOption = "away";
-            else if (rawPick === "draw") match.selectedOption = "draw";
-            return match;
-        });
+        return rows.map((r) => ({
+            id: r.ID,
+            home: { name: r.homeTeamName ?? "", flag: r.homeTeamFlag ?? "", crest: r.homeTeamCrest ?? undefined },
+            away: { name: r.awayTeamName ?? "", flag: r.awayTeamFlag ?? "", crest: r.awayTeamCrest ?? undefined },
+            options: [],
+            scoreBettingEnabled: false,
+            timeLabel: "Locked",
+            kickoffIso: r.kickoff,
+            stage: r.stage ?? undefined,
+            finalScore: r.homeScore !== null && r.awayScore !== null
+                ? { home: r.homeScore, away: r.awayScore }
+                : undefined,
+            selectedOption: r.myPick ?? "",
+        }));
     },
 
     /** Live matches — fetches targeted predictions only for live match IDs. */
@@ -1254,9 +1249,11 @@ export const playerTournamentQueryApi = {
     /** Get the tournament bracket (knockout tree). */
     async getTournamentBracket(tournamentId: string) {
         const filter = encodeURIComponent(`tournament_ID eq '${tournamentId}'`);
-        return json<any[]>(
+        const rows = await json<any[]>(
             `${BASE}/TournamentBracketView?$filter=${filter}&$orderby=stage asc,position asc`
         );
+        // CDS view key is `ID`; remap to `slotId` for the frontend BracketSlot interface.
+        return rows.map((r: any) => ({ ...r, slotId: r.ID ?? r.slotId }));
     },
 
     /** Get champion pick counts by team for a tournament. */

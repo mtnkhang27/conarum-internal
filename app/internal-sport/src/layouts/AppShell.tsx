@@ -10,13 +10,13 @@ export function AppShell() {
 
     return (
         <ActiveSectionProvider>
-            <div className="flex h-screen flex-col">
+            <div className="app-frame flex flex-col bg-background">
                 <Header />
 
                 <div className="flex flex-1 overflow-hidden">
                     {!isAccountPage && <LeftSidebar />}
 
-                    <main className="min-w-0 flex-1 overflow-y-auto bg-background">
+                    <main className="app-scroll-area min-w-0 flex-1 overflow-y-auto bg-background">
                         <Outlet />
                     </main>
                 </div>

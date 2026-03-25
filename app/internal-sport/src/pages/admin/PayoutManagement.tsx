@@ -1,6 +1,6 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+﻿import { useState, useEffect, useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import { Loader2 } from "lucide-react";
+import { ChevronDown, ChevronRight, Loader2 } from "lucide-react";
 import { tournamentsApi, payoutApi } from "@/services/adminApi";
 import type { AdminTournament, PayoutItem } from "@/types/admin";
 
@@ -8,7 +8,7 @@ type PayoutFilter = "all" | "unpaid" | "paid";
 type ViewMode = "flat" | "grouped";
 
 const formatDate = (iso: string) => {
-    if (!iso) return "—";
+    if (!iso) return "--";
     const d = new Date(iso);
     return d.toLocaleDateString(undefined, {
         day: "2-digit",
@@ -21,6 +21,46 @@ const formatDate = (iso: string) => {
 
 const formatCO = (amount: number) =>
     new Intl.NumberFormat("vi-VN").format(amount) + " CO";
+
+function PlayerAvatar({
+    avatarUrl,
+    displayName,
+    sizeClass = "h-8 w-8",
+}: {
+    avatarUrl?: string;
+    displayName: string;
+    sizeClass?: string;
+}) {
+    if (avatarUrl) {
+        return (
+            <img
+                src={avatarUrl}
+                alt=""
+                className={`${sizeClass} rounded-full object-cover`}
+            />
+        );
+    }
+
+    return (
+        <div
+            className={`${sizeClass} flex items-center justify-center rounded-full bg-primary/20 text-xs font-bold text-primary`}
+        >
+            {displayName.charAt(0).toUpperCase()}
+        </div>
+    );
+}
+
+function payoutStatusClasses(isPaidOut: boolean) {
+    return isPaidOut
+        ? "bg-emerald-500/10 text-emerald-400"
+        : "bg-amber-500/10 text-amber-400";
+}
+
+function payoutActionClasses(isPaidOut: boolean) {
+    return isPaidOut
+        ? "bg-amber-500/10 text-amber-400 hover:bg-amber-500/20"
+        : "bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20";
+}
 
 interface PlayerGroup {
     playerId: string;
@@ -103,6 +143,14 @@ export function PayoutManagement() {
         return items;
     }, [payouts, filter, search, playerFilter]);
 
+    const visibleSelectedCount = useMemo(
+        () => filteredPayouts.filter((item) => selectedBets.has(item.betId)).length,
+        [filteredPayouts, selectedBets],
+    );
+
+    const allVisibleSelected =
+        filteredPayouts.length > 0 && visibleSelectedCount === filteredPayouts.length;
+
     // Group payouts by player
     const playerGroups = useMemo<PlayerGroup[]>(() => {
         const map = new Map<string, PlayerGroup>();
@@ -152,11 +200,16 @@ export function PayoutManagement() {
     };
 
     const toggleSelectAll = () => {
-        if (selectedBets.size === filteredPayouts.length) {
-            setSelectedBets(new Set());
-        } else {
-            setSelectedBets(new Set(filteredPayouts.map((p) => p.betId)));
-        }
+        const visibleIds = filteredPayouts.map((item) => item.betId);
+        setSelectedBets((prev) => {
+            const next = new Set(prev);
+            if (visibleIds.every((id) => next.has(id))) {
+                visibleIds.forEach((id) => next.delete(id));
+            } else {
+                visibleIds.forEach((id) => next.add(id));
+            }
+            return next;
+        });
     };
 
     const toggleSelectPlayer = (group: PlayerGroup) => {
@@ -231,9 +284,9 @@ export function PayoutManagement() {
     };
 
     return (
-        <div className="p-6 space-y-6">
+        <div className="space-y-5 p-4 sm:space-y-6 sm:p-6">
             {/* Header */}
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                 <div>
                     <h1 className="text-2xl font-bold text-foreground">
                         {t("admin.payoutManagement.title")}
@@ -245,7 +298,7 @@ export function PayoutManagement() {
             </div>
 
             {/* Tournament Selector + Filters */}
-            <div className="flex flex-wrap items-center gap-3">
+            <div className="flex flex-col gap-3 lg:flex-row lg:flex-wrap lg:items-center">
                 <select
                     value={selectedTournament}
                     onChange={(e) => {
@@ -253,7 +306,7 @@ export function PayoutManagement() {
                         setSelectedBets(new Set());
                         setPlayerFilter("");
                     }}
-                    className="h-10 min-w-[250px] rounded-lg border border-border bg-surface-dark px-3 text-sm text-foreground outline-none transition-colors focus:border-primary"
+                    className="h-10 w-full rounded-lg border border-border bg-surface-dark px-3 text-sm text-foreground outline-none transition-colors focus:border-primary lg:min-w-[250px]"
                 >
                     <option value="">
                         {t("admin.payoutManagement.selectTournament")}
@@ -274,7 +327,7 @@ export function PayoutManagement() {
                                 setFilter(e.target.value as PayoutFilter);
                                 setSelectedBets(new Set());
                             }}
-                            className="h-10 rounded-lg border border-border bg-surface-dark px-3 text-sm text-foreground outline-none transition-colors focus:border-primary"
+                            className="h-10 w-full rounded-lg border border-border bg-surface-dark px-3 text-sm text-foreground outline-none transition-colors focus:border-primary sm:w-auto"
                         >
                             <option value="all">
                                 {t("admin.payoutManagement.filter.all")} ({stats.total})
@@ -294,7 +347,7 @@ export function PayoutManagement() {
                                 setPlayerFilter(e.target.value);
                                 setSelectedBets(new Set());
                             }}
-                            className="h-10 min-w-[180px] rounded-lg border border-border bg-surface-dark px-3 text-sm text-foreground outline-none transition-colors focus:border-primary"
+                            className="h-10 w-full rounded-lg border border-border bg-surface-dark px-3 text-sm text-foreground outline-none transition-colors focus:border-primary sm:min-w-[180px] sm:w-auto"
                         >
                             <option value="">All Players</option>
                             {uniquePlayers.map((p) => (
@@ -308,14 +361,14 @@ export function PayoutManagement() {
                         <select
                             value={viewMode}
                             onChange={(e) => setViewMode(e.target.value as ViewMode)}
-                            className="h-10 rounded-lg border border-border bg-surface-dark px-3 text-sm text-foreground outline-none transition-colors focus:border-primary"
+                            className="h-10 w-full rounded-lg border border-border bg-surface-dark px-3 text-sm text-foreground outline-none transition-colors focus:border-primary sm:w-auto"
                         >
                             <option value="flat">Flat View</option>
                             <option value="grouped">Grouped by Player</option>
                         </select>
 
                         {/* Search */}
-                        <div className="relative flex-1 min-w-[200px]">
+                        <div className="relative min-w-0 flex-1">
                             <input
                                 type="text"
                                 value={search}
@@ -330,7 +383,7 @@ export function PayoutManagement() {
                             type="button"
                             onClick={handleResetAll}
                             disabled={actionLoading}
-                            className="h-10 rounded-lg border border-red-500/40 bg-red-500/10 px-4 text-xs font-semibold text-red-400 transition-colors hover:bg-red-500/20 disabled:opacity-50"
+                            className="h-10 w-full rounded-lg border border-red-500/40 bg-red-500/10 px-4 text-xs font-semibold text-red-400 transition-colors hover:bg-red-500/20 disabled:opacity-50 sm:w-auto"
                         >
                             Reset All Unpaid
                         </button>
@@ -367,17 +420,17 @@ export function PayoutManagement() {
 
             {/* Bulk actions */}
             {selectedBets.size > 0 && (
-                <div className="flex items-center gap-3 rounded-xl border border-primary/30 bg-primary/5 p-3">
+                <div className="flex flex-col gap-3 rounded-xl border border-primary/30 bg-primary/5 p-3 sm:flex-row sm:items-center">
                     <span className="text-sm font-medium text-primary">
                         {t("admin.payoutManagement.selected", { count: selectedBets.size })}
                     </span>
-                    <div className="flex-1" />
+                    <div className="hidden flex-1 sm:block" />
                     {filter !== "paid" && (
                         <button
                             type="button"
                             onClick={() => handleBulkAction("paid")}
                             disabled={actionLoading}
-                            className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-500 px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-emerald-600 disabled:opacity-50"
+                            className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg bg-emerald-500 px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-emerald-600 disabled:opacity-50 sm:w-auto"
                         >
                             {t("admin.payoutManagement.markPaid")}
                         </button>
@@ -387,7 +440,7 @@ export function PayoutManagement() {
                             type="button"
                             onClick={() => handleBulkAction("unpaid")}
                             disabled={actionLoading}
-                            className="inline-flex items-center gap-1.5 rounded-lg bg-amber-500 px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-amber-600 disabled:opacity-50"
+                            className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg bg-amber-500 px-4 py-2 text-xs font-semibold text-white transition-colors hover:bg-amber-600 disabled:opacity-50 sm:w-auto"
                         >
                             {t("admin.payoutManagement.markUnpaid")}
                         </button>
@@ -416,7 +469,7 @@ export function PayoutManagement() {
                     </p>
                 </div>
             ) : viewMode === "grouped" ? (
-                /* ── Grouped by Player View ──────────────────────── */
+                /* ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ Grouped by Player View ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ */
                 <div className="space-y-3">
                     {playerGroups.map((group) => {
                         const isExpanded = expandedPlayers.has(group.playerId);
@@ -430,145 +483,203 @@ export function PayoutManagement() {
                             >
                                 {/* Player header */}
                                 <div
-                                    className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-surface/30 transition-colors"
+                                    className="cursor-pointer px-4 py-4 transition-colors hover:bg-surface/30"
                                     onClick={() => toggleExpandPlayer(group.playerId)}
                                 >
-                                    <input
-                                        type="checkbox"
-                                        checked={allSelected}
-                                        ref={(el) => {
-                                            if (el) el.indeterminate = someSelected && !allSelected;
-                                        }}
-                                        onChange={(e) => {
-                                            e.stopPropagation();
-                                            toggleSelectPlayer(group);
-                                        }}
-                                        onClick={(e) => e.stopPropagation()}
-                                        className="h-4 w-4 rounded border-border"
-                                    />
-                                    {group.playerAvatarUrl ? (
-                                        <img
-                                            src={group.playerAvatarUrl}
-                                            alt=""
-                                            className="h-8 w-8 rounded-full object-cover"
-                                        />
-                                    ) : (
-                                        <div className="h-8 w-8 rounded-full bg-primary/20 flex items-center justify-center text-xs font-bold text-primary">
-                                            {group.playerDisplayName.charAt(0).toUpperCase()}
+                                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
+                                        <div className="flex min-w-0 items-center gap-3">
+                                            <input
+                                                type="checkbox"
+                                                checked={allSelected}
+                                                ref={(el) => {
+                                                    if (el) el.indeterminate = someSelected && !allSelected;
+                                                }}
+                                                onChange={(e) => {
+                                                    e.stopPropagation();
+                                                    toggleSelectPlayer(group);
+                                                }}
+                                                onClick={(e) => e.stopPropagation()}
+                                                className="h-4 w-4 rounded border-border"
+                                            />
+                                            <PlayerAvatar
+                                                avatarUrl={group.playerAvatarUrl}
+                                                displayName={group.playerDisplayName}
+                                                sizeClass="h-10 w-10"
+                                            />
+                                            <div className="min-w-0">
+                                                <div className="truncate text-sm font-semibold text-foreground">
+                                                    {group.playerDisplayName}
+                                                </div>
+                                                <div className="truncate text-[10px] text-muted-foreground">
+                                                    {group.playerEmail}
+                                                </div>
+                                            </div>
                                         </div>
-                                    )}
-                                    <div className="flex-1">
-                                        <div className="text-sm font-semibold text-foreground">
-                                            {group.playerDisplayName}
+                                        <div className="flex flex-wrap items-center gap-2 sm:ml-auto sm:justify-end">
+                                            <span className="rounded-full border border-border/70 bg-surface/60 px-2.5 py-1 text-xs font-semibold text-foreground">
+                                                {formatCO(group.totalPayout)}
+                                            </span>
+                                            <span className="rounded-full bg-amber-500/10 px-2.5 py-1 text-xs font-semibold text-amber-400">
+                                                {group.unpaidCount} unpaid
+                                            </span>
+                                            <span className="rounded-full bg-emerald-500/10 px-2.5 py-1 text-xs font-semibold text-emerald-400">
+                                                {group.paidCount} paid
+                                            </span>
+                                            <span className="flex h-8 w-8 items-center justify-center rounded-full border border-border/70 bg-surface/50 text-muted-foreground">
+                                                {isExpanded ? (
+                                                    <ChevronDown className="h-4 w-4" />
+                                                ) : (
+                                                    <ChevronRight className="h-4 w-4" />
+                                                )}
+                                            </span>
                                         </div>
-                                        <div className="text-[10px] text-muted-foreground">
-                                            {group.playerEmail}
-                                        </div>
-                                    </div>
-                                    <div className="flex items-center gap-4 text-xs">
-                                        <span className="font-bold text-foreground">
-                                            {formatCO(group.totalPayout)}
-                                        </span>
-                                        <span className="text-amber-400">
-                                            {group.unpaidCount} unpaid
-                                        </span>
-                                        <span className="text-emerald-400">
-                                            {group.paidCount} paid
-                                        </span>
-                                        <span className="text-muted-foreground text-lg">
-                                            {isExpanded ? "▾" : "▸"}
-                                        </span>
                                     </div>
                                 </div>
 
                                 {/* Expanded detail table */}
                                 {isExpanded && (
                                     <div className="border-t border-border">
-                                        <table className="w-full text-sm">
-                                            <thead>
-                                                <tr className="border-b border-border bg-surface/40">
-                                                    <th className="p-2 pl-12 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                                                        Match
-                                                    </th>
-                                                    <th className="p-2 text-center text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                                                        Prediction
-                                                    </th>
-                                                    <th className="p-2 text-center text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                                                        Actual
-                                                    </th>
-                                                    <th className="p-2 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                                                        CO
-                                                    </th>
-                                                    <th className="p-2 text-center text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                                                        Status
-                                                    </th>
-                                                    <th className="p-2 text-center text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                                                        Action
-                                                    </th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                {group.items.map((item) => (
-                                                    <tr
-                                                        key={item.betId}
-                                                        className="border-b border-border/50 transition-colors hover:bg-surface/20"
-                                                    >
-                                                        <td className="p-2 pl-12">
-                                                            <div className="text-xs font-medium text-foreground">
+                                        <div className="space-y-3 p-3 lg:hidden">
+                                            {group.items.map((item) => (
+                                                <div
+                                                    key={item.betId}
+                                                    className="rounded-xl border border-border/80 bg-surface/25 p-4"
+                                                >
+                                                    <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                                                        <div className="min-w-0">
+                                                            <div className="text-sm font-semibold text-foreground">
                                                                 {item.homeTeam} vs {item.awayTeam}
                                                             </div>
-                                                            <div className="text-[10px] text-muted-foreground">
+                                                            <div className="text-xs text-muted-foreground">
                                                                 {formatDate(item.kickoff)}
                                                             </div>
-                                                        </td>
-                                                        <td className="p-2 text-center">
-                                                            <span className="inline-flex items-center rounded-md bg-primary/10 px-2 py-1 text-xs font-bold text-primary">
+                                                        </div>
+                                                        <span
+                                                            className={`inline-flex w-fit items-center rounded-full px-2.5 py-1 text-xs font-semibold ${payoutStatusClasses(item.isPaidOut)}`}
+                                                        >
+                                                            {item.isPaidOut
+                                                                ? t("admin.payoutManagement.status.paid")
+                                                                : t("admin.payoutManagement.status.unpaid")}
+                                                        </span>
+                                                    </div>
+                                                    <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                                                        <div className="rounded-lg border border-primary/20 bg-primary/5 p-3">
+                                                            <div className="text-[10px] uppercase tracking-[0.16em] text-primary/70">
+                                                                Prediction
+                                                            </div>
+                                                            <div className="mt-1 text-base font-semibold text-primary">
                                                                 {item.predictedHomeScore} - {item.predictedAwayScore}
-                                                            </span>
-                                                        </td>
-                                                        <td className="p-2 text-center">
-                                                            <span className="inline-flex items-center rounded-md bg-emerald-500/10 px-2 py-1 text-xs font-bold text-emerald-400">
+                                                            </div>
+                                                        </div>
+                                                        <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-3">
+                                                            <div className="text-[10px] uppercase tracking-[0.16em] text-emerald-300/80">
+                                                                Actual
+                                                            </div>
+                                                            <div className="mt-1 text-base font-semibold text-emerald-400">
                                                                 {item.actualHomeScore} - {item.actualAwayScore}
-                                                            </span>
-                                                        </td>
-                                                        <td className="p-2 text-right">
-                                                            <span className="text-sm font-bold text-foreground">
+                                                            </div>
+                                                        </div>
+                                                        <div className="rounded-lg border border-border/70 bg-surface/40 p-3 sm:col-span-2">
+                                                            <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
+                                                                Payout
+                                                            </div>
+                                                            <div className="mt-1 text-base font-semibold text-foreground">
                                                                 {formatCO(item.payout)}
-                                                            </span>
-                                                        </td>
-                                                        <td className="p-2 text-center">
-                                                            {item.isPaidOut ? (
-                                                                <span className="inline-flex items-center rounded-full bg-emerald-500/10 px-2.5 py-1 text-xs font-semibold text-emerald-400">
-                                                                    {t("admin.payoutManagement.status.paid")}
-                                                                </span>
-                                                            ) : (
-                                                                <span className="inline-flex items-center rounded-full bg-amber-500/10 px-2.5 py-1 text-xs font-semibold text-amber-400">
-                                                                    {t("admin.payoutManagement.status.unpaid")}
-                                                                </span>
-                                                            )}
-                                                        </td>
-                                                        <td className="p-2 text-center">
-                                                            <button
-                                                                type="button"
-                                                                onClick={() =>
-                                                                    handleSingleToggle(item.betId, item.isPaidOut)
-                                                                }
-                                                                disabled={actionLoading}
-                                                                className={`inline-flex items-center rounded-md px-2.5 py-1.5 text-xs font-semibold transition-colors disabled:opacity-50 ${
-                                                                    item.isPaidOut
-                                                                        ? "bg-amber-500/10 text-amber-400 hover:bg-amber-500/20"
-                                                                        : "bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20"
-                                                                }`}
-                                                            >
-                                                                {item.isPaidOut
-                                                                    ? t("admin.payoutManagement.revert")
-                                                                    : t("admin.payoutManagement.pay")}
-                                                            </button>
-                                                        </td>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleSingleToggle(item.betId, item.isPaidOut)}
+                                                        disabled={actionLoading}
+                                                        className={`mt-3 inline-flex w-full items-center justify-center rounded-lg px-3 py-2 text-sm font-semibold transition-colors disabled:opacity-50 ${payoutActionClasses(item.isPaidOut)}`}
+                                                    >
+                                                        {item.isPaidOut
+                                                            ? t("admin.payoutManagement.revert")
+                                                            : t("admin.payoutManagement.pay")}
+                                                    </button>
+                                                </div>
+                                            ))}
+                                        </div>
+                                        <div className="hidden lg:block">
+                                            <table className="w-full text-sm">
+                                                <thead>
+                                                    <tr className="border-b border-border bg-surface/40">
+                                                        <th className="p-2 pl-12 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                                                            Match
+                                                        </th>
+                                                        <th className="p-2 text-center text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                                                            Prediction
+                                                        </th>
+                                                        <th className="p-2 text-center text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                                                            Actual
+                                                        </th>
+                                                        <th className="p-2 text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                                                            CO
+                                                        </th>
+                                                        <th className="p-2 text-center text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                                                            Status
+                                                        </th>
+                                                        <th className="p-2 text-center text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                                                            Action
+                                                        </th>
                                                     </tr>
-                                                ))}
-                                            </tbody>
-                                        </table>
+                                                </thead>
+                                                <tbody>
+                                                    {group.items.map((item) => (
+                                                        <tr
+                                                            key={item.betId}
+                                                            className="border-b border-border/50 transition-colors hover:bg-surface/20"
+                                                        >
+                                                            <td className="p-2 pl-12">
+                                                                <div className="text-xs font-medium text-foreground">
+                                                                    {item.homeTeam} vs {item.awayTeam}
+                                                                </div>
+                                                                <div className="text-[10px] text-muted-foreground">
+                                                                    {formatDate(item.kickoff)}
+                                                                </div>
+                                                            </td>
+                                                            <td className="p-2 text-center">
+                                                                <span className="inline-flex items-center rounded-md bg-primary/10 px-2 py-1 text-xs font-bold text-primary">
+                                                                    {item.predictedHomeScore} - {item.predictedAwayScore}
+                                                                </span>
+                                                            </td>
+                                                            <td className="p-2 text-center">
+                                                                <span className="inline-flex items-center rounded-md bg-emerald-500/10 px-2 py-1 text-xs font-bold text-emerald-400">
+                                                                    {item.actualHomeScore} - {item.actualAwayScore}
+                                                                </span>
+                                                            </td>
+                                                            <td className="p-2 text-right">
+                                                                <span className="text-sm font-bold text-foreground">
+                                                                    {formatCO(item.payout)}
+                                                                </span>
+                                                            </td>
+                                                            <td className="p-2 text-center">
+                                                                <span
+                                                                    className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${payoutStatusClasses(item.isPaidOut)}`}
+                                                                >
+                                                                    {item.isPaidOut
+                                                                        ? t("admin.payoutManagement.status.paid")
+                                                                        : t("admin.payoutManagement.status.unpaid")}
+                                                                </span>
+                                                            </td>
+                                                            <td className="p-2 text-center">
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => handleSingleToggle(item.betId, item.isPaidOut)}
+                                                                    disabled={actionLoading}
+                                                                    className={`inline-flex items-center rounded-md px-2.5 py-1.5 text-xs font-semibold transition-colors disabled:opacity-50 ${payoutActionClasses(item.isPaidOut)}`}
+                                                                >
+                                                                    {item.isPaidOut
+                                                                        ? t("admin.payoutManagement.revert")
+                                                                        : t("admin.payoutManagement.pay")}
+                                                                </button>
+                                                            </td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
                                     </div>
                                 )}
                             </div>
@@ -576,138 +687,227 @@ export function PayoutManagement() {
                     })}
                 </div>
             ) : (
-                /* ── Flat Table View ─────────────────────────────── */
-                <div className="overflow-x-auto rounded-xl border border-border bg-card shadow-[0_10px_30px_rgba(10,10,30,0.35)]">
-                    <table className="w-full text-sm">
-                        <thead>
-                            <tr className="border-b border-border bg-surface/55">
-                                <th className="p-3 text-left">
+                /* Flat Table View */
+                <div className="space-y-3">
+                    <div className="flex items-center justify-between rounded-xl border border-border bg-card/80 px-4 py-3 lg:hidden">
+                        <label className="inline-flex items-center gap-3 text-sm font-medium text-foreground">
+                            <input
+                                type="checkbox"
+                                checked={allVisibleSelected}
+                                onChange={toggleSelectAll}
+                                className="h-4 w-4 rounded border-border"
+                            />
+                            Select all visible
+                        </label>
+                        <span className="text-xs text-muted-foreground">
+                            {visibleSelectedCount}/{filteredPayouts.length}
+                        </span>
+                    </div>
+
+                    <div className="space-y-3 lg:hidden">
+                        {filteredPayouts.map((item) => (
+                            <article
+                                key={item.betId}
+                                className="rounded-xl border border-border bg-card p-4 shadow-[0_4px_15px_rgba(10,10,30,0.25)]"
+                            >
+                                <div className="flex items-start gap-3">
                                     <input
                                         type="checkbox"
-                                        checked={
-                                            selectedBets.size > 0 &&
-                                            selectedBets.size === filteredPayouts.length
-                                        }
-                                        onChange={toggleSelectAll}
-                                        className="h-4 w-4 rounded border-border"
+                                        checked={selectedBets.has(item.betId)}
+                                        onChange={() => toggleSelect(item.betId)}
+                                        className="mt-1 h-4 w-4 rounded border-border"
                                     />
-                                </th>
-                                <th className="p-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                                    {t("admin.payoutManagement.column.player")}
-                                </th>
-                                <th className="p-3 text-left text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                                    {t("admin.payoutManagement.column.match")}
-                                </th>
-                                <th className="p-3 text-center text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                                    {t("admin.payoutManagement.column.prediction")}
-                                </th>
-                                <th className="p-3 text-center text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                                    {t("admin.payoutManagement.column.actual")}
-                                </th>
-                                <th className="p-3 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                                    CO
-                                </th>
-                                <th className="p-3 text-center text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                                    {t("admin.payoutManagement.column.status")}
-                                </th>
-                                <th className="p-3 text-center text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                                    {t("admin.payoutManagement.column.action")}
-                                </th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {filteredPayouts.map((item) => (
-                                <tr
-                                    key={item.betId}
-                                    className="border-b border-border/50 transition-colors hover:bg-surface/30"
-                                >
-                                    <td className="p-3">
-                                        <input
-                                            type="checkbox"
-                                            checked={selectedBets.has(item.betId)}
-                                            onChange={() => toggleSelect(item.betId)}
-                                            className="h-4 w-4 rounded border-border"
-                                        />
-                                    </td>
-                                    <td className="p-3">
-                                        <div className="flex items-center gap-2">
-                                            {item.playerAvatarUrl ? (
-                                                <img
-                                                    src={item.playerAvatarUrl}
-                                                    alt=""
-                                                    className="h-7 w-7 rounded-full object-cover"
-                                                />
-                                            ) : (
-                                                <div className="h-7 w-7 rounded-full bg-primary/20 flex items-center justify-center text-xs font-bold text-primary">
-                                                    {item.playerDisplayName.charAt(0).toUpperCase()}
-                                                </div>
-                                            )}
-                                            <div>
-                                                <div className="font-medium text-foreground text-xs">
+                                    <PlayerAvatar
+                                        avatarUrl={item.playerAvatarUrl}
+                                        displayName={item.playerDisplayName}
+                                        sizeClass="h-10 w-10"
+                                    />
+                                    <div className="min-w-0 flex-1">
+                                        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                                            <div className="min-w-0">
+                                                <div className="truncate text-sm font-semibold text-foreground">
                                                     {item.playerDisplayName}
                                                 </div>
-                                                <div className="text-[10px] text-muted-foreground">
+                                                <div className="truncate text-xs text-muted-foreground">
                                                     {item.playerEmail}
                                                 </div>
                                             </div>
-                                        </div>
-                                    </td>
-                                    <td className="p-3">
-                                        <div className="text-xs font-medium text-foreground">
-                                            {item.homeTeam} vs {item.awayTeam}
-                                        </div>
-                                        <div className="text-[10px] text-muted-foreground">
-                                            {formatDate(item.kickoff)}
-                                        </div>
-                                    </td>
-                                    <td className="p-3 text-center">
-                                        <span className="inline-flex items-center gap-1 rounded-md bg-primary/10 px-2 py-1 text-xs font-bold text-primary">
-                                            {item.predictedHomeScore} - {item.predictedAwayScore}
-                                        </span>
-                                    </td>
-                                    <td className="p-3 text-center">
-                                        <span className="inline-flex items-center gap-1 rounded-md bg-emerald-500/10 px-2 py-1 text-xs font-bold text-emerald-400">
-                                            {item.actualHomeScore} - {item.actualAwayScore}
-                                        </span>
-                                    </td>
-                                    <td className="p-3 text-right">
-                                        <span className="text-sm font-bold text-foreground">
-                                            {formatCO(item.payout)}
-                                        </span>
-                                    </td>
-                                    <td className="p-3 text-center">
-                                        {item.isPaidOut ? (
-                                            <span className="inline-flex items-center rounded-full bg-emerald-500/10 px-2.5 py-1 text-xs font-semibold text-emerald-400">
-                                                {t("admin.payoutManagement.status.paid")}
+                                            <span
+                                                className={`inline-flex w-fit items-center rounded-full px-2.5 py-1 text-xs font-semibold ${payoutStatusClasses(item.isPaidOut)}`}
+                                            >
+                                                {item.isPaidOut
+                                                    ? t("admin.payoutManagement.status.paid")
+                                                    : t("admin.payoutManagement.status.unpaid")}
                                             </span>
-                                        ) : (
-                                            <span className="inline-flex items-center rounded-full bg-amber-500/10 px-2.5 py-1 text-xs font-semibold text-amber-400">
-                                                {t("admin.payoutManagement.status.unpaid")}
-                                            </span>
-                                        )}
-                                    </td>
-                                    <td className="p-3 text-center">
+                                        </div>
+
+                                        <div className="mt-3 rounded-xl border border-border/70 bg-surface/35 p-3">
+                                            <div className="text-sm font-medium text-foreground">
+                                                {item.homeTeam} vs {item.awayTeam}
+                                            </div>
+                                            <div className="mt-1 text-xs text-muted-foreground">
+                                                {formatDate(item.kickoff)}
+                                            </div>
+                                        </div>
+
+                                        <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                                            <div className="rounded-lg border border-primary/20 bg-primary/5 p-3">
+                                                <div className="text-[10px] uppercase tracking-[0.16em] text-primary/70">
+                                                    Prediction
+                                                </div>
+                                                <div className="mt-1 text-base font-semibold text-primary">
+                                                    {item.predictedHomeScore} - {item.predictedAwayScore}
+                                                </div>
+                                            </div>
+                                            <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-3">
+                                                <div className="text-[10px] uppercase tracking-[0.16em] text-emerald-300/80">
+                                                    Actual
+                                                </div>
+                                                <div className="mt-1 text-base font-semibold text-emerald-400">
+                                                    {item.actualHomeScore} - {item.actualAwayScore}
+                                                </div>
+                                            </div>
+                                            <div className="rounded-lg border border-border/70 bg-surface/40 p-3 sm:col-span-2">
+                                                <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
+                                                    Payout
+                                                </div>
+                                                <div className="mt-1 text-base font-semibold text-foreground">
+                                                    {formatCO(item.payout)}
+                                                </div>
+                                            </div>
+                                        </div>
+
                                         <button
                                             type="button"
-                                            onClick={() =>
-                                                handleSingleToggle(item.betId, item.isPaidOut)
-                                            }
+                                            onClick={() => handleSingleToggle(item.betId, item.isPaidOut)}
                                             disabled={actionLoading}
-                                            className={`inline-flex items-center rounded-md px-2.5 py-1.5 text-xs font-semibold transition-colors disabled:opacity-50 ${
-                                                item.isPaidOut
-                                                    ? "bg-amber-500/10 text-amber-400 hover:bg-amber-500/20"
-                                                    : "bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20"
-                                            }`}
+                                            className={`mt-3 inline-flex w-full items-center justify-center rounded-lg px-3 py-2 text-sm font-semibold transition-colors disabled:opacity-50 ${payoutActionClasses(item.isPaidOut)}`}
                                         >
                                             {item.isPaidOut
                                                 ? t("admin.payoutManagement.revert")
                                                 : t("admin.payoutManagement.pay")}
                                         </button>
-                                    </td>
+                                    </div>
+                                </div>
+                            </article>
+                        ))}
+                    </div>
+
+                    <div className="hidden overflow-x-auto rounded-xl border border-border bg-card shadow-[0_10px_30px_rgba(10,10,30,0.35)] lg:block">
+                        <table className="w-full text-sm">
+                            <thead>
+                                <tr className="border-b border-border bg-surface/55">
+                                    <th className="p-3 text-left">
+                                        <input
+                                            type="checkbox"
+                                            checked={allVisibleSelected}
+                                            onChange={toggleSelectAll}
+                                            className="h-4 w-4 rounded border-border"
+                                        />
+                                    </th>
+                                    <th className="p-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                                        {t("admin.payoutManagement.column.player")}
+                                    </th>
+                                    <th className="p-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                                        {t("admin.payoutManagement.column.match")}
+                                    </th>
+                                    <th className="p-3 text-center text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                                        {t("admin.payoutManagement.column.prediction")}
+                                    </th>
+                                    <th className="p-3 text-center text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                                        {t("admin.payoutManagement.column.actual")}
+                                    </th>
+                                    <th className="p-3 text-right text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                                        CO
+                                    </th>
+                                    <th className="p-3 text-center text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                                        {t("admin.payoutManagement.column.status")}
+                                    </th>
+                                    <th className="p-3 text-center text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                                        {t("admin.payoutManagement.column.action")}
+                                    </th>
                                 </tr>
-                            ))}
-                        </tbody>
-                    </table>
+                            </thead>
+                            <tbody>
+                                {filteredPayouts.map((item) => (
+                                    <tr
+                                        key={item.betId}
+                                        className="border-b border-border/50 transition-colors hover:bg-surface/30"
+                                    >
+                                        <td className="p-3">
+                                            <input
+                                                type="checkbox"
+                                                checked={selectedBets.has(item.betId)}
+                                                onChange={() => toggleSelect(item.betId)}
+                                                className="h-4 w-4 rounded border-border"
+                                            />
+                                        </td>
+                                        <td className="p-3">
+                                            <div className="flex items-center gap-2">
+                                                <PlayerAvatar
+                                                    avatarUrl={item.playerAvatarUrl}
+                                                    displayName={item.playerDisplayName}
+                                                    sizeClass="h-7 w-7"
+                                                />
+                                                <div>
+                                                    <div className="font-medium text-foreground text-xs">
+                                                        {item.playerDisplayName}
+                                                    </div>
+                                                    <div className="text-[10px] text-muted-foreground">
+                                                        {item.playerEmail}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </td>
+                                        <td className="p-3">
+                                            <div className="text-xs font-medium text-foreground">
+                                                {item.homeTeam} vs {item.awayTeam}
+                                            </div>
+                                            <div className="text-[10px] text-muted-foreground">
+                                                {formatDate(item.kickoff)}
+                                            </div>
+                                        </td>
+                                        <td className="p-3 text-center">
+                                            <span className="inline-flex items-center gap-1 rounded-md bg-primary/10 px-2 py-1 text-xs font-bold text-primary">
+                                                {item.predictedHomeScore} - {item.predictedAwayScore}
+                                            </span>
+                                        </td>
+                                        <td className="p-3 text-center">
+                                            <span className="inline-flex items-center gap-1 rounded-md bg-emerald-500/10 px-2 py-1 text-xs font-bold text-emerald-400">
+                                                {item.actualHomeScore} - {item.actualAwayScore}
+                                            </span>
+                                        </td>
+                                        <td className="p-3 text-right">
+                                            <span className="text-sm font-bold text-foreground">
+                                                {formatCO(item.payout)}
+                                            </span>
+                                        </td>
+                                        <td className="p-3 text-center">
+                                            <span
+                                                className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${payoutStatusClasses(item.isPaidOut)}`}
+                                            >
+                                                {item.isPaidOut
+                                                    ? t("admin.payoutManagement.status.paid")
+                                                    : t("admin.payoutManagement.status.unpaid")}
+                                            </span>
+                                        </td>
+                                        <td className="p-3 text-center">
+                                            <button
+                                                type="button"
+                                                onClick={() => handleSingleToggle(item.betId, item.isPaidOut)}
+                                                disabled={actionLoading}
+                                                className={`inline-flex items-center rounded-md px-2.5 py-1.5 text-xs font-semibold transition-colors disabled:opacity-50 ${payoutActionClasses(item.isPaidOut)}`}
+                                            >
+                                                {item.isPaidOut
+                                                    ? t("admin.payoutManagement.revert")
+                                                    : t("admin.payoutManagement.pay")}
+                                            </button>
+                                        </td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             )}
         </div>

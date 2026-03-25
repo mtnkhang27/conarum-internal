@@ -1,4 +1,5 @@
 import { useEffect, useState, type FocusEvent, type PointerEvent } from "react";
+import { Flame } from "lucide-react";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
 import type { Match } from "@/types";

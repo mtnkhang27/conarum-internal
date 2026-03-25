@@ -37,6 +37,19 @@ const getGridLayout = (width: number, height: number) => {
     return { columns: 3, rows: height < 900 ? 2 : 3 };
 };
 
+const getSpecialMatchRows = (items: Match[], columns: number) => {
+    if (columns < 3) return null;
+    if (items.length === 4) {
+        return [items.slice(0, 2), items.slice(2, 4)];
+    }
+
+    if (items.length === 5) {
+        return [items.slice(0, 3), items.slice(3, 5)];
+    }
+
+    return null;
+};
+
 interface MatchPredictionTableProps {
     tournamentId: string;
     onPredictionChange?: () => void | Promise<void>;
@@ -209,6 +222,11 @@ export function MatchPredictionTable({
             void loadPage(safePage, pageSize);
         },
         [loadPage, pageSize, totalPages],
+    );
+
+    const specialMatchRows = useMemo(
+        () => getSpecialMatchRows(visibleMatches, gridLayout.columns),
+        [visibleMatches, gridLayout.columns]
     );
 
     const placeholderCount =

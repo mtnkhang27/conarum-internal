@@ -1,0 +1,470 @@
+/* ═══════════════════════════════════════════════════════════
+   Betting Banner Popup — Full-screen immersive overlay
+   Theme: Purple Dark (#111122, #6d3fc7, #8b5cf6)
+   ═══════════════════════════════════════════════════════════ */
+
+/* ── Overlay ─────────────────────────────────────────────── */
+.betting-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: betOverlayIn 0.35s ease-out;
+  padding: 16px;
+}
+
+.betting-overlay.closing {
+  animation: betOverlayOut 0.3s ease-in forwards;
+}
+
+/* ── Full-screen hero background ─────────────────────────── */
+.betting-overlay__bg {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+}
+
+.betting-overlay__bg-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center 40%;
+  display: block;
+  /* No zoom animation — prevents pixelation on full-screen */
+}
+
+/* Gradient overlays on top of the full-screen image */
+.betting-overlay__bg::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    /* Dark base for readability */
+    linear-gradient(to top, rgba(17, 17, 34, 0.97) 0%, rgba(17, 17, 34, 0.85) 30%, rgba(17, 17, 34, 0.45) 55%, rgba(17, 17, 34, 0.25) 75%, rgba(17, 17, 34, 0.6) 100%),
+    /* Purple tint */
+    linear-gradient(135deg, rgba(109, 63, 199, 0.15) 0%, transparent 50%),
+    /* Vignette */
+    radial-gradient(ellipse at center, transparent 20%, rgba(8, 8, 18, 0.5) 100%);
+  pointer-events: none;
+}
+
+/* ── Content card (no visible border, transparent bg) ─────── */
+.betting-banner {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 680px;
+  animation: betBannerSlideUp 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.betting-overlay.closing .betting-banner {
+  animation: betBannerSlideDown 0.28s ease-in forwards;
+}
+
+/* ── Close button — fixed to screen top-right ──────────── */
+.betting-banner__close {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 10000;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(17, 17, 34, 0.5);
+  backdrop-filter: blur(8px);
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 18px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.25s ease;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+}
+
+.betting-banner__close:hover {
+  background: rgba(109, 63, 199, 0.6);
+  color: #fff;
+  transform: rotate(90deg) scale(1.1);
+  border-color: rgba(139, 92, 246, 0.5);
+  box-shadow: 0 0 30px rgba(109, 63, 199, 0.4);
+}
+
+/* ── Header / Title ──────────────────────────────────────── */
+.betting-banner__header {
+  text-align: center;
+  margin-bottom: 28px;
+}
+
+.betting-banner__title {
+  font-size: 44px;
+  font-weight: 900;
+  color: #fff;
+  text-transform: uppercase;
+  letter-spacing: 3px;
+  line-height: 1.1;
+  text-shadow: 0 4px 30px rgba(109, 63, 199, 0.6), 0 2px 10px rgba(0, 0, 0, 0.5);
+}
+
+.betting-banner__title-bet {
+  background: linear-gradient(135deg, #8b5cf6 0%, #b57cff 50%, #8b5cf6 100%);
+  background-size: 200% 200%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: betTitleShimmer 3s ease-in-out infinite;
+}
+
+.betting-banner__title-now {
+  background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 50%, #fbbf24 100%);
+  background-size: 200% 200%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: betTitleShimmer 3s ease-in-out infinite;
+  animation-delay: 0.5s;
+}
+
+.betting-banner__subtitle {
+  font-size: 13px;
+  color: rgba(176, 176, 200, 0.9);
+  margin-top: 8px;
+  letter-spacing: 1.5px;
+  font-weight: 400;
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.5);
+}
+
+/* ── Match list ──────────────────────────────────────────── */
+.betting-banner__matches {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 28px;
+}
+
+.betting-match {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: rgba(17, 17, 34, 0.55);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(251, 191, 36, 0.45);
+  border-radius: 14px;
+  padding: 14px 16px 10px;
+  transition: all 0.25s ease;
+  animation: betMatchFadeIn 0.4s ease-out backwards;
+  box-shadow:
+    0 0 0 1px rgba(251, 191, 36, 0.1) inset,
+    0 8px 24px rgba(251, 146, 60, 0.12);
+}
+
+.betting-match:nth-child(1) { animation-delay: 0.2s; }
+.betting-match:nth-child(2) { animation-delay: 0.3s; }
+.betting-match:nth-child(3) { animation-delay: 0.4s; }
+.betting-match:nth-child(4) { animation-delay: 0.5s; }
+.betting-match:nth-child(5) { animation-delay: 0.6s; }
+
+.betting-match:hover {
+  border-color: rgba(251, 191, 36, 0.65);
+  box-shadow:
+    0 0 0 1px rgba(251, 191, 36, 0.15) inset,
+    0 10px 30px rgba(251, 146, 60, 0.18);
+}
+
+/* 🔥 HOT badge */
+.betting-match__hot-badge {
+  position: absolute;
+  top: -10px;
+  right: -8px;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 3px 8px;
+  border-radius: 20px;
+  font-size: 9px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: #fef3c7;
+  border: 1px solid rgba(251, 191, 36, 0.45);
+  box-shadow: 0 6px 16px rgba(251, 146, 60, 0.25);
+  overflow: hidden;
+}
+
+.betting-match__hot-badge::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: #1e1e38;
+}
+
+.betting-match__hot-badge::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(249, 115, 22, 0.3), rgba(251, 191, 36, 0.22), rgba(253, 224, 71, 0.14));
+}
+
+.betting-match__hot-icon,
+.betting-match__hot-text {
+  position: relative;
+  z-index: 1;
+}
+
+/* 3-col row: Home — VS — Away */
+.betting-match__row {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+}
+
+/* Team cells */
+.betting-match__team {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.betting-match__team--home {
+  justify-content: flex-end;
+}
+
+.betting-match__team--away {
+  justify-content: flex-start;
+}
+
+/* Crest images via TeamCrest component */
+.betting-match__team img,
+.betting-match__team .fi {
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.5));
+}
+
+.betting-match__name {
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(240, 240, 245, 0.85);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 120px;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+}
+
+/* VS badge */
+.betting-match__vs {
+  font-size: 11px;
+  font-weight: 800;
+  color: #8b5cf6;
+  letter-spacing: 1px;
+  text-shadow: 0 0 12px rgba(139, 92, 246, 0.5);
+  flex-shrink: 0;
+}
+
+/* Time label — secondary, centered below row */
+.betting-match__time {
+  font-size: 10px;
+  font-weight: 500;
+  color: rgba(251, 191, 36, 0.8);
+  margin-top: 4px;
+  letter-spacing: 0.5px;
+}
+
+/* ── CTA Button ──────────────────────────────────────────── */
+.betting-banner__cta {
+  display: block;
+  width: 100%;
+  border: none;
+  border-radius: 16px;
+  padding: 18px 28px;
+  font-size: 20px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 3px;
+  color: #fff;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(135deg, #6d3fc7 0%, #8b5cf6 50%, #6d3fc7 100%);
+  background-size: 200% 200%;
+  box-shadow:
+    0 0 40px rgba(109, 63, 199, 0.45),
+    0 6px 24px rgba(0, 0, 0, 0.35);
+  transition: all 0.3s ease;
+  animation: betCtaGlow 2.5s ease-in-out infinite;
+}
+
+.betting-banner__cta:hover {
+  transform: translateY(-3px);
+  box-shadow:
+    0 0 60px rgba(139, 92, 246, 0.55),
+    0 10px 40px rgba(0, 0, 0, 0.4);
+  background-position: 100% 50%;
+}
+
+.betting-banner__cta:active {
+  transform: translateY(0);
+}
+
+/* Shine sweep */
+.betting-banner__cta::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 60%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.15),
+    transparent
+  );
+  animation: betShine 3.5s ease-in-out infinite;
+}
+
+.betting-banner__cta-text {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+/* ── No matches fallback ─────────────────────────────────── */
+.betting-banner__empty {
+  text-align: center;
+  padding: 20px 0;
+  color: #b0b0c8;
+  font-size: 14px;
+}
+
+.betting-banner__empty-icon {
+  font-size: 40px;
+  margin-bottom: 10px;
+}
+
+/* ── Keyframes ───────────────────────────────────────────── */
+@keyframes betOverlayIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes betOverlayOut {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+@keyframes betBannerSlideUp {
+  from {
+    opacity: 0;
+    transform: translateY(50px) scale(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes betBannerSlideDown {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(40px) scale(0.95);
+  }
+}
+
+@keyframes betHeroZoom {
+  from { transform: scale(1); }
+  to { transform: scale(1.1); }
+}
+
+@keyframes betPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.25; }
+}
+
+@keyframes betFirePulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.2); }
+}
+
+@keyframes betMatchFadeIn {
+  from {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes betTitleShimmer {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+@keyframes betCtaGlow {
+  0%, 100% {
+    box-shadow: 0 0 40px rgba(109, 63, 199, 0.45), 0 6px 24px rgba(0, 0, 0, 0.35);
+    background-position: 0% 50%;
+  }
+  50% {
+    box-shadow: 0 0 60px rgba(139, 92, 246, 0.55), 0 6px 30px rgba(0, 0, 0, 0.35);
+    background-position: 100% 50%;
+  }
+}
+
+@keyframes betShine {
+  0% { left: -100%; }
+  35% { left: 150%; }
+  100% { left: 150%; }
+}
+
+/* ── Responsive ──────────────────────────────────────────── */
+@media (min-width: 640px) {
+  .betting-banner__title {
+    font-size: 52px;
+  }
+}
+
+@media (max-width: 480px) {
+  .betting-banner__title {
+    font-size: 32px;
+    letter-spacing: 1px;
+  }
+
+  .betting-match {
+    padding: 10px 12px;
+    gap: 8px;
+  }
+
+  .betting-match__team-names {
+    font-size: 12px;
+  }
+
+  .betting-match__time {
+    font-size: 10px;
+    min-width: 60px;
+    padding: 4px 8px;
+  }
+
+  .betting-banner__cta {
+    font-size: 16px;
+    padding: 14px 20px;
+    letter-spacing: 2px;
+  }
+}

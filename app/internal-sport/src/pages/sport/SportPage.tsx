@@ -10,6 +10,7 @@ import { LeaderboardSection } from "./components/LeaderboardSection";
 import { RecentPredictionsSection } from "./components/RecentPredictionsSection";
 import { TournamentBracket } from "./components/TournamentBracket";
 import { LoadingOverlay } from "@/components/shared/LoadingOverlay";
+import { BettingBannerPopup } from "@/components/shared/BettingBannerPopup";
 import { useActiveSection } from "@/hooks/useActiveSection";
 import { playerMatchesApi } from "@/services/playerApi";
 import type { LiveMatch } from "@/types";

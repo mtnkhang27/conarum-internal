@@ -195,10 +195,47 @@ service PlayerService {
         } where m.status = 'finished';
 
     /**
+     * Available (upcoming) matches with team info pre-joined.
+     * Single OData GET replaces the complex getAvailable() client-side orchestration.
+     * `myPick` and `myScores` are virtual fields populated by after-READ handlers.
+     * Supports $filter, $skip, $top, $count for server-side pagination.
+     */
+    @readonly
+    entity AvailableMatchesView     as
+        select from db.Match as m
+            left join db.Team as home
+                on home.ID = m.homeTeam.ID
+            left join db.Team as away
+                on away.ID = m.awayTeam.ID {
+            key m.ID               as ID,
+                m.tournament.ID    as tournament_ID,
+                m.kickoff          as kickoff,
+                m.stage            as stage,
+                m.status           as status,
+                m.bettingLocked    as bettingLocked,
+                m.isHotMatch       as isHotMatch,
+                m.outcomePoints    as outcomePoints,
+                m.matchday         as matchday,
+                m.bracketSlot.ID   as bracketSlot_ID,
+                home.ID            as homeTeam_ID,
+                home.name          as homeTeamName,
+                home.flagCode      as homeTeamFlag,
+                home.crest         as homeTeamCrest,
+                away.ID            as awayTeam_ID,
+                away.name          as awayTeamName,
+                away.flagCode      as awayTeamFlag,
+                away.crest         as awayTeamCrest,
+                null               as myPick            : String,
+                false              as scoreBettingEnabled : Boolean,
+                    3                  as maxBets            : Integer
+        } where m.status = 'upcoming';
+
+    /**
      * Recent predictions with match + team + tournament data pre-joined.
      * Replaces the getMyRecentPredictions() function.
      * `scoreBets` is populated by an after-READ handler.
      * Use $filter=player_ID eq '<id>' (injected by before-READ handler).
+     * Supports $orderby, $skip, $top, $count for server-side pagination.
      */
     @readonly
     entity RecentPredictionsView    as

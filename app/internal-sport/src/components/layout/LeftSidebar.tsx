@@ -1,7 +1,7 @@
 import { Link, NavLink, useLocation } from "react-router-dom";
 import { Info } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { scrollToSection, SECTION } from "@/pages/sport/SportPage";
+import { scrollToSection, SECTION } from "@/pages/sport/sectionNavigation";
 import { useActiveSection } from "@/hooks/useActiveSection";
 
 function sectionLinkClass(active: boolean) {

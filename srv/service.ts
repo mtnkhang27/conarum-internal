@@ -44,6 +44,7 @@ export class PlayerService extends cds.ApplicationService {
         this.on('getStandings', this.predictionHandler.getStandings.bind(this.predictionHandler));
         this.on('getChampionPickCounts', this.predictionHandler.getChampionPickCounts.bind(this.predictionHandler));
         this.on('READ', 'CompletedMatchesView', this.predictionHandler.readCompletedMatchesView.bind(this.predictionHandler));
+        this.on('READ', 'AvailableMatchesView', this.predictionHandler.readAvailableMatchesView.bind(this.predictionHandler));
         this.on('READ', 'PredictionLeaderboard', this.predictionHandler.readPredictionLeaderboard.bind(this.predictionHandler));
         this.on('READ', 'RecentPredictionsView', this.predictionHandler.readRecentPredictionsView.bind(this.predictionHandler));
         this.on('READ', 'TournamentBracketView', this.predictionHandler.readTournamentBracketView.bind(this.predictionHandler));
@@ -58,6 +59,7 @@ export class PlayerService extends cds.ApplicationService {
 
         // ── Filter view-based entities to current user ──
         this.after('READ', 'CompletedMatchesView', this.predictionHandler.enrichCompletedMatchesView.bind(this.predictionHandler));
+        this.after('READ', 'AvailableMatchesView', this.predictionHandler.enrichAvailableMatchesView.bind(this.predictionHandler));
         this.before('READ', 'RecentPredictionsView', this.predictionHandler.filterByCurrentUser.bind(this.predictionHandler));
         this.after('READ', 'RecentPredictionsView', this.predictionHandler.enrichRecentPredictionsView.bind(this.predictionHandler));
         this.after('READ', 'TournamentBracketView', this.predictionHandler.enrichTournamentBracketView.bind(this.predictionHandler));

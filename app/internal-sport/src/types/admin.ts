@@ -224,21 +224,58 @@ export interface AdminPlayerTournamentStats {
 // === Payout Management Types ===
 
 export interface PayoutItem {
-    betId: string;
+    sourceKey: string;
+    awardId: string | null;
+    awardType: "scoreBet" | "championPick" | "leaderboard";
+    awardTypeLabel: string;
+    awardStatus: "pending" | "awarded" | "reverted";
+    isAwarded: boolean;
+    tournamentId: string;
     playerId: string;
     playerDisplayName: string;
     playerEmail: string;
     playerAvatarUrl: string;
-    matchId: string;
+    matchId: string | null;
     homeTeam: string;
     awayTeam: string;
-    kickoff: string;
-    predictedHomeScore: number;
-    predictedAwayScore: number;
-    actualHomeScore: number;
-    actualAwayScore: number;
-    payout: number;
-    isPaidOut: boolean;
-    submittedAt: string;
+    kickoff: string | null;
+    scoreBetId: string | null;
+    predictedHomeScore: number | null;
+    predictedAwayScore: number | null;
+    actualHomeScore: number | null;
+    actualAwayScore: number | null;
+    championPickId: string | null;
+    championTeamId: string | null;
+    championTeamName: string;
+    leaderboardStatId: string | null;
+    leaderboardRank: number | null;
+    leaderboardPoints: number;
+    rewardAmount: number;
+    rewardDescription: string;
+    evidenceNote: string;
+    evidenceUrl: string;
+    awardedAt: string | null;
+    awardedByName: string;
+    awardedByEmail: string;
+    revertedAt: string | null;
+    revertedByName: string;
+    revertedByEmail: string;
+    revertReason: string;
+    submittedAt: string | null;
+}
+
+export interface PayoutAwardInput {
+    sourceKey: string;
+    awardType: "scoreBet" | "championPick" | "leaderboard";
+    tournamentId: string;
+    playerId: string;
+    matchId?: string | null;
+    scoreBetId?: string | null;
+    championPickId?: string | null;
+    leaderboardStatId?: string | null;
+    rewardAmount?: number;
+    rewardDescription?: string;
+    evidenceNote?: string;
+    evidenceUrl?: string;
 }
 

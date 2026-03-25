@@ -17,6 +17,7 @@ import type {
     AdminChampionPick,
     AdminBracketSlot,
     PayoutItem,
+    PayoutAwardInput,
 } from "@/types/admin";
 import { mapExternalAssetUrls } from "@/utils/externalAssetProxy";
 
@@ -288,6 +289,29 @@ export const payoutApi = {
         odata<{ value: PayoutItem[] }>(
             `/getPayoutSummary(tournamentId='${tournamentId}')`
         ).then((r) => r.value ?? (r as any)),
+    award: (payload: PayoutAwardInput) =>
+        odata<ActionResult>("/upsertPayoutAward", {
+            method: "POST",
+            body: JSON.stringify({
+                sourceKey: payload.sourceKey,
+                awardType: payload.awardType,
+                tournamentId: payload.tournamentId,
+                playerId: payload.playerId,
+                matchId: payload.matchId ?? null,
+                scoreBetId: payload.scoreBetId ?? null,
+                championPickId: payload.championPickId ?? null,
+                leaderboardStatId: payload.leaderboardStatId ?? null,
+                rewardAmount: payload.rewardAmount ?? 0,
+                rewardDescription: payload.rewardDescription ?? "",
+                evidenceNote: payload.evidenceNote ?? "",
+                evidenceUrl: payload.evidenceUrl ?? "",
+            }),
+        }),
+    revert: (awardId: string, revertReason: string) =>
+        odata<ActionResult>("/revertPayoutAward", {
+            method: "POST",
+            body: JSON.stringify({ awardId, revertReason }),
+        }),
     markPaid: (betIds: string[]) =>
         odata<ActionResult>("/markScoreBetsPaid", {
             method: "POST",

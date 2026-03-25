@@ -743,6 +743,18 @@ service AdminService {
             tournament : redirected to Tournaments
         };
 
+    @readonly
+    entity PayoutAwards            as
+        projection on db.PayoutAward {
+            *,
+            tournament      : redirected to Tournaments,
+            player          : redirected to Players,
+            match           : redirected to Matches,
+            scoreBet        : redirected to AllScoreBets,
+            championPick    : redirected to AllChampionPicks,
+            leaderboardStat : redirected to PlayerTournamentStats
+        };
+
     // ── Admin Actions ────────────────────────────────────────
 
     type ActionResult {
@@ -834,18 +846,43 @@ service AdminService {
 
     // ── Payout Management ─────────────────────────────────────
 
-    /** Mark score bets as paid out (admin distributed CO). */
+    /** Mark score bets as paid out (legacy bulk action for exact score payouts). */
     action markScoreBetsPaid(betIds: many UUID) returns ActionResult;
 
-    /** Revert payout mark (in case of mistake). */
+    /** Revert payout mark (legacy bulk action for exact score payouts). */
     action markScoreBetsUnpaid(betIds: many UUID) returns ActionResult;
 
-    /** Reset ALL isPaidOut flags to false for a tournament (migration fix). */
+    /** Reset payout audit status for a tournament. */
     action resetAllPayoutStatus(tournamentId: UUID) returns ActionResult;
 
-    /** Get payout summary for a tournament — won score bets grouped by player. */
+    /** Save/update payout evidence for one award item. */
+    action upsertPayoutAward(
+        sourceKey         : String(255),
+        awardType         : String(30),
+        tournamentId      : UUID,
+        playerId          : UUID,
+        matchId           : UUID,
+        scoreBetId        : UUID,
+        championPickId    : UUID,
+        leaderboardStatId : UUID,
+        rewardAmount      : Decimal,
+        rewardDescription : String(500),
+        evidenceNote      : String(2000),
+        evidenceUrl       : String(1000)
+    ) returns ActionResult;
+
+    /** Revert a previously awarded payout while preserving audit history. */
+    action revertPayoutAward(awardId: UUID, revertReason: String(500)) returns ActionResult;
+
+    /** Unified payout summary for score bet, champion pick, and leaderboard awards. */
     type PayoutItem {
-        betId              : UUID;
+        sourceKey           : String(255);
+        awardId             : UUID;
+        awardType           : String(30);
+        awardTypeLabel      : String(100);
+        awardStatus         : String(30);
+        isAwarded           : Boolean;
+        tournamentId        : UUID;
         playerId           : UUID;
         playerDisplayName  : String;
         playerEmail        : String;
@@ -854,12 +891,28 @@ service AdminService {
         homeTeam           : String;
         awayTeam           : String;
         kickoff            : DateTime;
+        scoreBetId          : UUID;
         predictedHomeScore : Integer;
         predictedAwayScore : Integer;
         actualHomeScore    : Integer;
         actualAwayScore    : Integer;
-        payout             : Decimal;
-        isPaidOut          : Boolean;
+        championPickId      : UUID;
+        championTeamId      : UUID;
+        championTeamName    : String;
+        leaderboardStatId   : UUID;
+        leaderboardRank     : Integer;
+        leaderboardPoints   : Decimal;
+        rewardAmount        : Decimal;
+        rewardDescription   : String(500);
+        evidenceNote        : String(2000);
+        evidenceUrl         : String(1000);
+        awardedAt           : DateTime;
+        awardedByName       : String(120);
+        awardedByEmail      : String(255);
+        revertedAt          : DateTime;
+        revertedByName      : String(120);
+        revertedByEmail     : String(255);
+        revertReason        : String(500);
         submittedAt        : DateTime;
     }
 

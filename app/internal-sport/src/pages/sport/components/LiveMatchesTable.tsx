@@ -33,7 +33,71 @@ export function LiveMatchesTable({ items }: LiveMatchesTableProps) {
                 {t("sport.liveMatches")}
             </h2>
 
-            <div className="overflow-hidden rounded-lg border border-border bg-card">
+            <div className="space-y-3 md:hidden">
+                {items.map((item) => (
+                    <div
+                        key={item.id || item.match}
+                        className="rounded-xl border border-border bg-card p-4 shadow-[0_6px_18px_rgba(10,10,30,0.22)]"
+                    >
+                        <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0 flex-1">
+                                <div className="space-y-2">
+                                    {(["home", "away"] as const).map((side) => {
+                                        const team = side === "home" ? item.home : item.away;
+                                        return (
+                                            <div key={side} className="flex items-center gap-2">
+                                                {team?.crest ? (
+                                                    <img src={team.crest} alt={getTeamName(item, side)} className="h-5 w-5 object-contain" />
+                                                ) : team?.flag ? (
+                                                    <span className={`fi fi-${team.flag} rounded-sm`} />
+                                                ) : (
+                                                    <span className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-border bg-surface-dark text-[9px] font-black text-muted-foreground">?</span>
+                                                )}
+                                                <span className="truncate text-sm font-bold text-white">
+                                                    {getTeamName(item, side)}
+                                                </span>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                                <div className="mt-3 flex items-center gap-2 text-[10px] font-bold text-destructive">
+                                    <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-destructive" />
+                                    {t("common.status.live")}
+                                </div>
+                            </div>
+
+                            <div className="rounded-lg border border-border bg-surface-dark px-3 py-2 font-mono text-base font-bold text-success">
+                                {item.score}
+                            </div>
+                        </div>
+
+                        <div className="mt-4 grid grid-cols-2 gap-2">
+                            <div className="rounded-lg border border-border/60 bg-surface/45 px-3 py-2 text-center">
+                                <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
+                                    {t("sport.points")}
+                                </p>
+                                <p className="mt-1 text-sm font-bold text-success">+1</p>
+                            </div>
+                            <div className="rounded-lg border border-border/60 bg-surface/45 px-3 py-2 text-center">
+                                <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
+                                    {t("sport.pick")}
+                                </p>
+                                <span
+                                    className={`mt-1 inline-flex rounded border px-2 py-1 text-[10px] font-bold ${
+                                        item.pick
+                                            ? "border-primary/40 bg-primary/15 text-primary"
+                                            : "border-border bg-surface text-muted-foreground"
+                                    }`}
+                                >
+                                    {pickLabel(item)}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                ))}
+            </div>
+
+            <div className="hidden overflow-hidden rounded-lg border border-border bg-card md:block">
                 <div className="grid grid-cols-12 gap-2 border-b border-border bg-surface/50 px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
                     <div className="col-span-6">{t("sport.inPlayMatch")}</div>
                     <div className="col-span-2 text-center">{t("sport.points")}</div>
@@ -76,7 +140,6 @@ export function LiveMatchesTable({ items }: LiveMatchesTableProps) {
                                         <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-destructive" />
                                         {t("common.status.live")}
                                     </span>
-                                    {/* <span className="text-[10px] text-muted-foreground">{item.minute}</span> */}
                                 </div>
                             </div>
 

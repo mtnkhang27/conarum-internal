@@ -100,8 +100,94 @@ export function CompletedMatchesTable({ tournamentId }: CompletedMatchesTablePro
     }
 
     return (
-        <div className="overflow-hidden rounded-lg border border-border bg-card">
-            <div className="overflow-x-auto">
+        <div className="relative overflow-hidden rounded-lg border border-border bg-card">
+            <div className="space-y-3 p-3 md:hidden">
+                {matches.map((match) => {
+                    const hasScore = match.finalScore !== undefined;
+                    const hasPick = !!match.selectedOption;
+
+                    let outcome: "home" | "draw" | "away" | null = null;
+                    if (hasScore) {
+                        const { home, away } = match.finalScore!;
+                        if (home > away) outcome = "home";
+                        else if (away > home) outcome = "away";
+                        else outcome = "draw";
+                    }
+                    const isCorrect = hasPick && outcome !== null && match.selectedOption === outcome;
+                    const isWrong = hasPick && outcome !== null && match.selectedOption !== outcome;
+
+                    return (
+                        <div
+                            key={match.id}
+                            className="rounded-xl border border-border/70 bg-surface/35 p-4 shadow-[0_6px_18px_rgba(10,10,30,0.18)]"
+                        >
+                            <div className="space-y-2">
+                                <div className="flex items-center justify-between gap-3">
+                                    <div className="flex min-w-0 flex-1 items-center gap-2">
+                                        {match.home.crest
+                                            ? <img src={match.home.crest} alt={match.home.name} className="h-5 w-5 flex-shrink-0 object-contain" />
+                                            : <span className={`fi fi-${match.home.flag} flex-shrink-0 rounded-sm`} />}
+                                        <span className="truncate text-sm font-bold text-white">{match.home.name}</span>
+                                    </div>
+                                    <span className="rounded-full border border-border/70 bg-surface px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
+                                        {match.stage || t("common.vs")}
+                                    </span>
+                                </div>
+
+                                <div className="flex items-center justify-between gap-3">
+                                    <div className="flex min-w-0 flex-1 items-center gap-2">
+                                        {match.away.crest
+                                            ? <img src={match.away.crest} alt={match.away.name} className="h-5 w-5 flex-shrink-0 object-contain" />
+                                            : <span className={`fi fi-${match.away.flag} flex-shrink-0 rounded-sm`} />}
+                                        <span className="truncate text-sm font-bold text-white">{match.away.name}</span>
+                                    </div>
+                                    {hasScore ? (
+                                        <span className="inline-block rounded border border-border bg-surface-dark px-2.5 py-1 font-mono text-sm font-bold text-success">
+                                            {match.finalScore!.home} - {match.finalScore!.away}
+                                        </span>
+                                    ) : (
+                                        <span className="text-xs text-muted-foreground">-</span>
+                                    )}
+                                </div>
+                            </div>
+
+                            <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                                <div className="rounded-lg border border-border/60 bg-card/50 px-3 py-2">
+                                    <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
+                                        {t("completedMatchesTable.yourPick")}
+                                    </p>
+                                    {hasPick ? (
+                                        <span
+                                            className={`mt-1 inline-block rounded px-2 py-0.5 text-[10px] font-bold ${
+                                                isCorrect ? "border border-success/40 bg-success/15 text-success" :
+                                                    isWrong ? "border border-destructive/40 bg-destructive/15 text-destructive" :
+                                                        "border border-border bg-surface text-foreground/70"
+                                            }`}
+                                        >
+                                            {pickLabel(match.selectedOption, match.home.name, match.away.name)}
+                                        </span>
+                                    ) : (
+                                        <span className="mt-1 block text-xs text-muted-foreground">
+                                            {t("completedMatchesTable.noPick")}
+                                        </span>
+                                    )}
+                                </div>
+
+                                <div className="rounded-lg border border-border/60 bg-card/50 px-3 py-2">
+                                    <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
+                                        {t("completedMatchesTable.date")}
+                                    </p>
+                                    <p className="mt-1 text-xs text-foreground/80">
+                                        {formatKickoffDisplay(match.kickoffIso)}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    );
+                })}
+            </div>
+
+            <div className="hidden overflow-x-auto md:block">
                 <table className="min-w-[760px] w-full border-collapse">
                     <thead>
                         <tr className="border-b border-border bg-surface/60 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
@@ -204,12 +290,12 @@ export function CompletedMatchesTable({ tournamentId }: CompletedMatchesTablePro
 
             {totalPages > 1 && (
                 <div className="border-t border-border bg-surface/35 px-4 py-3">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                         <p className="text-xs text-muted-foreground">
                             {t("common.showing", { from, to, total: totalCount })}
                         </p>
 
-                        <div className="flex items-center justify-end gap-2">
+                        <div className="flex flex-wrap items-center justify-end gap-2">
                             <button
                                 type="button"
                                 onClick={() => handlePageChange(Math.max(1, page - 1))}

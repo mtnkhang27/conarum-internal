@@ -531,10 +531,10 @@ export function MatchManagement() {
     }
 
     return (
-        <div className="space-y-6 p-6">
+        <div className="space-y-5 p-4 sm:space-y-6 sm:p-6">
             {/* Header */}
             <div className="flex flex-col items-start justify-between gap-4">
-                <div className="flex w-full justify-between ">
+                <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <div className="flex flex-col">
 
                     <h1 className="text-2xl font-bold text-white">{t("admin.matchManagement.title")}</h1>
@@ -542,18 +542,18 @@ export function MatchManagement() {
                         {t("admin.matchManagement.subtitle")}
                     </p>
                     </div>
-                    <Button onClick={openAdd} className="">
+                    <Button onClick={openAdd} className="w-full sm:w-auto">
                         <Plus className="mr-2 h-4 w-4" />
                         {t("admin.matchManagement.addMatch")}
                     </Button>
                 </div>
-                <div className="flex flex-wrap items-center justify-start gap-3">
+                <div className="grid w-full grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-8">
                     {/* Tournament filter */}
                     <Select
                         value={selectedTournament}
                         onValueChange={setSelectedTournament}
                     >
-                        <SelectTrigger className="w-[200px]">
+                        <SelectTrigger className="w-full">
                             <SelectValue placeholder={t("admin.matchManagement.filterByTournament")} />
                         </SelectTrigger>
                         <SelectContent>
@@ -570,7 +570,7 @@ export function MatchManagement() {
                         value={selectedStatus}
                         onValueChange={setSelectedStatus}
                     >
-                        <SelectTrigger className="w-[150px]">
+                        <SelectTrigger className="w-full">
                             <SelectValue placeholder={t("admin.matchManagement.filterByStatus")} />
                         </SelectTrigger>
                         <SelectContent>
@@ -586,7 +586,7 @@ export function MatchManagement() {
                         value={selectedStage}
                         onValueChange={setSelectedStage}
                     >
-                        <SelectTrigger className="w-[180px]">
+                        <SelectTrigger className="w-full">
                             <SelectValue placeholder={t("admin.matchManagement.filterByStage")} />
                         </SelectTrigger>
                         <SelectContent>
@@ -603,7 +603,7 @@ export function MatchManagement() {
                         value={selectedHotMatch}
                         onValueChange={(v) => setSelectedHotMatch(v as HotMatchFilter)}
                     >
-                        <SelectTrigger className="w-[140px]">
+                        <SelectTrigger className="w-full">
                             <SelectValue placeholder={t("admin.matchManagement.filterHotMatch")} />
                         </SelectTrigger>
                         <SelectContent>
@@ -615,13 +615,13 @@ export function MatchManagement() {
                     {/* Day filter */}
                     <Input
                         type="date"
-                        className="w-[170px] [color-scheme:dark] [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:invert"
+                        className="w-full [color-scheme:dark] [&::-webkit-calendar-picker-indicator]:cursor-pointer [&::-webkit-calendar-picker-indicator]:invert"
                         value={selectedDay}
                         onChange={(e) => setSelectedDay(e.target.value)}
                     />
                     {/* Team search */}
                     <Input
-                        className="w-[220px]"
+                        className="w-full"
                         placeholder={t("admin.matchManagement.searchTeams")}
                         value={teamSearch}
                         onChange={(e) => setTeamSearch(e.target.value)}
@@ -629,6 +629,7 @@ export function MatchManagement() {
                     
                     {selectedTournament !== "all" && (
                         <Button
+                            className="w-full"
                             variant="outline"
                             onClick={() => setSyncDialogOpen(true)}
                         >
@@ -637,6 +638,7 @@ export function MatchManagement() {
                         </Button>
                     )}
                     <Button
+                        className="w-full"
                         variant="outline"
                         disabled={bulkLockAction !== null || !canLockAll}
                         onClick={() => handleToggleAllMatchLock(true)}
@@ -645,6 +647,7 @@ export function MatchManagement() {
                         {t("admin.matchManagement.lockAllBetting")}
                     </Button>
                     <Button
+                        className="w-full"
                         variant="outline"
                         disabled={bulkLockAction !== null || !canUnlockAll}
                         onClick={() => handleToggleAllMatchLock(false)}
@@ -661,7 +664,7 @@ export function MatchManagement() {
                     <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/20 text-primary">
                         <Calendar className="h-6 w-6" />
                     </div>
-                    <div className="flex items-center gap-1">
+                    <div className="flex flex-wrap items-center gap-1">
                         <p className="text-2xl font-bold text-white">{upcoming}</p>
                         <p className="text-xl text-muted-foreground">{t("common.status.upcoming")}</p>
                     </div>
@@ -670,7 +673,7 @@ export function MatchManagement() {
                     <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-green-500/20 text-green-400">
                         <Clock className="h-6 w-6" />
                     </div>
-                    <div className="flex items-center gap-1">
+                    <div className="flex flex-wrap items-center gap-1">
                         <p className="text-2xl font-bold text-white">{live}</p>
                         <p className="text-xl text-muted-foreground">{t("common.status.live")}</p>
                     </div>
@@ -679,7 +682,7 @@ export function MatchManagement() {
                     <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-muted text-muted-foreground">
                         <MapPin className="h-6 w-6" />
                     </div>
-                    <div className="flex items-center gap-1">
+                    <div className="flex flex-wrap items-center gap-1">
                         <p className="text-2xl font-bold text-white">{finished}</p>
                         <p className="text-xl text-muted-foreground">{t("admin.matchManagement.finished")}</p>
                     </div>
@@ -688,7 +691,164 @@ export function MatchManagement() {
 
             {/* Table */}
             <Card className="border-border bg-card">
-                <div className="overflow-x-auto">
+                <div className="space-y-3 p-3 lg:hidden">
+                    {filteredMatches.map((m) => {
+                        const kickoff = formatKickoff(m.kickoff);
+                        const homeFallbackName = unresolvedTeamName(m, "home");
+                        const awayFallbackName = unresolvedTeamName(m, "away");
+
+                        return (
+                            <div
+                                key={m.ID}
+                                className="rounded-xl border border-border/70 bg-surface/30 p-4"
+                            >
+                                <div
+                                    className="cursor-pointer space-y-4"
+                                    onClick={() => navigate(`/admin/matches/${m.ID}`)}
+                                >
+                                    <div className="flex items-start justify-between gap-3">
+                                        <div className="min-w-0 flex-1 space-y-2">
+                                            <div className="flex items-center gap-2">
+                                                {m.homeTeam?.crest
+                                                    ? <img src={m.homeTeam.crest} alt="" className="h-5 w-5 flex-shrink-0 object-contain" />
+                                                    : m.homeTeam?.flagCode
+                                                        ? <span className={`fi fi-${m.homeTeam.flagCode} flex-shrink-0`} />
+                                                        : null}
+                                                <span className="truncate text-sm font-bold text-white">
+                                                    {m.homeTeam?.name || homeFallbackName}
+                                                </span>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                {m.awayTeam?.crest
+                                                    ? <img src={m.awayTeam.crest} alt="" className="h-5 w-5 flex-shrink-0 object-contain" />
+                                                    : m.awayTeam?.flagCode
+                                                        ? <span className={`fi fi-${m.awayTeam.flagCode} flex-shrink-0`} />
+                                                        : null}
+                                                <span className="truncate text-sm font-bold text-white">
+                                                    {m.awayTeam?.name || awayFallbackName}
+                                                </span>
+                                            </div>
+                                        </div>
+
+                                        <div onClick={(e) => e.stopPropagation()}>
+                                            <DropdownMenu>
+                                                <DropdownMenuTrigger asChild>
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        className="h-8 w-8 p-0 text-muted-foreground hover:text-white"
+                                                    >
+                                                        <MoreHorizontal className="h-4 w-4" />
+                                                    </Button>
+                                                </DropdownMenuTrigger>
+                                                <DropdownMenuContent align="end" className="w-48">
+                                                    <DropdownMenuItem onClick={() => navigate(`/admin/matches/${m.ID}`)}>
+                                                        <Settings className="mr-2 h-4 w-4" />
+                                                        {t("admin.matchManagement.configure")}
+                                                    </DropdownMenuItem>
+                                                    <DropdownMenuSeparator />
+
+                                                    {m.status !== "finished" && (
+                                                        <DropdownMenuItem
+                                                            disabled={lockingMatchId === m.ID}
+                                                            onClick={() => handleToggleMatchLock(m)}
+                                                        >
+                                                            {m.bettingLocked ? (
+                                                                <>
+                                                                    <Unlock className="mr-2 h-4 w-4" />
+                                                                    {t("admin.matchManagement.unlockBetting")}
+                                                                </>
+                                                            ) : (
+                                                                <>
+                                                                    <Lock className="mr-2 h-4 w-4" />
+                                                                    {t("admin.matchManagement.lockBetting")}
+                                                                </>
+                                                            )}
+                                                        </DropdownMenuItem>
+                                                    )}
+                                                    {(m.status === "upcoming" || m.status === "live") && (
+                                                        <DropdownMenuItem onClick={() => openResult(m)}>
+                                                            <Trophy className="mr-2 h-4 w-4" />
+                                                            {m.status === "live" ? t("admin.matchManagement.updateResult") : t("admin.matchManagement.enterResult")}
+                                                        </DropdownMenuItem>
+                                                    )}
+                                                    {m.status === "finished" && (
+                                                        <DropdownMenuItem onClick={() => openCorrectResult(m)}>
+                                                            <Edit className="mr-2 h-4 w-4" />
+                                                            {t("admin.matchManagement.correctResult")}
+                                                        </DropdownMenuItem>
+                                                    )}
+                                                    {m.status === "finished" && m.bracketSlot_ID && (
+                                                        <DropdownMenuItem onClick={() => { setPenaltyMatch(m); setPenHome(""); setPenAway(""); setPenaltyDialogOpen(true); }}>
+                                                            <Trophy className="mr-2 h-4 w-4 text-amber-400" />
+                                                            {t("admin.matchManagement.penaltyShootout")}
+                                                        </DropdownMenuItem>
+                                                    )}
+                                                    {m.status !== "finished" && (
+                                                        <>
+                                                            <DropdownMenuSeparator />
+                                                            <DropdownMenuItem onClick={() => openEdit(m)}>
+                                                                <Edit className="mr-2 h-4 w-4" />
+                                                                {t("admin.matchManagement.editMatch")}
+                                                            </DropdownMenuItem>
+                                                            <DropdownMenuItem
+                                                                variant="destructive"
+                                                                onClick={() => setDeleteId(m.ID)}
+                                                            >
+                                                                <Trash2 className="mr-2 h-4 w-4" />
+                                                                {t("admin.matchManagement.deleteMatch")}
+                                                            </DropdownMenuItem>
+                                                        </>
+                                                    )}
+                                                </DropdownMenuContent>
+                                            </DropdownMenu>
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                                        <div className="rounded-lg border border-border/60 bg-card/50 px-3 py-2">
+                                            <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">{t("admin.matchManagement.stage")}</p>
+                                            <p className="mt-1 text-sm text-white">
+                                                {t(STAGES.find((s) => s.value === m.stage)?.label || "admin.matchManagement.stages.group")}
+                                            </p>
+                                        </div>
+                                        <div className="rounded-lg border border-border/60 bg-card/50 px-3 py-2">
+                                            <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">{t("admin.matchManagement.dateAndTime")}</p>
+                                            <p className="mt-1 text-sm text-white">{kickoff.date === "TBD" ? t("admin.matchManagement.tbd") : kickoff.date}</p>
+                                            <p className="text-[11px] text-muted-foreground">{kickoff.time === "Kickoff pending" ? t("admin.matchManagement.kickoffPending") : kickoff.time}</p>
+                                        </div>
+                                        <div className="rounded-lg border border-border/60 bg-card/50 px-3 py-2">
+                                            <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">{t("admin.matchManagement.result")}</p>
+                                            <p className="mt-1 font-mono text-sm text-white">
+                                                {m.status === "finished" ? `${m.homeScore} - ${m.awayScore}` : "-"}
+                                            </p>
+                                        </div>
+                                        <div className="rounded-lg border border-border/60 bg-card/50 px-3 py-2">
+                                            <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">{t("admin.matchManagement.matchStatus")}</p>
+                                            <div className="mt-1 flex flex-wrap items-center gap-2">
+                                                <Badge variant={statusVariant(m.status)}>
+                                                    {t(MATCH_STATUSES.find((s) => s.value === m.status)?.label || "common.status.upcoming")}
+                                                </Badge>
+                                                {m.isHotMatch && (
+                                                    <Badge className="border-amber-500/40 bg-amber-500/10 text-amber-400" variant="outline">
+                                                        {t("common.hot")}
+                                                    </Badge>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        );
+                    })}
+                    {filteredMatches.length === 0 && (
+                        <div className="rounded-xl border border-dashed border-border/70 bg-surface/20 px-4 py-8 text-center text-sm text-muted-foreground">
+                            {t("admin.matchManagement.noMatches")}
+                        </div>
+                    )}
+                </div>
+
+                <div className="hidden overflow-x-auto lg:block">
                     <table className="w-full text-sm">
                         <thead>
                             <tr className="border-b border-border text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
@@ -908,7 +1068,7 @@ export function MatchManagement() {
                         </DialogTitle>
                     </DialogHeader>
                     <div className="grid gap-4 py-4">
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                             <div className="space-y-2">
                                 <label className="text-xs font-medium text-muted-foreground">
                                     {t("admin.matchManagement.homeTeam")}
@@ -970,7 +1130,7 @@ export function MatchManagement() {
                                 </SelectContent>
                             </Select>
                         </div>
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                             <div className="space-y-2">
                                 <label className="text-xs font-medium text-muted-foreground">
                                     {t("admin.matchManagement.dateAndTime")}
@@ -1022,7 +1182,7 @@ export function MatchManagement() {
                                 </SelectContent>
                             </Select>
                         </div>
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                             <div className="space-y-2">
                                 <label className="text-xs font-medium text-muted-foreground">
                                     {t("admin.matchManagement.venue")}

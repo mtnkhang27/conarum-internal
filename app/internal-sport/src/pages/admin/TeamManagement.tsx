@@ -4,7 +4,6 @@ import { Plus, Edit, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import {
     Dialog,
@@ -214,21 +213,21 @@ export function TeamManagement() {
     }
 
     return (
-        <div className="space-y-6 p-6">
-            <div className="flex items-center justify-between">
+        <div className="space-y-5 p-4 sm:space-y-6 sm:p-6">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                 <div>
                     <h1 className="text-2xl font-bold text-white">{t("admin.teamManagement.title")}</h1>
                     <p className="text-sm text-muted-foreground">
                         {t("admin.teamManagement.subtitle")}
                     </p>
                 </div>
-                <div className="flex items-center gap-3">
+                <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:items-center">
                     {/* Tournament filter */}
                     <Select
                         value={selectedTournament}
                         onValueChange={setSelectedTournament}
                     >
-                        <SelectTrigger className="w-[260px]">
+                        <SelectTrigger className="w-full sm:w-[260px]">
                             <SelectValue placeholder={t("admin.teamManagement.filterByTournament")} />
                         </SelectTrigger>
                         <SelectContent>
@@ -240,7 +239,7 @@ export function TeamManagement() {
                             ))}
                         </SelectContent>
                     </Select>
-                    <Button onClick={openAdd}>
+                    <Button className="w-full sm:w-auto" onClick={openAdd}>
                         <Plus className="mr-2 h-4 w-4" />
                         {t("admin.teamManagement.addTeam")}
                     </Button>
@@ -248,7 +247,96 @@ export function TeamManagement() {
             </div>
 
             <Card className="border-border bg-card">
-                <div className="overflow-x-auto">
+                <div className="space-y-3 p-3 md:hidden">
+                    {displayTeams.map((team) => {
+                        const tt = (team as any).tournamentTeam as AdminTournamentTeam | undefined;
+
+                        return (
+                            <div
+                                key={team.ID}
+                                className="cursor-pointer rounded-xl border border-border/70 bg-surface/30 p-4"
+                                onClick={() => navigate(`/admin/teams/${team.ID}`)}
+                            >
+                                <div className="flex items-start justify-between gap-3">
+                                    <div className="flex min-w-0 items-center gap-3">
+                                        {team.crest ? (
+                                            <img
+                                                src={team.crest}
+                                                alt={team.shortName || team.name}
+                                                className="h-10 w-10 object-contain"
+                                            />
+                                        ) : (
+                                            <span className={`fi fi-${team.flagCode} text-3xl`} />
+                                        )}
+                                        <div className="min-w-0">
+                                            <p className="truncate font-medium text-white">{team.name}</p>
+                                            {team.shortName && (
+                                                <p className="text-xs text-muted-foreground">{team.shortName}</p>
+                                            )}
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            className="h-8 w-8 p-0 text-muted-foreground hover:text-white"
+                                            onClick={(e) => openEdit(team, e)}
+                                        >
+                                            <Edit className="h-4 w-4" />
+                                        </Button>
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                setDeleteId(team.ID);
+                                            }}
+                                        >
+                                            <Trash2 className="h-4 w-4" />
+                                        </Button>
+                                    </div>
+                                </div>
+
+                                <div className="mt-4 grid grid-cols-2 gap-2">
+                                    <div className="rounded-lg border border-border/60 bg-card/50 px-3 py-2">
+                                        <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
+                                            {t("admin.teamManagement.tla")}
+                                        </p>
+                                        <p className="mt-1 font-mono text-sm text-white">{team.tla || "-"}</p>
+                                    </div>
+                                    <div className="rounded-lg border border-border/60 bg-card/50 px-3 py-2">
+                                        <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
+                                            {t("admin.teamManagement.confederation")}
+                                        </p>
+                                        <p className="mt-1 text-sm text-white">{team.confederation || "-"}</p>
+                                    </div>
+                                    <div className="rounded-lg border border-border/60 bg-card/50 px-3 py-2">
+                                        <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
+                                            {t("admin.teamManagement.fifaRank")}
+                                        </p>
+                                        <p className="mt-1 font-mono text-sm text-white">{team.fifaRanking || "-"}</p>
+                                    </div>
+                                    {selectedTournament !== "all" && (
+                                        <div className="rounded-lg border border-border/60 bg-card/50 px-3 py-2">
+                                            <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
+                                                {t("admin.teamManagement.position")}
+                                            </p>
+                                            <p className="mt-1 font-mono text-sm text-white">{tt?.finalPosition || "-"}</p>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        );
+                    })}
+                    {displayTeams.length === 0 && (
+                        <div className="rounded-xl border border-dashed border-border/70 bg-surface/20 px-4 py-8 text-center text-sm text-muted-foreground">
+                            {t("admin.teamManagement.noTeams")}
+                        </div>
+                    )}
+                </div>
+
+                <div className="hidden overflow-x-auto md:block">
                     <table className="w-full text-sm">
                         <thead>
                             <tr className="border-b border-border text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
@@ -315,7 +403,7 @@ export function TeamManagement() {
                                         {selectedTournament !== "all" && (
                                             <>
                                                 <td className="px-4 py-3 text-center font-mono text-muted-foreground">
-                                                    {tt?.leaguePosition || "—"}
+                                                    {tt?.finalPosition || "—"}
                                                 </td>
                                                 {/* <td className="px-4 py-3">
                                                     <Badge
@@ -390,7 +478,7 @@ export function TeamManagement() {
                                 placeholder={t("admin.teamManagement.placeholderTeamName")}
                             />
                         </div>
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                             <div className="space-y-2">
                                 <label className="text-xs font-medium text-muted-foreground">
                                     {t("admin.teamManagement.shortName")}
@@ -440,7 +528,7 @@ export function TeamManagement() {
                                 </div>
                             )}
                         </div>
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                             <div className="space-y-2">
                                 <label className="text-xs font-medium text-muted-foreground">
                                     {t("admin.teamManagement.flagCode")}

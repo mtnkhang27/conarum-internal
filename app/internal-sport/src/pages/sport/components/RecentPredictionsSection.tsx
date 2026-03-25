@@ -237,7 +237,7 @@ export function RecentPredictionsSection({ predictions, loading, tournamentName 
     return (
         <>
             {/* Quick stats */}
-            <div className="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
+            <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
                 {[
                     { label: t("common.total"), value: total, color: "text-white" },
                     { label: t("sport.correctPicks"), value: correct, color: "text-success" },
@@ -258,7 +258,7 @@ export function RecentPredictionsSection({ predictions, loading, tournamentName 
 
             {/* Score bet stats strip (only if player has any score bets) */}
             {allScoreBets.length > 0 && (
-                <div className="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
+                <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
                     {[
                         { label: t("sport.scoreBets"), value: allScoreBets.length, color: "text-white" },
                         {
@@ -374,8 +374,8 @@ export function RecentPredictionsSection({ predictions, loading, tournamentName 
                                             </div>
 
                                             {/* Prediction details */}
-                                            <div className="flex items-center gap-4 sm:flex-shrink-0">
-                                                <div className="text-right">
+                                            <div className="flex flex-wrap items-center gap-4 sm:flex-shrink-0 sm:justify-end">
+                                                <div className="min-w-[110px] text-left sm:text-right">
                                                     <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
                                                         {t("sport.yourPick")}
                                                     </p>
@@ -383,7 +383,7 @@ export function RecentPredictionsSection({ predictions, loading, tournamentName 
                                                         {pickLabel(item.pick, t)}
                                                     </p>
                                                 </div>
-                                                <div className="text-right">
+                                                <div className="min-w-[72px] text-left sm:text-right">
                                                     <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
                                                         {t("sport.points")}
                                                     </p>
@@ -408,7 +408,7 @@ export function RecentPredictionsSection({ predictions, loading, tournamentName 
                         </div>
                     ))}
                     {totalPages > 1 && (
-                        <div className="flex items-center justify-end gap-2 border-t border-border/70 pt-3">
+                        <div className="flex flex-col gap-3 border-t border-border/70 pt-3 sm:flex-row sm:items-center sm:justify-end">
                             <button
                                 type="button"
                                 onClick={() => setPage(Math.max(1, currentPage - 1))}

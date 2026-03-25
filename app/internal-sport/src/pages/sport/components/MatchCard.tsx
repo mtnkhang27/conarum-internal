@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type FocusEvent, type PointerEvent } from "react";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
 import type { Match } from "@/types";
@@ -15,12 +15,20 @@ import {
 } from "@/components/ui/alert-dialog";
 
 type PickKey = "" | "home" | "draw" | "away";
+const MAX_SCORE = 99;
 
 function clampScore(value: string) {
-    if (value === "") return 0;
-    const parsed = parseInt(value, 10);
+    const digits = value.replace(/\D/g, "").slice(0, 2);
+    if (digits === "") return 0;
+    const parsed = parseInt(digits, 10);
     if (isNaN(parsed)) return 0;
-    return Math.min(9, Math.max(0, parsed));
+    return Math.min(MAX_SCORE, Math.max(0, parsed));
+}
+
+function selectScoreValue(input: HTMLInputElement) {
+    requestAnimationFrame(() => {
+        input.select();
+    });
 }
 
 function normalizePick(option: string | undefined, homeName: string, awayName: string): PickKey {
@@ -102,6 +110,15 @@ export function MatchCard({ match, isCompleted = false, onPredictionChange }: Ma
             next[rowIdx] = { ...next[rowIdx], [side]: clampScore(value) };
             return next;
         });
+    };
+
+    const onScoreFocus = (event: FocusEvent<HTMLInputElement>) => {
+        selectScoreValue(event.currentTarget);
+    };
+
+    const onScorePointerUp = (event: PointerEvent<HTMLInputElement>) => {
+        event.preventDefault();
+        selectScoreValue(event.currentTarget);
     };
 
     const onCancel = () => {
@@ -186,6 +203,11 @@ export function MatchCard({ match, isCompleted = false, onPredictionChange }: Ma
     const renderPickButton = (optionKey: PickKey, label: string) => {
         const isSelected = selectedOption === optionKey;
         const isDraw = optionKey === "draw";
+        const displayLabel = optionKey === "home"
+            ? match.home.name
+            : optionKey === "away"
+                ? match.away.name
+                : label;
 
         return (
             <button
@@ -193,7 +215,7 @@ export function MatchCard({ match, isCompleted = false, onPredictionChange }: Ma
                 onClick={() => onPickOption(optionKey)}
                 disabled={isSaving || isCompleted || !optionKey}
                 className={`
-                    mc-pick-btn relative overflow-hidden rounded-xl px-3 py-2.5 text-xs font-bold
+                    mc-pick-btn relative flex h-full min-h-[72px] w-full items-center justify-center overflow-visible rounded-xl px-3 py-2.5 text-xs font-bold
                     transition-all duration-200 ease-out
                     disabled:pointer-events-none disabled:opacity-50
                     ${isSelected
@@ -205,9 +227,17 @@ export function MatchCard({ match, isCompleted = false, onPredictionChange }: Ma
                 `}
             >
                 {isSelected && (
-                    <span className="mc-pick-check absolute top-1 right-1.5 text-[10px]">✓</span>
+                    <span
+                        className={`mc-pick-check absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full text-[8px] font-bold shadow-lg ring-2 ring-card ${
+                            isDraw ? "bg-amber-400 text-[#2f2300]" : "bg-primary text-white"
+                        }`}
+                    >
+                        ✓
+                    </span>
                 )}
-                <span className="relative z-[1]">{label}</span>
+                <span className="relative z-[1] flex w-full items-center justify-center text-center leading-tight whitespace-normal break-words">
+                    {displayLabel}
+                </span>
             </button>
         );
     };
@@ -251,10 +281,10 @@ export function MatchCard({ match, isCompleted = false, onPredictionChange }: Ma
                     <div className="flex items-center justify-between">
                         {/* Home team */}
                         <div className="mc-team flex flex-col items-center gap-2 w-[90px]">
-                            <div className="mc-team-badge relative">
+                            <div className="mc-team-badge relative z-10 overflow-visible">
                                 {renderTeamBadge(match.home)}
                                 {selectedOption === "home" && (
-                                    <span className="mc-winner-dot absolute -bottom-1 -right-1 h-4 w-4 rounded-full bg-primary flex items-center justify-center text-[8px] text-white font-bold shadow-lg ring-2 ring-card">
+                                    <span className="mc-winner-dot absolute -bottom-1 -right-1 z-20 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[8px] font-bold text-white shadow-lg ring-2 ring-card">
                                         ✓
                                     </span>
                                 )}
@@ -270,23 +300,33 @@ export function MatchCard({ match, isCompleted = false, onPredictionChange }: Ma
                                 scores.map((row, i) => (
                                     <div key={i} className="mc-score-row flex items-center gap-1.5">
                                         <input
-                                            type="number"
+                                            type="text"
                                             min={0}
-                                            max={9}
+                                            max={MAX_SCORE}
+                                            maxLength={2}
+                                            inputMode="numeric"
+                                            pattern="[0-9]*"
                                             value={row.home}
                                             onChange={(e) => onScoreChange(i, "home", e.target.value)}
+                                            onFocus={onScoreFocus}
+                                            onPointerUp={onScorePointerUp}
                                             disabled={isCompleted || isSaving}
-                                            className="mc-score-input w-9 h-9 rounded-lg bg-white/[0.06] border border-white/10 text-center text-sm font-bold text-white outline-none transition-all focus:border-primary focus:bg-primary/10 focus:ring-1 focus:ring-primary/30 disabled:opacity-40"
+                                            className="mc-score-input h-9 w-11 rounded-lg border border-white/10 bg-white/[0.06] text-center text-sm font-bold text-white outline-none transition-all focus:border-primary focus:bg-primary/10 focus:ring-1 focus:ring-primary/30 disabled:opacity-40"
                                         />
                                         <span className="text-white/25 text-sm font-bold select-none">:</span>
                                         <input
-                                            type="number"
+                                            type="text"
                                             min={0}
-                                            max={9}
+                                            max={MAX_SCORE}
+                                            maxLength={2}
+                                            inputMode="numeric"
+                                            pattern="[0-9]*"
                                             value={row.away}
                                             onChange={(e) => onScoreChange(i, "away", e.target.value)}
+                                            onFocus={onScoreFocus}
+                                            onPointerUp={onScorePointerUp}
                                             disabled={isCompleted || isSaving}
-                                            className="mc-score-input w-9 h-9 rounded-lg bg-white/[0.06] border border-white/10 text-center text-sm font-bold text-white outline-none transition-all focus:border-primary focus:bg-primary/10 focus:ring-1 focus:ring-primary/30 disabled:opacity-40"
+                                            className="mc-score-input h-9 w-11 rounded-lg border border-white/10 bg-white/[0.06] text-center text-sm font-bold text-white outline-none transition-all focus:border-primary focus:bg-primary/10 focus:ring-1 focus:ring-primary/30 disabled:opacity-40"
                                         />
                                     </div>
                                 ))
@@ -301,10 +341,10 @@ export function MatchCard({ match, isCompleted = false, onPredictionChange }: Ma
 
                         {/* Away team */}
                         <div className="mc-team flex flex-col items-center gap-2 w-[90px]">
-                            <div className="mc-team-badge relative">
+                            <div className="mc-team-badge relative z-10 overflow-visible">
                                 {renderTeamBadge(match.away)}
                                 {selectedOption === "away" && (
-                                    <span className="mc-winner-dot absolute -bottom-1 -right-1 h-4 w-4 rounded-full bg-primary flex items-center justify-center text-[8px] text-white font-bold shadow-lg ring-2 ring-card">
+                                    <span className="mc-winner-dot absolute -bottom-1 -right-1 z-20 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[8px] font-bold text-white shadow-lg ring-2 ring-card">
                                         ✓
                                     </span>
                                 )}
@@ -334,11 +374,11 @@ export function MatchCard({ match, isCompleted = false, onPredictionChange }: Ma
                         )}
                     </div>
 
-                    <div className="grid grid-cols-3 gap-2">
+                    <div className="grid grid-cols-3 items-stretch gap-2">
                         {match.options.map((option, idx) => {
                             const optionKey = optionKeyAt(idx);
                             return (
-                                <div key={`${option}-${idx}`}>
+                                <div key={`${option}-${idx}`} className="flex overflow-visible">
                                     {renderPickButton(optionKey, option)}
                                 </div>
                             );

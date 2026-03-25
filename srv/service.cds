@@ -250,7 +250,7 @@ service PlayerService {
                 on leg1.ID = slot.leg1.ID
             left join db.Match as leg2
                 on leg2.ID = slot.leg2.ID {
-            key slot.ID            as slotId,
+            key slot.ID            as ID,
                 slot.tournament.ID as tournament_ID,
                 slot.stage         as stage,
                 slot.position      as position,

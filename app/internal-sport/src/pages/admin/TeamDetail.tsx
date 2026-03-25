@@ -200,12 +200,13 @@ export function TeamDetail() {
     }
 
     return (
-        <div className="space-y-6 p-6">
+        <div className="space-y-5 p-4 sm:space-y-6 sm:p-6">
             {/* Header */}
             <div className="flex items-center gap-4">
                 <Button
                     variant="ghost"
                     size="sm"
+                    className="w-fit"
                     onClick={() => navigate("/admin/teams")}
                 >
                     <ArrowLeft className="mr-2 h-4 w-4" />
@@ -215,7 +216,7 @@ export function TeamDetail() {
 
             {/* Team Info Card */}
             <Card className="border-border bg-card p-6">
-                <div className="flex items-start gap-6">
+                <div className="flex flex-col gap-6 sm:flex-row sm:items-start">
                     {/* Crest */}
                     <div className="flex-shrink-0">
                         {team.crest ? (
@@ -233,7 +234,7 @@ export function TeamDetail() {
 
                     {/* Info */}
                     <div className="flex-1 space-y-2">
-                        <h1 className="text-2xl font-bold text-white">{team.name}</h1>
+                        <h1 className="text-xl font-bold text-white sm:text-2xl">{team.name}</h1>
                         <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
                             {team.shortName && (
                                 <span>{t("admin.teamDetail.short")}: <span className="text-white">{team.shortName}</span></span>
@@ -324,17 +325,78 @@ export function TeamDetail() {
 
             {/* Players */}
             <div>
-                <div className="mb-3 flex items-center justify-between">
+                <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <h2 className="text-lg font-semibold text-white">
                         {t("admin.teamDetail.squad")} ({players.length})
                     </h2>
-                    <Button size="sm" onClick={openAddMember}>
+                    <Button className="w-full sm:w-auto" size="sm" onClick={openAddMember}>
                         <Plus className="mr-2 h-4 w-4" />
                         {t("admin.teamDetail.addMember")}
                     </Button>
                 </div>
                 <Card className="border-border bg-card">
-                    <div className="overflow-x-auto">
+                    <div className="space-y-3 p-3 md:hidden">
+                        {players.map((member) => (
+                            <div key={member.ID} className="rounded-xl border border-border/70 bg-surface/30 p-4">
+                                <div className="flex items-start justify-between gap-3">
+                                    <div className="min-w-0">
+                                        <div className="flex items-center gap-2">
+                                            <span className="font-medium text-white">{member.name}</span>
+                                            {member.isCaptain && (
+                                                <Crown className="h-4 w-4 text-yellow-400" />
+                                            )}
+                                        </div>
+                                        <div className="mt-1 flex flex-wrap items-center gap-2">
+                                            <Badge variant={roleBadgeVariant(member.role)} className="text-xs">
+                                                {member.isCaptain ? t("admin.teamDetail.roles.captain") : t(ROLES.find((r) => r.value === member.role)?.label || "admin.teamDetail.roles.player")}
+                                            </Badge>
+                                            <Badge
+                                                variant={member.isActive ? "default" : "destructive"}
+                                                className="text-xs"
+                                            >
+                                                {member.isActive ? t("common.status.active") : t("common.status.inactive")}
+                                            </Badge>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-1">
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            className="h-7 w-7 p-0 text-muted-foreground hover:text-white"
+                                            onClick={() => openEditMember(member)}
+                                        >
+                                            <Edit className="h-3.5 w-3.5" />
+                                        </Button>
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
+                                            onClick={() => setDeleteMemberId(member.ID)}
+                                        >
+                                            <Trash2 className="h-3.5 w-3.5" />
+                                        </Button>
+                                    </div>
+                                </div>
+                                <div className="mt-4 grid grid-cols-2 gap-2">
+                                    <div className="rounded-lg border border-border/60 bg-card/50 px-3 py-2">
+                                        <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">#</p>
+                                        <p className="mt-1 font-mono text-sm text-white">{member.jerseyNumber ?? "-"}</p>
+                                    </div>
+                                    <div className="rounded-lg border border-border/60 bg-card/50 px-3 py-2">
+                                        <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">{t("admin.teamDetail.positionLabel")}</p>
+                                        <p className="mt-1 text-sm text-white">{member.position || "-"}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        ))}
+                        {players.length === 0 && (
+                            <div className="rounded-xl border border-dashed border-border/70 bg-surface/20 px-4 py-8 text-center text-sm text-muted-foreground">
+                                {t("admin.teamDetail.noPlayers")}
+                            </div>
+                        )}
+                    </div>
+
+                    <div className="hidden overflow-x-auto md:block">
                         <table className="w-full text-sm">
                             <thead>
                                 <tr className="border-b border-border text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">
@@ -440,7 +502,7 @@ export function TeamDetail() {
                                 placeholder="e.g., Bukayo Saka"
                             />
                         </div>
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                             <div className="space-y-2">
                                 <label className="text-xs font-medium text-muted-foreground">
                                     {t("admin.teamDetail.role")}
@@ -486,7 +548,7 @@ export function TeamDetail() {
                                 </Select>
                             </div>
                         </div>
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                             <div className="space-y-2">
                                 <label className="text-xs font-medium text-muted-foreground">
                                     {t("admin.teamDetail.jerseyNumber")}

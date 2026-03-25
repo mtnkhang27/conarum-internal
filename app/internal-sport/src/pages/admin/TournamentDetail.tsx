@@ -41,14 +41,14 @@ function ConfigRow({
     children: React.ReactNode;
 }) {
     return (
-        <div className="flex items-center justify-between gap-4 border-b border-border/30 py-3 last:border-b-0">
+        <div className="flex flex-col items-start gap-3 border-b border-border/30 py-3 last:border-b-0 sm:flex-row sm:items-center sm:justify-between">
             <div className="min-w-0 flex-1">
                 <h4 className="text-sm font-medium text-white">{label}</h4>
                 {description && (
                     <p className="text-xs text-muted-foreground">{description}</p>
                 )}
             </div>
-            <div className="flex-shrink-0">{children}</div>
+            <div className="w-full sm:w-auto sm:flex-shrink-0">{children}</div>
         </div>
     );
 }
@@ -181,24 +181,25 @@ export function TournamentDetail() {
     }
 
     return (
-        <div className="space-y-6 p-6">
+        <div className="space-y-5 p-4 sm:space-y-6 sm:p-6">
             {/* Header */}
-            <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
+            <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
                     <Button
                         variant="ghost"
                         size="sm"
+                        className="w-fit"
                         onClick={() => navigate("/admin/tournaments")}
                     >
                         <ArrowLeft className="mr-2 h-4 w-4" />
                         {t("common.back")}
                     </Button>
-                    <div>
-                        <h1 className="text-2xl font-bold text-white flex items-center gap-3">
+                    <div className="min-w-0">
+                        <h1 className="flex items-center gap-3 text-xl font-bold text-white sm:text-2xl">
                             <Trophy className="h-6 w-6 text-primary" />
                             {tournament.name}
                         </h1>
-                        <div className="mt-1 flex items-center gap-3 text-sm text-muted-foreground">
+                        <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
                             <span>
                                 {tournament.startDate} — {tournament.endDate}
                             </span>
@@ -208,7 +209,7 @@ export function TournamentDetail() {
                         </div>
                     </div>
                 </div>
-                <Button onClick={handleSave} disabled={saving || isTournamentLocked}>
+                <Button className="w-full sm:w-auto" onClick={handleSave} disabled={saving || isTournamentLocked}>
                     <Save className="mr-2 h-4 w-4" />
                     {saving ? t("common.saving") : t("admin.tournamentDetail.saveChanges")}
                 </Button>
@@ -285,7 +286,7 @@ export function TournamentDetail() {
                                     <span className="ml-1">({t("admin.tournamentDetail.detectedChampion", { team: championTeam.team?.name })})</span>
                                 )}
                             </p>
-                            <div className="flex items-center gap-2">
+                            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                                 <select
                                     className="flex-1 rounded border border-border bg-surface-dark px-3 py-1.5 text-sm text-white"
                                     value={selectedChampionTeam}
@@ -302,6 +303,7 @@ export function TournamentDetail() {
                                         ))}
                                 </select>
                                 <Button
+                                    className="w-full sm:w-auto"
                                     onClick={handleResolveChampion}
                                     disabled={!selectedChampionTeam || resolving}
                                     size="sm"

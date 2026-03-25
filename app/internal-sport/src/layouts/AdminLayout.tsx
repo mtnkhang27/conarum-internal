@@ -52,7 +52,7 @@ export function AdminLayout() {
 
     if (isAdmin === null) {
         return (
-            <div className="flex h-screen items-center justify-center text-sm text-muted-foreground">
+            <div className="app-frame flex items-center justify-center bg-background text-sm text-muted-foreground">
                 Checking admin access...
             </div>
         );
@@ -63,7 +63,7 @@ export function AdminLayout() {
     }
 
     return (
-        <div className="flex h-screen flex-col">
+        <div className="app-frame flex flex-col bg-background">
             <Header />
 
             <div className="flex flex-1 overflow-hidden">
@@ -107,7 +107,7 @@ export function AdminLayout() {
                 </aside>
 
                 {/* Main content - full width */}
-                <main className="min-w-0 flex-1 overflow-y-auto bg-background">
+                <main className="app-scroll-area min-w-0 flex-1 overflow-y-auto bg-background">
                     <Outlet />
                 </main>
             </div>

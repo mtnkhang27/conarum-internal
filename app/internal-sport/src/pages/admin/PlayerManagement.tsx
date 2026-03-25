@@ -84,9 +84,9 @@ export function PlayerManagement() {
     }
 
     return (
-        <div className="space-y-6 p-6">
+        <div className="space-y-5 p-4 sm:space-y-6 sm:p-6">
             {/* Header */}
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                 <div>
                     <h1 className="text-2xl font-bold text-white">{t("admin.playerManagement.title")}</h1>
                     <p className="text-sm text-muted-foreground">
@@ -94,6 +94,7 @@ export function PlayerManagement() {
                     </p>
                 </div>
                 <Button
+                    className="w-full sm:w-auto"
                     variant="secondary"
                     onClick={handleRecalculate}
                     disabled={recalculating}
@@ -140,20 +141,87 @@ export function PlayerManagement() {
 
             {/* Search */}
             <Card className="border-border bg-card p-4">
-                <div className="flex items-center gap-3">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
                     <Search className="h-4 w-4 text-muted-foreground" />
                     <Input
                         placeholder={t("admin.playerManagement.searchPlayers")}
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
-                        className="max-w-sm"
+                        className="w-full sm:max-w-sm"
                     />
                 </div>
             </Card>
 
             {/* Table */}
             <Card className="border-border bg-card">
-                <div className="overflow-x-auto">
+                <div className="space-y-3 p-3 md:hidden">
+                    {filtered.map((p) => (
+                        <div key={p.ID} className="rounded-xl border border-border/70 bg-surface/30 p-4">
+                            <div className="flex items-start justify-between gap-3">
+                                <div className="flex min-w-0 items-center gap-3">
+                                    {p.avatarUrl ? (
+                                        <img
+                                            src={p.avatarUrl}
+                                            alt={p.displayName}
+                                            className="h-10 w-10 rounded-full border border-border object-cover"
+                                        />
+                                    ) : (
+                                        <div className="flex h-10 w-10 items-center justify-center rounded-full border border-border bg-primary/10 text-primary">
+                                            {p.displayName?.trim() ? (
+                                                <span className="text-xs font-bold">
+                                                    {p.displayName.trim().charAt(0).toUpperCase()}
+                                                </span>
+                                            ) : (
+                                                <User className="h-4 w-4" />
+                                            )}
+                                        </div>
+                                    )}
+                                    <div className="min-w-0">
+                                        <div className="flex items-center gap-2">
+                                            <span className="truncate font-medium text-white">{p.displayName}</span>
+                                            {p.rank ? (
+                                                <Badge variant={p.rank <= 3 ? "default" : "secondary"}>
+                                                    #{p.rank}
+                                                </Badge>
+                                            ) : null}
+                                        </div>
+                                        <p className="truncate text-xs text-muted-foreground">{p.email}</p>
+                                    </div>
+                                </div>
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
+                                    onClick={() => setDeleteId(p.ID)}
+                                >
+                                    <Trash2 className="h-4 w-4" />
+                                </Button>
+                            </div>
+
+                            <div className="mt-4 grid grid-cols-3 gap-2">
+                                <div className="rounded-lg border border-border/60 bg-card/50 px-3 py-2 text-center">
+                                    <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">{t("admin.playerManagement.points")}</p>
+                                    <p className="mt-1 font-mono font-bold text-white">{p.totalPoints}</p>
+                                </div>
+                                <div className="rounded-lg border border-border/60 bg-card/50 px-3 py-2 text-center">
+                                    <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">{t("admin.playerManagement.correct")}</p>
+                                    <p className="mt-1 font-mono text-green-400">{p.totalCorrect}</p>
+                                </div>
+                                <div className="rounded-lg border border-border/60 bg-card/50 px-3 py-2 text-center">
+                                    <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">{t("admin.playerManagement.streak")}</p>
+                                    <p className="mt-1 font-mono text-yellow-400">{Number(p.currentStreak) > 0 ? p.currentStreak : 0}</p>
+                                </div>
+                            </div>
+                        </div>
+                    ))}
+                    {filtered.length === 0 && (
+                        <div className="rounded-xl border border-dashed border-border/70 bg-surface/20 px-4 py-8 text-center text-sm text-muted-foreground">
+                            No players found.
+                        </div>
+                    )}
+                </div>
+
+                <div className="hidden overflow-x-auto md:block">
                     <table className="w-full text-sm">
                         <thead>
                             <tr className="border-b border-border text-left text-xs font-medium uppercase tracking-wider text-muted-foreground">

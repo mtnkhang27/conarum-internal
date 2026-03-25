@@ -1,12 +1,9 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { MatchCard } from "./MatchCard";
 import { DateRangePicker } from "@/components/ui/date-range-picker";
+import { MatchCard } from "./MatchCard";
 import type { Match } from "@/types";
 
-const COLUMNS = 3;
-const ROWS_PER_PAGE = 3;
-const PAGE_SIZE = COLUMNS * ROWS_PER_PAGE;
 type PaginationItem = number | "dots-left" | "dots-right";
 type HotFilter = "all" | "hot";
 type PresetKey = "" | "today" | "tomorrow" | "7days" | "14days" | "1month";
@@ -26,6 +23,18 @@ const parseDateInputValue = (value?: string) => {
     return date;
 };
 
+const getGridLayout = (width: number, height: number) => {
+    if (width < 768) {
+        return { columns: 1, rows: height < 760 ? 3 : 4 };
+    }
+
+    if (width < 1440) {
+        return { columns: 2, rows: height < 860 ? 2 : 3 };
+    }
+
+    return { columns: 3, rows: height < 900 ? 2 : 3 };
+};
+
 interface MatchPredictionTableProps {
     matches: Match[];
     onPredictionChange?: () => void | Promise<void>;
@@ -34,15 +43,27 @@ interface MatchPredictionTableProps {
 export function MatchPredictionTable({ matches, onPredictionChange }: MatchPredictionTableProps) {
     const { t } = useTranslation();
     const [page, setPage] = useState(1);
+    const [gridLayout, setGridLayout] = useState(() =>
+        typeof window === "undefined"
+            ? { columns: 1, rows: 4 }
+            : getGridLayout(window.innerWidth, window.innerHeight)
+    );
 
-    // ── Date filter state ────────────────────────────────────
     const [presetKey, setPresetKey] = useState<PresetKey>("");
     const [calendarStart, setCalendarStart] = useState("");
     const [calendarEnd, setCalendarEnd] = useState("");
-
     const [hotFilter, setHotFilter] = useState<HotFilter>("all");
 
-    // ── Derived date range (from either preset or calendar) ──
+    useEffect(() => {
+        const handleResize = () => {
+            setGridLayout(getGridLayout(window.innerWidth, window.innerHeight));
+        };
+
+        handleResize();
+        window.addEventListener("resize", handleResize);
+        return () => window.removeEventListener("resize", handleResize);
+    }, []);
+
     const resolvedRange = useMemo<{ start: Date | null; end: Date | null }>(() => {
         if (presetKey) {
             const today = new Date();
@@ -60,18 +81,18 @@ export function MatchPredictionTable({ matches, onPredictionChange }: MatchPredi
                     return { start: today, end: addDays(today, 29) };
             }
         }
+
         return {
             start: parseDateInputValue(calendarStart),
             end: parseDateInputValue(calendarEnd),
         };
     }, [presetKey, calendarStart, calendarEnd]);
 
-    // ── Handlers ─────────────────────────────────────────────
+    const pageSize = gridLayout.columns * gridLayout.rows;
 
     const handlePresetChange = (key: PresetKey) => {
         setPresetKey(key);
         if (key) {
-            // Clear calendar when a preset is selected
             setCalendarStart("");
             setCalendarEnd("");
         }
@@ -81,14 +102,11 @@ export function MatchPredictionTable({ matches, onPredictionChange }: MatchPredi
     const handleRangeChange = (range: { start: string; end: string }) => {
         setCalendarStart(range.start);
         setCalendarEnd(range.end);
-        // Clear preset when calendar is used
         if (range.start || range.end) {
             setPresetKey("");
         }
         setPage(1);
     };
-
-    // ── Filtered matches ─────────────────────────────────────
 
     const filteredMatches = useMemo(() => {
         const getDayStart = (iso?: string) => {
@@ -104,7 +122,6 @@ export function MatchPredictionTable({ matches, onPredictionChange }: MatchPredi
         return matches.filter((match) => {
             if (match.bettingLocked) return false;
 
-            // Hide matches whose kickoff is in the past
             if (match.kickoffIso) {
                 const kickoff = new Date(match.kickoffIso);
                 if (!Number.isNaN(kickoff.getTime()) && kickoff < now) return false;
@@ -113,23 +130,19 @@ export function MatchPredictionTable({ matches, onPredictionChange }: MatchPredi
             if (hotFilter === "hot" && !match.isHotMatch) return false;
 
             const { start, end } = resolvedRange;
-
-            // If no date filter is active, show all matches
             if (!start) return true;
 
             const kickoffDay = getDayStart(match.kickoffIso);
-            if (!kickoffDay) return true; // slots without kickoff
+            if (!kickoffDay) return true;
 
             const kickoffTime = kickoffDay.getTime();
 
-            // Only start selected (no end yet) → show only that day
             if (start && !end) {
                 const rangeStartMs = start.getTime();
                 const rangeEndExclusiveMs = addDays(start, 1).getTime();
                 return kickoffTime >= rangeStartMs && kickoffTime < rangeEndExclusiveMs;
             }
 
-            // Both start and end selected → show range
             if (start && end) {
                 const rangeStartMs = start.getTime();
                 const rangeEndExclusiveMs = addDays(end, 1).getTime();
@@ -140,23 +153,24 @@ export function MatchPredictionTable({ matches, onPredictionChange }: MatchPredi
         });
     }, [matches, resolvedRange, hotFilter]);
 
-    const totalPages = Math.max(1, Math.ceil(filteredMatches.length / PAGE_SIZE));
+    const totalPages = Math.max(1, Math.ceil(filteredMatches.length / pageSize));
     const currentPage = Math.min(page, totalPages);
+    const startIndex = (currentPage - 1) * pageSize;
+    const endIndex = startIndex + pageSize;
 
-    const startIndex = (currentPage - 1) * PAGE_SIZE;
-    const endIndex = startIndex + PAGE_SIZE;
+    const visibleMatches = useMemo(
+        () => filteredMatches.slice(startIndex, endIndex),
+        [filteredMatches, startIndex, endIndex]
+    );
 
-    const rows = useMemo(() => {
-        const visible = filteredMatches.slice(startIndex, endIndex);
-        const grouped: Match[][] = [];
-        for (let i = 0; i < visible.length; i += COLUMNS) {
-            grouped.push(visible.slice(i, i + COLUMNS));
-        }
-        return grouped;
-    }, [filteredMatches, startIndex, endIndex]);
+    const placeholderCount =
+        visibleMatches.length === 0
+            ? 0
+            : (gridLayout.columns - (visibleMatches.length % gridLayout.columns)) % gridLayout.columns;
 
     const from = filteredMatches.length === 0 ? 0 : startIndex + 1;
     const to = Math.min(endIndex, filteredMatches.length);
+
     const paginationItems = useMemo<PaginationItem[]>(() => {
         if (totalPages <= 7) {
             return Array.from({ length: totalPages }, (_, idx) => idx + 1);
@@ -176,16 +190,21 @@ export function MatchPredictionTable({ matches, onPredictionChange }: MatchPredi
     return (
         <div className="overflow-hidden rounded-xl border border-border bg-card shadow-[0_10px_30px_rgba(10,10,30,0.35)]">
             <div className="border-b border-border bg-surface/55 px-4 py-3">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                    <p className="text-xs text-muted-foreground">
-                        {t("common.showing", { from, to, total: filteredMatches.length })}
-                    </p>
-                    <div className="grid grid-cols-3 items-center gap-2">
-                        {/* Preset date select */}
+                <div className="flex flex-col gap-3">
+                    <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                        <p className="text-xs text-muted-foreground">
+                            {t("common.showing", { from, to, total: filteredMatches.length })}
+                        </p>
+                        <p className="text-[11px] font-semibold text-muted-foreground/80">
+                            {gridLayout.columns} x {gridLayout.rows}
+                        </p>
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">
                         <select
                             value={presetKey}
                             onChange={(e) => handlePresetChange(e.target.value as PresetKey)}
-                            className="h-9 w-full rounded-md border border-border bg-surface-dark px-2 text-xs text-foreground outline-none transition-colors focus:border-primary"
+                            className="h-10 w-full rounded-lg border border-border bg-surface-dark px-3 text-sm text-foreground outline-none transition-colors focus:border-primary"
                             aria-label="Quick date filter"
                         >
                             <option value="">{t("matchPredictionTable.allDates")}</option>
@@ -196,7 +215,6 @@ export function MatchPredictionTable({ matches, onPredictionChange }: MatchPredi
                             <option value="1month">{t("matchPredictionTable.next1Month")}</option>
                         </select>
 
-                        {/* Date range picker — compact */}
                         <DateRangePicker
                             startValue={calendarStart}
                             endValue={calendarEnd}
@@ -205,14 +223,13 @@ export function MatchPredictionTable({ matches, onPredictionChange }: MatchPredi
                             className="w-full"
                         />
 
-                        {/* Hot match filter */}
                         <select
                             value={hotFilter}
                             onChange={(e) => {
                                 setHotFilter(e.target.value as HotFilter);
                                 setPage(1);
                             }}
-                            className="h-9 w-full rounded-md border border-border bg-surface-dark px-2 text-xs text-foreground outline-none transition-colors focus:border-primary"
+                            className="h-10 w-full rounded-lg border border-border bg-surface-dark px-3 text-sm text-foreground outline-none transition-colors focus:border-primary"
                             aria-label="Filter hot matches"
                         >
                             <option value="all">{t("matchPredictionTable.allMatches")}</option>
@@ -222,99 +239,92 @@ export function MatchPredictionTable({ matches, onPredictionChange }: MatchPredi
                 </div>
             </div>
 
-            <div className="overflow-x-auto">
-                <div className="min-w-[1040px]">
-                    {rows.length === 0 ? (
-                        <p className="py-10 text-center text-sm text-muted-foreground">
-                            {t("matchPredictionTable.noMatchesFound")}
-                        </p>
-                    ) : (
-                        rows.map((row, rowIdx) => (
-                            <div
-                                key={`table-row-${rowIdx}`}
-                                className="grid grid-cols-3 border-b border-border/70 last:border-b-0"
-                            >
-                                {Array.from({ length: COLUMNS }, (_, colIdx) => {
-                                    const match = row[colIdx];
-                                    const key = match?.id || `placeholder-${rowIdx}-${colIdx}`;
+            {visibleMatches.length === 0 ? (
+                <p className="py-10 text-center text-sm text-muted-foreground">
+                    {t("matchPredictionTable.noMatchesFound")}
+                </p>
+            ) : (
+                <div
+                    className="grid gap-px bg-border/60"
+                    style={{ gridTemplateColumns: `repeat(${gridLayout.columns}, minmax(0, 1fr))` }}
+                >
+                    {visibleMatches.map((match) => (
+                        <div key={match.id} className="h-full bg-card p-3 sm:p-4">
+                            <MatchCard match={match} onPredictionChange={onPredictionChange} />
+                        </div>
+                    ))}
 
-                                    return (
-                                        <div key={key} className="border-r border-border/70 p-3 last:border-r-0">
-                                            {match ? (
-                                                <MatchCard match={match} onPredictionChange={onPredictionChange} />
-                                            ) : (
-                                                <div className="flex min-h-[220px] items-center justify-center rounded-xl border border-dashed border-border/60 bg-surface-dark/40">
-                                                    <span className="text-xs font-medium text-muted-foreground">
-                                                        {t("matchPredictionTable.empty")}
-                                                    </span>
-                                                </div>
-                                            )}
-                                        </div>
-                                    );
-                                })}
+                    {Array.from({ length: placeholderCount }, (_, idx) => (
+                        <div key={`placeholder-${idx}`} className="h-full bg-card p-3 sm:p-4">
+                            <div className="flex min-h-[220px] items-center justify-center rounded-xl border border-dashed border-border/60 bg-surface-dark/30">
+                                <span className="text-xs font-medium text-muted-foreground">
+                                    {t("matchPredictionTable.empty")}
+                                </span>
                             </div>
-                        ))
-                    )}
+                        </div>
+                    ))}
                 </div>
-            </div>
+            )}
 
             {totalPages > 1 && (
                 <div className="border-t border-border bg-surface/35 px-4 py-3">
-                    <div className="flex items-center justify-end gap-2">
-                        <button
-                            type="button"
-                            onClick={() => setPage(Math.max(1, currentPage - 1))}
-                            disabled={currentPage === 1}
-                            className="inline-flex h-9 items-center rounded-md border border-border bg-surface-dark px-3 text-xs font-semibold text-foreground/90 transition-colors hover:border-primary hover:text-primary disabled:cursor-not-allowed disabled:opacity-45"
-                            aria-label="Previous page"
-                        >
-                            {t("common.previous")}
-                        </button>
+                    <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-end">
+                        <div className="flex flex-wrap items-center gap-2">
+                            <button
+                                type="button"
+                                onClick={() => setPage(Math.max(1, currentPage - 1))}
+                                disabled={currentPage === 1}
+                                className="inline-flex h-9 items-center rounded-md border border-border bg-surface-dark px-3 text-xs font-semibold text-foreground/90 transition-colors hover:border-primary hover:text-primary disabled:cursor-not-allowed disabled:opacity-45"
+                                aria-label="Previous page"
+                            >
+                                {t("common.previous")}
+                            </button>
 
-                        <div className="inline-flex items-center rounded-md border border-border bg-surface-dark/85 p-1">
-                            {paginationItems.map((item) => {
-                                if (item === "dots-left" || item === "dots-right") {
+                            <div className="inline-flex items-center rounded-md border border-border bg-surface-dark/85 p-1">
+                                {paginationItems.map((item) => {
+                                    if (item === "dots-left" || item === "dots-right") {
+                                        return (
+                                            <span
+                                                key={item}
+                                                className="inline-flex h-7 min-w-7 items-center justify-center px-1 text-xs font-semibold text-muted-foreground"
+                                            >
+                                                ...
+                                            </span>
+                                        );
+                                    }
+
+                                    const isActive = item === currentPage;
                                     return (
-                                        <span
+                                        <button
                                             key={item}
-                                            className="inline-flex h-7 min-w-7 items-center justify-center px-1 text-xs font-semibold text-muted-foreground"
+                                            type="button"
+                                            onClick={() => setPage(item)}
+                                            className={`inline-flex h-7 min-w-7 items-center justify-center rounded px-2 text-xs font-semibold transition-colors ${
+                                                isActive
+                                                    ? "bg-primary text-white shadow-[0_0_0_1px_rgba(255,255,255,0.08)_inset]"
+                                                    : "text-foreground/80 hover:bg-surface hover:text-primary"
+                                            }`}
+                                            aria-label={`Go to page ${item}`}
+                                            aria-current={isActive ? "page" : undefined}
                                         >
-                                            ...
-                                        </span>
+                                            {item}
+                                        </button>
                                     );
-                                }
+                                })}
+                            </div>
 
-                                const isActive = item === currentPage;
-                                return (
-                                    <button
-                                        key={item}
-                                        type="button"
-                                        onClick={() => setPage(item)}
-                                        className={`inline-flex h-7 min-w-7 items-center justify-center rounded px-2 text-xs font-semibold transition-colors ${
-                                            isActive
-                                                ? "bg-primary text-white shadow-[0_0_0_1px_rgba(255,255,255,0.08)_inset]"
-                                                : "text-foreground/80 hover:bg-surface hover:text-primary"
-                                        }`}
-                                        aria-label={`Go to page ${item}`}
-                                        aria-current={isActive ? "page" : undefined}
-                                    >
-                                        {item}
-                                    </button>
-                                );
-                            })}
+                            <button
+                                type="button"
+                                onClick={() => setPage(Math.min(totalPages, currentPage + 1))}
+                                disabled={currentPage === totalPages}
+                                className="inline-flex h-9 items-center rounded-md border border-border bg-surface-dark px-3 text-xs font-semibold text-foreground/90 transition-colors hover:border-primary hover:text-primary disabled:cursor-not-allowed disabled:opacity-45"
+                                aria-label="Next page"
+                            >
+                                {t("common.next")}
+                            </button>
                         </div>
 
-                        <button
-                            type="button"
-                            onClick={() => setPage(Math.min(totalPages, currentPage + 1))}
-                            disabled={currentPage === totalPages}
-                            className="inline-flex h-9 items-center rounded-md border border-border bg-surface-dark px-3 text-xs font-semibold text-foreground/90 transition-colors hover:border-primary hover:text-primary disabled:cursor-not-allowed disabled:opacity-45"
-                            aria-label="Next page"
-                        >
-                            {t("common.next")}
-                        </button>
-
-                        <div className="ml-1 text-[11px] font-semibold text-muted-foreground">
+                        <div className="text-[11px] font-semibold text-muted-foreground">
                             {t("common.page", { current: currentPage, total: totalPages })}
                         </div>
                     </div>

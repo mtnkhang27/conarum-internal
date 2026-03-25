@@ -195,23 +195,27 @@ export function SportPage() {
     return (
         <div className="flex flex-col">
             {/* ── Sticky top controls ── */}
-            <div className="sticky top-0 z-20 flex flex-col gap-3 border-b border-border/60 bg-background/95 px-4 py-3 backdrop-blur-sm sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                    <h1 className="text-lg font-extrabold text-white">{t("sport.title")}</h1>
-                    <p className="text-[11px] text-muted-foreground">
-                        {t("sport.subtitle")}
-                    </p>
+            <div className="sticky top-0 z-20 border-b border-border/60 bg-background/95 backdrop-blur-sm">
+                <div className="flex flex-col gap-3 px-4 py-3 sm:px-5 lg:flex-row lg:items-center lg:justify-between xl:px-6">
+                    <div className="min-w-0">
+                        <h1 className="text-lg font-extrabold text-white sm:text-xl">{t("sport.title")}</h1>
+                        <p className="text-[11px] text-muted-foreground sm:text-xs">
+                            {t("sport.subtitle")}
+                        </p>
+                    </div>
+                    <div className="w-full lg:w-auto lg:min-w-[280px] xl:min-w-[320px]">
+                        <TournamentSelector
+                            selectedId={tournamentId}
+                            onSelect={handleTournamentSelect}
+                            onTournamentName={handleTournamentName}
+                            allowAll
+                        />
+                    </div>
                 </div>
-                <TournamentSelector
-                    selectedId={tournamentId}
-                    onSelect={handleTournamentSelect}
-                    onTournamentName={handleTournamentName}
-                    allowAll
-                />
             </div>
 
             {/* ── Scrollable content ── */}
-            <div className="p-4 pb-24 xl:pb-6">
+            <div className="mobile-safe-section px-4 py-4 sm:px-5 lg:py-5 xl:px-6 xl:pb-6">
 
 {/* ══════════════════════════════════════════
                     SECTION 2 — Matches (Available + Live + Upcoming)
@@ -264,7 +268,7 @@ export function SportPage() {
                 {/* ══════════════════════════════════════════
                     SECTION 4 — Recent Predictions
                 ══════════════════════════════════════════ */}
-                <section>
+                <section className="mb-14">
                     <SectionHeading
                         id={SECTION.recent}
                         color="bg-secondary"

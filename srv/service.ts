@@ -15,7 +15,7 @@ export class PlayerService extends cds.ApplicationService {
     private profileHandler!: ProfileHandler;
 
     async init() {
-        this.predictionHandler = new PredictionHandler(this);
+        this.predictionHandler = new PredictionHandler();
         this.profileHandler = new ProfileHandler(this);
 
         this.before('*', (req) => {
@@ -27,12 +27,23 @@ export class PlayerService extends cds.ApplicationService {
             });
         });
 
-        this.before('READ', 'ChampionPickerView', async (req) => {
-            // ChampionPickerView resolves the current user's pick from Player metadata,
-            // so make sure that metadata is synchronized before the CDS view executes.
+        this.before('READ', [
+            'ChampionPickerView',
+            'PredictionLeaderboard',
+            'CompletedMatchesView',
+            'AvailableMatchesView',
+            'RecentPredictionsView',
+            'MyPredictions',
+            'MyScoreBets',
+            'MySlotPredictions',
+            'MySlotScoreBets',
+            'MyChampionPick',
+        ], async (req) => {
+            // These views resolve current-user data directly in CDS, so
+            // synchronize Player metadata before the view is executed.
             await syncAuthenticatedUser(req).catch((err: any) => {
                 if (AUTH_TRACE_ENABLED) {
-                    console.warn('[PlayerService] champion picker user sync failed:', err?.message ?? err);
+                    console.warn('[PlayerService] user-scoped view sync failed:', err?.message ?? err);
                 }
             });
         });
@@ -53,26 +64,6 @@ export class PlayerService extends cds.ApplicationService {
         this.on('getUpcomingMatches', this.predictionHandler.getUpcomingMatches.bind(this.predictionHandler));
         this.on('getStandings', this.predictionHandler.getStandings.bind(this.predictionHandler));
         this.on('getChampionPickCounts', this.predictionHandler.getChampionPickCounts.bind(this.predictionHandler));
-        this.on('READ', 'CompletedMatchesView', this.predictionHandler.readCompletedMatchesView.bind(this.predictionHandler));
-        this.on('READ', 'AvailableMatchesView', this.predictionHandler.readAvailableMatchesView.bind(this.predictionHandler));
-        this.on('READ', 'PredictionLeaderboard', this.predictionHandler.readPredictionLeaderboard.bind(this.predictionHandler));
-        this.on('READ', 'RecentPredictionsView', this.predictionHandler.readRecentPredictionsView.bind(this.predictionHandler));
-        this.on('READ', 'TournamentBracketView', this.predictionHandler.readTournamentBracketView.bind(this.predictionHandler));
-        this.after('READ', 'PredictionLeaderboard', this.predictionHandler.decoratePredictionLeaderboard.bind(this.predictionHandler));
-
-        // Auto-filter user-scoped entities
-        this.before('READ', 'MyPredictions', this.predictionHandler.filterByCurrentUser.bind(this.predictionHandler));
-        this.before('READ', 'MyScoreBets', this.predictionHandler.filterByCurrentUser.bind(this.predictionHandler));
-        this.before('READ', 'MySlotPredictions', this.predictionHandler.filterByCurrentUser.bind(this.predictionHandler));
-        this.before('READ', 'MySlotScoreBets', this.predictionHandler.filterByCurrentUser.bind(this.predictionHandler));
-        this.before('READ', 'MyChampionPick', this.predictionHandler.filterByCurrentUser.bind(this.predictionHandler));
-
-        // Enrich hybrid/runtime-backed views
-        this.after('READ', 'CompletedMatchesView', this.predictionHandler.enrichCompletedMatchesView.bind(this.predictionHandler));
-        this.after('READ', 'AvailableMatchesView', this.predictionHandler.enrichAvailableMatchesView.bind(this.predictionHandler));
-        this.before('READ', 'RecentPredictionsView', this.predictionHandler.filterByCurrentUser.bind(this.predictionHandler));
-        this.after('READ', 'RecentPredictionsView', this.predictionHandler.enrichRecentPredictionsView.bind(this.predictionHandler));
-        this.after('READ', 'TournamentBracketView', this.predictionHandler.enrichTournamentBracketView.bind(this.predictionHandler));
 
         return super.init();
     }

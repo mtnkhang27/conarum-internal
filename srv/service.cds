@@ -137,6 +137,69 @@ service PlayerService {
         };
 
     /**
+     * Current authenticated player resolved from synced Player metadata.
+     * Shared by player-scoped helper views so we avoid runtime filter injection.
+     */
+    @readonly
+    @cds.api.ignore
+    entity CurrentPlayerView        as
+        select from db.Player {
+            key ID
+        } where loginName = $user.id
+            or email = $user.id
+            or userUUID = $user.id;
+
+    /**
+     * Current user's match winner predictions keyed by match.
+     * Used by completed/available/recent sport views.
+     */
+    @readonly
+    @cds.api.ignore
+    entity CurrentUserMatchPredictionsView as
+        select from db.Prediction as prediction
+            inner join CurrentPlayerView as currentPlayer
+                on currentPlayer.ID = prediction.player.ID {
+            key prediction.match.ID as matchId,
+                prediction.pick     as pick
+        };
+
+    /**
+     * Current user's exact-score bets keyed by match.
+     * Exposed only via $expand associations on sport page views.
+     */
+    @readonly
+    @cds.api.ignore
+    entity CurrentUserMatchScoreBetsView as
+        select from db.ScoreBet as bet
+            inner join CurrentPlayerView as currentPlayer
+                on currentPlayer.ID = bet.player.ID {
+            key bet.match.ID           as matchId,
+            key bet.ID                 as betId,
+                bet.predictedHomeScore as predictedHomeScore,
+                bet.predictedAwayScore as predictedAwayScore,
+                bet.status             as status,
+                bet.isCorrect          as isCorrect,
+                bet.payout             as payout
+        };
+
+    /**
+     * Tournament matches keyed by external provider ID.
+     * Lets TournamentBracketView resolve leg data without a TS after-read patch.
+     */
+    @readonly
+    @cds.api.ignore
+    @cds.redirection.target: false
+    entity TournamentMatchesByExternalIdView as
+        select from db.Match {
+            key tournament.ID as tournament_ID,
+            key externalId    as externalId,
+                ID            as matchId,
+                homeScore     as homeScore,
+                awayScore     as awayScore,
+                status        as status
+        } where externalId is not null;
+
+    /**
      * Player leaderboard (UC2) as a read-only view.
      * Intended for plain OData GET with $filter/$orderby.
      */
@@ -146,7 +209,9 @@ service PlayerService {
             left join db.Player as player
                 on player.ID = stats.player.ID
             left join db.Team as favTeam
-                on favTeam.ID = player.favoriteTeam.ID {
+                on favTeam.ID = player.favoriteTeam.ID
+            left join CurrentPlayerView as currentPlayer
+                on currentPlayer.ID = stats.player.ID {
             key stats.ID              as ID,
                 stats.tournament.ID   as tournament_ID,
                 stats.rank            as rank,
@@ -160,14 +225,16 @@ service PlayerService {
                 stats.totalPoints     as totalPoints,
                 stats.totalCorrect    as totalCorrect,
                 stats.totalPredictions as totalPredictions,
-                false                 as isMe : Boolean
+                case
+                    when currentPlayer.ID is not null then true
+                    else false
+                end                   as isMe : Boolean
         };
 
     /**
      * Completed matches with team info pre-joined.
      * Single OData GET replaces Matches + Teams $expand.
-     * `myPick` is a virtual field populated by an after-READ handler
-     * with the current user's prediction pick.
+     * `myPick` is resolved directly in CDS for the current authenticated player.
      * Supports $filter, $skip, $top, $count for server-side pagination.
      */
     @readonly
@@ -176,7 +243,9 @@ service PlayerService {
             left join db.Team as home
                 on home.ID = m.homeTeam.ID
             left join db.Team as away
-                on away.ID = m.awayTeam.ID {
+                on away.ID = m.awayTeam.ID
+            left join CurrentUserMatchPredictionsView as myPrediction
+                on myPrediction.matchId = m.ID {
             key m.ID               as ID,
                 m.tournament.ID    as tournament_ID,
                 m.kickoff          as kickoff,
@@ -191,13 +260,13 @@ service PlayerService {
                 away.name          as awayTeamName,
                 away.flagCode      as awayTeamFlag,
                 away.crest         as awayTeamCrest,
-                null               as myPick : String
+                myPrediction.pick  as myPick
         } where m.status = 'finished';
 
     /**
      * Available (upcoming) matches with team info pre-joined.
      * Single OData GET replaces the complex getAvailable() client-side orchestration.
-     * `myPick` and `myScores` are virtual fields populated by after-READ handlers.
+     * Score bet rows are exposed via `myScores` expand instead of a TS after-read patch.
      * Supports $filter, $skip, $top, $count for server-side pagination.
      */
     @readonly
@@ -206,7 +275,11 @@ service PlayerService {
             left join db.Team as home
                 on home.ID = m.homeTeam.ID
             left join db.Team as away
-                on away.ID = m.awayTeam.ID {
+                on away.ID = m.awayTeam.ID
+            left join db.MatchScoreBetConfig as scoreBetConfig
+                on scoreBetConfig.match.ID = m.ID
+            left join CurrentUserMatchPredictionsView as myPrediction
+                on myPrediction.matchId = m.ID {
             key m.ID               as ID,
                 m.tournament.ID    as tournament_ID,
                 m.kickoff          as kickoff,
@@ -225,9 +298,11 @@ service PlayerService {
                 away.name          as awayTeamName,
                 away.flagCode      as awayTeamFlag,
                 away.crest         as awayTeamCrest,
-                null               as myPick            : String,
-                false              as scoreBettingEnabled : Boolean,
-                    3                  as maxBets            : Integer
+                myPrediction.pick  as myPick,
+                coalesce(scoreBetConfig.enabled, false) as scoreBettingEnabled : Boolean,
+                coalesce(scoreBetConfig.maxBets, 3)     as maxBets : Integer,
+                myScores           : Association to many CurrentUserMatchScoreBetsView
+                    on myScores.matchId = $self.ID
         } where m.status = 'upcoming';
 
     /**
@@ -253,13 +328,11 @@ service PlayerService {
     @cds.api.ignore
     entity MyChampionPickByUserView as
         select from db.ChampionPick as pick
-            left join db.Player as player
-                on player.ID = pick.player.ID {
+            inner join CurrentPlayerView as currentPlayer
+                on currentPlayer.ID = pick.player.ID {
             key pick.tournament.ID as tournament_ID,
             key pick.team.ID       as teamId
-        } where player.loginName = $user.id
-            or player.email = $user.id
-            or player.userUUID = $user.id;
+        };
 
     /**
      * Champion picker rows for a tournament.
@@ -296,46 +369,48 @@ service PlayerService {
     /**
      * Recent predictions with match + team + tournament data pre-joined.
      * Replaces the getMyRecentPredictions() function.
-     * `scoreBets` is populated by an after-READ handler.
-     * Use $filter=player_ID eq '<id>' (injected by before-READ handler).
+     * The current user is resolved in CDS and score bets come via $expand.
      * Supports $orderby, $skip, $top, $count for server-side pagination.
      */
     @readonly
     entity RecentPredictionsView    as
-        select from db.Prediction as p
-            left join db.Match as m
-                on m.ID = p.match.ID
+        select from db.Prediction as prediction
+            inner join CurrentPlayerView as currentPlayer
+                on currentPlayer.ID = prediction.player.ID
+            left join db.Match as match
+                on match.ID = prediction.match.ID
             left join db.Team as home
-                on home.ID = m.homeTeam.ID
+                on home.ID = match.homeTeam.ID
             left join db.Team as away
-                on away.ID = m.awayTeam.ID
-            left join db.Tournament as t
-                on t.ID = p.tournament.ID {
-            key p.ID               as ID,
-                p.player.ID        as player_ID,
-                p.match.ID         as match_ID,
-                p.tournament.ID    as tournament_ID,
-                p.pick             as pick,
-                p.status           as status,
-                p.isCorrect        as isCorrect,
-                p.pointsEarned     as pointsEarned,
-                p.submittedAt      as submittedAt,
-                m.kickoff          as kickoff,
-                m.homeScore        as homeScore,
-                m.awayScore        as awayScore,
+                on away.ID = match.awayTeam.ID
+            left join db.Tournament as tournament
+                on tournament.ID = prediction.tournament.ID {
+            key prediction.ID      as predictionId,
+                prediction.match.ID as matchId,
+                prediction.tournament.ID as tournament_ID,
+                prediction.pick    as pick,
+                prediction.status  as status,
+                prediction.isCorrect as isCorrect,
+                prediction.pointsEarned as pointsEarned,
+                prediction.submittedAt as submittedAt,
+                match.kickoff      as kickoff,
+                match.homeScore    as homeScore,
+                match.awayScore    as awayScore,
                 home.name          as homeTeam,
                 home.flagCode      as homeFlag,
                 home.crest         as homeCrest,
                 away.name          as awayTeam,
                 away.flagCode      as awayFlag,
                 away.crest         as awayCrest,
-                t.name             as tournamentName
+                tournament.name    as tournamentName,
+                scoreBets          : Association to many CurrentUserMatchScoreBetsView
+                    on scoreBets.matchId = $self.matchId
         };
 
     /**
      * Knockout bracket data as read-only view.
      * Replaces the getTournamentBracket() function.
-     * For slots linked only by external IDs, an after-READ handler enriches leg scores/status.
+     * For slots linked only by external IDs, fallback joins resolve leg scores/status in CDS.
      */
     @readonly
     entity TournamentBracketView    as
@@ -348,9 +423,15 @@ service PlayerService {
                 on winner.ID = slot.winner.ID
             left join db.Match as leg1
                 on leg1.ID = slot.leg1.ID
+            left join TournamentMatchesByExternalIdView as leg1ByExternal
+                on leg1ByExternal.tournament_ID = slot.tournament.ID
+                and leg1ByExternal.externalId = slot.leg1ExternalId
             left join db.Match as leg2
-                on leg2.ID = slot.leg2.ID {
-            key slot.ID            as ID,
+                on leg2.ID = slot.leg2.ID
+            left join TournamentMatchesByExternalIdView as leg2ByExternal
+                on leg2ByExternal.tournament_ID = slot.tournament.ID
+                and leg2ByExternal.externalId = slot.leg2ExternalId {
+            key slot.ID            as slotId,
                 slot.tournament.ID as tournament_ID,
                 slot.stage         as stage,
                 slot.position      as position,
@@ -363,16 +444,16 @@ service PlayerService {
                 away.name          as awayTeamName,
                 away.flagCode      as awayTeamFlag,
                 away.crest         as awayTeamCrest,
-                leg1.ID            as leg1Id,
+                coalesce(leg1.ID, leg1ByExternal.matchId) as leg1Id : UUID,
                 slot.leg1ExternalId as leg1ExternalId,
-                leg1.homeScore     as leg1HomeScore,
-                leg1.awayScore     as leg1AwayScore,
-                leg1.status        as leg1Status,
-                leg2.ID            as leg2Id,
+                coalesce(leg1.homeScore, leg1ByExternal.homeScore) as leg1HomeScore : Integer,
+                coalesce(leg1.awayScore, leg1ByExternal.awayScore) as leg1AwayScore : Integer,
+                coalesce(leg1.status, leg1ByExternal.status) as leg1Status : String,
+                coalesce(leg2.ID, leg2ByExternal.matchId) as leg2Id : UUID,
                 slot.leg2ExternalId as leg2ExternalId,
-                leg2.homeScore     as leg2HomeScore,
-                leg2.awayScore     as leg2AwayScore,
-                leg2.status        as leg2Status,
+                coalesce(leg2.homeScore, leg2ByExternal.homeScore) as leg2HomeScore : Integer,
+                coalesce(leg2.awayScore, leg2ByExternal.awayScore) as leg2AwayScore : Integer,
+                coalesce(leg2.status, leg2ByExternal.status) as leg2Status : String,
                 slot.homeAgg       as homeAgg,
                 slot.awayAgg       as awayAgg,
                 slot.homePen       as homePen,
@@ -396,7 +477,10 @@ service PlayerService {
         excluding {
             createdBy,
             modifiedBy
-        };
+        }
+        where player.loginName = $user.id
+            or player.email = $user.id
+            or player.userUUID = $user.id;
 
     /** Current user's exact score bets. */
     entity MyScoreBets              as
@@ -408,7 +492,10 @@ service PlayerService {
         excluding {
             createdBy,
             modifiedBy
-        };
+        }
+        where player.loginName = $user.id
+            or player.email = $user.id
+            or player.userUUID = $user.id;
 
     /** Current user's slot outcome predictions (for unresolved knockout slots). */
     entity MySlotPredictions        as
@@ -421,7 +508,10 @@ service PlayerService {
         excluding {
             createdBy,
             modifiedBy
-        };
+        }
+        where player.loginName = $user.id
+            or player.email = $user.id
+            or player.userUUID = $user.id;
 
     /** Current user's slot score bets (for unresolved knockout slots). */
     entity MySlotScoreBets          as
@@ -434,7 +524,10 @@ service PlayerService {
         excluding {
             createdBy,
             modifiedBy
-        };
+        }
+        where player.loginName = $user.id
+            or player.email = $user.id
+            or player.userUUID = $user.id;
 
     /** Current user's champion prediction. */
     entity MyChampionPick           as
@@ -447,7 +540,10 @@ service PlayerService {
         excluding {
             createdBy,
             modifiedBy
-        };
+        }
+        where player.loginName = $user.id
+            or player.email = $user.id
+            or player.userUUID = $user.id;
 
     // ── Actions ──────────────────────────────────────────────
 

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { playerTournamentQueryApi } from "@/services/playerApi";
 import { mapExternalAssetUrls } from "@/utils/externalAssetProxy";
 
 /* ────────────────────────────────────────────────────────── */
@@ -52,6 +53,11 @@ const STAGE_LABEL: Record<string, string> = {
     semiFinal: "Semi-Finals",
     final: "Final",
 };
+
+function getErrorMessage(error: unknown): string {
+    if (error instanceof Error && error.message) return error.message;
+    return "Failed to load bracket";
+}
 
 /* ────────────────────────────────────────────────────────── */
 /*  Sub-components                                            */
@@ -240,44 +246,56 @@ export function TournamentBracket({
     hidePlayoff = true,
     compact = false,
 }: TournamentBracketProps) {
-    const [slots, setSlots] = useState<BracketSlot[]>(
-        mapExternalAssetUrls(externalSlots ?? [])
-    );
-    const [loading, setLoading] = useState(!externalSlots);
+    const [fetchedSlots, setFetchedSlots] = useState<BracketSlot[]>([]);
+    const [loading, setLoading] = useState(!externalSlots && !!tournamentId);
     const [error, setError] = useState("");
+    const slots = externalSlots
+        ? mapExternalAssetUrls(externalSlots)
+        : fetchedSlots;
 
     useEffect(() => {
-        if (externalSlots) {
-            setSlots(mapExternalAssetUrls(externalSlots));
-            return;
-        }
-        if (!tournamentId) return;
+        if (externalSlots || !tournamentId) return;
 
-        setLoading(true);
-        const filter = encodeURIComponent(`tournament_ID eq '${tournamentId}'`);
-        fetch(
-            `/api/player/TournamentBracketView?$filter=${filter}&$orderby=stage asc,position asc`
-        )
-            .then(async (res) => {
-                if (!res.ok) throw new Error("Failed to load bracket");
-                const data = await res.json();
-                const bracketSlots = ((data.value ?? data) as any[]).map((r: any) => ({
-                    ...r,
-                    slotId: r.ID ?? r.slotId,
-                })) as BracketSlot[];
-                setSlots(mapExternalAssetUrls(bracketSlots));
-            })
-            .catch((e) => setError(e.message))
-            .finally(() => setLoading(false));
+        let cancelled = false;
+        const loadBracket = async () => {
+            setLoading(true);
+            setError("");
+            try {
+                const bracketSlots =
+                    await playerTournamentQueryApi.getTournamentBracket(tournamentId);
+                if (cancelled) return;
+                setFetchedSlots(mapExternalAssetUrls(bracketSlots as BracketSlot[]));
+            } catch (error: unknown) {
+                if (cancelled) return;
+                setFetchedSlots([]);
+                setError(getErrorMessage(error));
+            } finally {
+                if (!cancelled) {
+                    setLoading(false);
+                }
+            }
+        };
+
+        void loadBracket();
+
+        return () => {
+            cancelled = true;
+        };
     }, [tournamentId, externalSlots]);
 
-    if (loading)
+    if (!externalSlots && loading)
         return (
             <div className="flex h-48 items-center justify-center text-muted-foreground">
                 Loading bracket…
             </div>
         );
-    if (error)
+    if (!tournamentId && !externalSlots)
+        return (
+            <div className="flex h-32 items-center justify-center text-muted-foreground text-sm">
+                Select a tournament to view the bracket.
+            </div>
+        );
+    if (!externalSlots && error)
         return (
             <div className="flex h-48 items-center justify-center text-red-400">
                 {error}

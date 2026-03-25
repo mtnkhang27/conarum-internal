@@ -12,7 +12,7 @@ import { TournamentBracket } from "./components/TournamentBracket";
 import { LoadingOverlay } from "@/components/shared/LoadingOverlay";
 import { useActiveSection } from "@/hooks/useActiveSection";
 import { playerMatchesApi } from "@/services/playerApi";
-import type { Match, LiveMatch } from "@/types";
+import type { LiveMatch } from "@/types";
 
 // ─── Section heading helper ────────────────────────────────────
 function SectionHeading({
@@ -52,44 +52,37 @@ export function SportPage() {
     setTournamentReady(true);
   }, []);
 
-  // Matches data
-  const [matches, setMatches] = useState<Match[]>([]);
   const [live, setLive] = useState<LiveMatch[]>([]);
-  const [loadingMatches, setLoadingMatches] = useState(true);
 
-  const loadMatchData = useCallback(
-    async (tid: string, options?: { showLoading?: boolean }) => {
-      const showLoading = options?.showLoading ?? true;
-      if (showLoading) {
-        setLoadingMatches(true);
-      }
-      try {
-        const { available, live: liveData } =
-          await playerMatchesApi.loadAllMatchData(tid);
-        setMatches(available);
-        setLive(liveData);
-      } catch {
-        // fall back silently
-      } finally {
-        if (showLoading) {
-          setLoadingMatches(false);
-        }
-      }
-    },
-    [],
-  );
-
-  // Only fetch once tournament is resolved (prevents double-fire)
   useEffect(() => {
     if (!tournamentReady) return;
-    loadMatchData(tournamentId, { showLoading: true });
-  }, [tournamentId, tournamentReady, loadMatchData]);
+
+    let cancelled = false;
+
+    const loadLiveMatches = async () => {
+      try {
+        const liveData = await playerMatchesApi.getLive();
+        if (!cancelled) {
+          setLive(liveData);
+        }
+      } catch {
+        if (!cancelled) {
+          setLive([]);
+        }
+      }
+    };
+
+    void loadLiveMatches();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [tournamentReady]);
 
   // Callback for MatchCard to trigger refresh after submit/cancel
   const refreshAll = useCallback(async () => {
-    await loadMatchData(tournamentId, { showLoading: false });
     setRecentPredictionsRefreshKey((current) => current + 1);
-  }, [tournamentId, loadMatchData]);
+  }, []);
 
   // Scroll to hash section on mount / navigation
   const programmaticScroll = useRef(false);
@@ -185,18 +178,13 @@ export function SportPage() {
             subtitle={t("sport.sections.matchesSubtitle")}
           />
 
-          {/* Available match table */}
-          {loadingMatches ? (
-            <LoadingOverlay />
-          ) : matches.length === 0 ? (
-            <p className="py-10 text-center text-sm text-muted-foreground">
-              {t("matchPredictionTable.noMatchesFound")}
-            </p>
-          ) : (
+          {tournamentReady ? (
             <MatchPredictionTable
-              matches={matches}
+              tournamentId={tournamentId}
               onPredictionChange={refreshAll}
             />
+          ) : (
+            <LoadingOverlay />
           )}
 
           {/* Live matches */}

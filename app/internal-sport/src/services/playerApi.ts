@@ -156,6 +156,15 @@ export interface AvailableMatchViewRow {
   maxBets: number;
 }
 
+export interface AvailableMatchesQueryOptions {
+  tournamentId?: string;
+  page?: number;
+  pageSize?: number;
+  hotOnly?: boolean;
+  kickoffStartIso?: string;
+  kickoffEndIso?: string;
+}
+
 type TournamentBracketViewRow = Record<string, unknown> & {
   ID?: string | null;
   slotId?: string | null;
@@ -311,6 +320,69 @@ function mapPickToSelectedOption(pick: string | undefined): string {
   if (!pick) return "";
   if (pick === "home" || pick === "away" || pick === "draw") return pick;
   return "";
+}
+
+function toAvailableMatch(row: AvailableMatchViewRow): Match {
+  const homeName = row.homeTeamName ?? "";
+  const awayName = row.awayTeamName ?? "";
+
+  return {
+    id: row.ID,
+    timeLabel: formatKickoff(row.kickoff),
+    home: {
+      name: homeName,
+      flag: row.homeTeamFlag ?? "",
+      crest: row.homeTeamCrest ?? undefined,
+    },
+    away: {
+      name: awayName,
+      flag: row.awayTeamFlag ?? "",
+      crest: row.awayTeamCrest ?? undefined,
+    },
+    options: [homeName, "Draw", awayName],
+    selectedOption: mapPickToSelectedOption(row.myPick ?? undefined),
+    existingScores:
+      row.myScores?.map((score) => ({
+        home: score.homeScore,
+        away: score.awayScore,
+      })) ?? [],
+    scoreBettingEnabled: row.scoreBettingEnabled ?? false,
+    maxBets: row.maxBets ?? 3,
+    kickoffIso: row.kickoff,
+    stage: formatStageLabel(row.stage),
+    outcomePoints: row.outcomePoints ?? 0,
+    isHotMatch: row.isHotMatch ?? false,
+    bettingLocked: row.bettingLocked ?? false,
+    betTarget: "match" as const,
+    slotId: row.bracketSlot_ID ?? undefined,
+  };
+}
+
+function buildAvailableMatchesFilter(
+  options: AvailableMatchesQueryOptions,
+): string {
+  const clauses: string[] = ["bettingLocked eq false"];
+
+  if (options.tournamentId) {
+    clauses.push(`tournament_ID eq '${options.tournamentId}'`);
+  }
+
+  if (options.hotOnly) {
+    clauses.push("isHotMatch eq true");
+  }
+
+  const nowIso = new Date().toISOString();
+  clauses.push(`(kickoff eq null or kickoff ge ${nowIso})`);
+
+  if (options.kickoffStartIso) {
+    clauses.push(`kickoff ge ${options.kickoffStartIso}`);
+  }
+
+  if (options.kickoffEndIso) {
+    clauses.push(`kickoff lt ${options.kickoffEndIso}`);
+  }
+
+  return clauses.join(" and ");
 }
 
 // ── DEPRECATED: Slot resolution + toMatch helpers ──────────────────
@@ -570,8 +642,8 @@ async function fetchPlayerDataForMatches(
 
 export const playerMatchesApi = {
   // ── DEPRECATED: getAvailable() ─────────────────────────────
-  // Replaced by getAvailableFromView() which uses AvailableMatchesView
-  // (single OData GET instead of 6-12 requests). Kept for reference.
+  // Replaced first by getAvailableFromView(), then by getAvailablePaged()
+  // for server-side filtering + pagination. Kept for reference.
   // async getAvailable(tournamentId?: string): Promise<Match[]> { ... }
 
   /** Completed (finished) matches — paged via OData $skip/$top/$count.
@@ -673,6 +745,29 @@ export const playerMatchesApi = {
    * Single HTTP request replaces the old 6-12 request getAvailable() flow.
    * Pre-joins team data, score bet config, and user predictions server-side.
    */
+  async getAvailablePaged(
+    options: AvailableMatchesQueryOptions = {},
+  ): Promise<{ items: Match[]; totalCount: number }> {
+    const safePage = Math.max(1, options.page ?? 1);
+    const safePageSize = Math.max(1, options.pageSize ?? 10);
+    const skip = (safePage - 1) * safePageSize;
+    const filter = buildAvailableMatchesFilter(options);
+    const filterParam = filter ? `$filter=${encodeURIComponent(filter)}&` : "";
+
+    const { items, totalCount } = await odataCollection<AvailableMatchViewRow>(
+      `${BASE}/AvailableMatchesView?${filterParam}$orderby=kickoff asc&$skip=${skip}&$top=${safePageSize}&$count=true`,
+    );
+
+    return {
+      items: items.map(toAvailableMatch),
+      totalCount,
+    };
+  },
+
+  /**
+   * DEPRECATED: returns the full available-match snapshot.
+   * Prefer getAvailablePaged() for server-side pagination and filtering.
+   */
   async getAvailableFromView(tournamentId?: string): Promise<Match[]> {
     let filter = "";
     if (tournamentId) filter = `tournament_ID eq '${tournamentId}'`;
@@ -687,49 +782,13 @@ export const playerMatchesApi = {
       data.value ?? [],
     );
 
-    return rows
-      .filter((r) => !isKickoffPast(r.kickoff))
-      .map((r) => {
-        const homeName = r.homeTeamName ?? "";
-        const awayName = r.awayTeamName ?? "";
-        return {
-          id: r.ID,
-          timeLabel: formatKickoff(r.kickoff),
-          home: {
-            name: homeName,
-            flag: r.homeTeamFlag ?? "",
-            crest: r.homeTeamCrest ?? undefined,
-          },
-          away: {
-            name: awayName,
-            flag: r.awayTeamFlag ?? "",
-            crest: r.awayTeamCrest ?? undefined,
-          },
-          options: [homeName, "Draw", awayName],
-          selectedOption: mapPickToSelectedOption(r.myPick ?? undefined),
-          existingScores:
-            r.myScores?.map((s) => ({
-              home: s.homeScore,
-              away: s.awayScore,
-            })) ?? [],
-          scoreBettingEnabled: r.scoreBettingEnabled ?? false,
-          maxBets: r.maxBets ?? 3,
-          kickoffIso: r.kickoff,
-          stage: formatStageLabel(r.stage),
-          outcomePoints: r.outcomePoints ?? 0,
-          isHotMatch: r.isHotMatch ?? false,
-          bettingLocked: r.bettingLocked ?? false,
-          betTarget: "match" as const,
-          slotId: r.bracketSlot_ID ?? undefined,
-        };
-      });
+    return rows.filter((row) => !isKickoffPast(row.kickoff)).map(toAvailableMatch);
   },
 
   /**
-   * Load all match data in one call.
-   * Uses the server-side AvailableMatchesView for available matches (1 request)
-   * and fetches live matches in parallel.
-   * getUpcoming() removed — UpcomingKickoffTable is not rendered.
+   * DEPRECATED: previous SportPage bootstrap helper.
+   * SportPage now fetches available matches via MatchPredictionTable.getAvailablePaged()
+   * and live matches separately.
    */
   async loadAllMatchData(tournamentId?: string): Promise<{
     available: Match[];

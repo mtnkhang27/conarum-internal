@@ -1,6 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { DateRangePicker } from "@/components/ui/date-range-picker";
+import { LoadingOverlay } from "@/components/shared/LoadingOverlay";
+import { playerMatchesApi } from "@/services/playerApi";
 import { MatchCard } from "./MatchCard";
 import type { Match } from "@/types";
 
@@ -36,22 +38,31 @@ const getGridLayout = (width: number, height: number) => {
 };
 
 interface MatchPredictionTableProps {
-    matches: Match[];
+    tournamentId: string;
     onPredictionChange?: () => void | Promise<void>;
 }
 
-export function MatchPredictionTable({ matches, onPredictionChange }: MatchPredictionTableProps) {
+export function MatchPredictionTable({
+    tournamentId,
+    onPredictionChange,
+}: MatchPredictionTableProps) {
     const { t } = useTranslation();
     const [page, setPage] = useState(1);
+    const [matches, setMatches] = useState<Match[]>([]);
+    const [totalCount, setTotalCount] = useState(0);
+    const [loading, setLoading] = useState(true);
+    const requestSequence = useRef(0);
     const [gridLayout, setGridLayout] = useState(() =>
         typeof window === "undefined"
             ? { columns: 1, rows: 4 }
-            : getGridLayout(window.innerWidth, window.innerHeight)
+            : getGridLayout(window.innerWidth, window.innerHeight),
     );
 
     const [presetKey, setPresetKey] = useState<PresetKey>("");
-    const [calendarStart, setCalendarStart] = useState("");
-    const [calendarEnd, setCalendarEnd] = useState("");
+    const [draftCalendarStart, setDraftCalendarStart] = useState("");
+    const [draftCalendarEnd, setDraftCalendarEnd] = useState("");
+    const [appliedCalendarStart, setAppliedCalendarStart] = useState("");
+    const [appliedCalendarEnd, setAppliedCalendarEnd] = useState("");
     const [hotFilter, setHotFilter] = useState<HotFilter>("all");
 
     useEffect(() => {
@@ -83,93 +94,131 @@ export function MatchPredictionTable({ matches, onPredictionChange }: MatchPredi
         }
 
         return {
-            start: parseDateInputValue(calendarStart),
-            end: parseDateInputValue(calendarEnd),
+            start: parseDateInputValue(appliedCalendarStart),
+            end: parseDateInputValue(appliedCalendarEnd),
         };
-    }, [presetKey, calendarStart, calendarEnd]);
+    }, [presetKey, appliedCalendarStart, appliedCalendarEnd]);
 
     const pageSize = gridLayout.columns * gridLayout.rows;
+
+    const queryFilters = useMemo(() => {
+        const hotOnly = hotFilter === "hot";
+        const { start, end } = resolvedRange;
+
+        if (!start) {
+            return {
+                hotOnly,
+                kickoffStartIso: undefined,
+                kickoffEndIso: undefined,
+            };
+        }
+
+        const startAt = new Date(start);
+        startAt.setHours(0, 0, 0, 0);
+
+        const endAt = new Date(end ?? start);
+        endAt.setHours(0, 0, 0, 0);
+
+        const endExclusive = addDays(endAt, 1);
+        endExclusive.setHours(0, 0, 0, 0);
+
+        return {
+            hotOnly,
+            kickoffStartIso: startAt.toISOString(),
+            kickoffEndIso: endExclusive.toISOString(),
+        };
+    }, [resolvedRange, hotFilter]);
+
+    const loadPage = useCallback(
+        async (nextPage: number, nextPageSize: number) => {
+            const requestId = ++requestSequence.current;
+            setLoading(true);
+
+            try {
+                const { items, totalCount: count } =
+                    await playerMatchesApi.getAvailablePaged({
+                        tournamentId: tournamentId || undefined,
+                        page: nextPage,
+                        pageSize: nextPageSize,
+                        hotOnly: queryFilters.hotOnly,
+                        kickoffStartIso: queryFilters.kickoffStartIso,
+                        kickoffEndIso: queryFilters.kickoffEndIso,
+                    });
+
+                if (requestSequence.current !== requestId) return;
+                setMatches(items);
+                setTotalCount(count);
+            } catch {
+                if (requestSequence.current !== requestId) return;
+                setMatches([]);
+                setTotalCount(0);
+            } finally {
+                if (requestSequence.current === requestId) {
+                    setLoading(false);
+                }
+            }
+        },
+        [
+            tournamentId,
+            queryFilters.hotOnly,
+            queryFilters.kickoffStartIso,
+            queryFilters.kickoffEndIso,
+        ],
+    );
+
+    useEffect(() => {
+        setPage(1);
+        void loadPage(1, pageSize);
+    }, [tournamentId, pageSize, queryFilters, loadPage]);
 
     const handlePresetChange = (key: PresetKey) => {
         setPresetKey(key);
         if (key) {
-            setCalendarStart("");
-            setCalendarEnd("");
+            setDraftCalendarStart("");
+            setDraftCalendarEnd("");
+            setAppliedCalendarStart("");
+            setAppliedCalendarEnd("");
         }
-        setPage(1);
     };
 
     const handleRangeChange = (range: { start: string; end: string }) => {
-        setCalendarStart(range.start);
-        setCalendarEnd(range.end);
-        if (range.start || range.end) {
+        setDraftCalendarStart(range.start);
+        setDraftCalendarEnd(range.end);
+
+        if (!range.start && !range.end) {
             setPresetKey("");
+            setAppliedCalendarStart("");
+            setAppliedCalendarEnd("");
+            return;
         }
-        setPage(1);
+
+        if (range.start && range.end) {
+            setPresetKey("");
+            setAppliedCalendarStart(range.start);
+            setAppliedCalendarEnd(range.end);
+        }
     };
 
-    const filteredMatches = useMemo(() => {
-        const getDayStart = (iso?: string) => {
-            if (!iso) return null;
-            const kickoff = new Date(iso);
-            if (Number.isNaN(kickoff.getTime())) return null;
-            kickoff.setHours(0, 0, 0, 0);
-            return kickoff;
-        };
-
-        const now = new Date();
-
-        return matches.filter((match) => {
-            if (match.bettingLocked) return false;
-
-            if (match.kickoffIso) {
-                const kickoff = new Date(match.kickoffIso);
-                if (!Number.isNaN(kickoff.getTime()) && kickoff < now) return false;
-            }
-
-            if (hotFilter === "hot" && !match.isHotMatch) return false;
-
-            const { start, end } = resolvedRange;
-            if (!start) return true;
-
-            const kickoffDay = getDayStart(match.kickoffIso);
-            if (!kickoffDay) return true;
-
-            const kickoffTime = kickoffDay.getTime();
-
-            if (start && !end) {
-                const rangeStartMs = start.getTime();
-                const rangeEndExclusiveMs = addDays(start, 1).getTime();
-                return kickoffTime >= rangeStartMs && kickoffTime < rangeEndExclusiveMs;
-            }
-
-            if (start && end) {
-                const rangeStartMs = start.getTime();
-                const rangeEndExclusiveMs = addDays(end, 1).getTime();
-                return kickoffTime >= rangeStartMs && kickoffTime < rangeEndExclusiveMs;
-            }
-
-            return true;
-        });
-    }, [matches, resolvedRange, hotFilter]);
-
-    const totalPages = Math.max(1, Math.ceil(filteredMatches.length / pageSize));
+    const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
     const currentPage = Math.min(page, totalPages);
-    const startIndex = (currentPage - 1) * pageSize;
-    const endIndex = startIndex + pageSize;
 
-    const visibleMatches = useMemo(
-        () => filteredMatches.slice(startIndex, endIndex),
-        [filteredMatches, startIndex, endIndex]
+    const handlePageChange = useCallback(
+        (nextPage: number) => {
+            const safePage = Math.min(totalPages, Math.max(1, nextPage));
+            setPage(safePage);
+            void loadPage(safePage, pageSize);
+        },
+        [loadPage, pageSize, totalPages],
     );
 
     const placeholderCount =
-        visibleMatches.length === 0
+        matches.length === 0
             ? 0
-            : (gridLayout.columns - (visibleMatches.length % gridLayout.columns)) % gridLayout.columns;
+            : (gridLayout.columns - (matches.length % gridLayout.columns)) % gridLayout.columns;
 
-    const from = filteredMatches.length === 0 ? 0 : startIndex + 1;
-    const to = Math.min(endIndex, filteredMatches.length);
+    const from = totalCount === 0 ? 0 : (currentPage - 1) * pageSize + 1;
+    const to = Math.min(currentPage * pageSize, totalCount);
+    const showContentLoadingOverlay = loading && matches.length > 0;
 
     const paginationItems = useMemo<PaginationItem[]>(() => {
         if (totalPages <= 7) {
@@ -181,74 +230,106 @@ export function MatchPredictionTable({ matches, onPredictionChange }: MatchPredi
         }
 
         if (currentPage >= totalPages - 3) {
-            return [1, "dots-left", totalPages - 4, totalPages - 3, totalPages - 2, totalPages - 1, totalPages];
+            return [
+                1,
+                "dots-left",
+                totalPages - 4,
+                totalPages - 3,
+                totalPages - 2,
+                totalPages - 1,
+                totalPages,
+            ];
         }
 
-        return [1, "dots-left", currentPage - 1, currentPage, currentPage + 1, "dots-right", totalPages];
+        return [
+            1,
+            "dots-left",
+            currentPage - 1,
+            currentPage,
+            currentPage + 1,
+            "dots-right",
+            totalPages,
+        ];
     }, [currentPage, totalPages]);
 
+    const filterControls = (
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">
+            <select
+                value={presetKey}
+                onChange={(event) =>
+                    handlePresetChange(event.target.value as PresetKey)
+                }
+                className="h-10 w-full rounded-lg border border-border bg-surface-dark px-3 text-sm text-foreground outline-none transition-colors focus:border-primary"
+                aria-label="Quick date filter"
+            >
+                <option value="">{t("matchPredictionTable.allDates")}</option>
+                <option value="today">{t("matchPredictionTable.today")}</option>
+                <option value="tomorrow">{t("matchPredictionTable.tomorrow")}</option>
+                <option value="7days">{t("matchPredictionTable.next7Days")}</option>
+                <option value="14days">{t("matchPredictionTable.next14Days")}</option>
+                <option value="1month">{t("matchPredictionTable.next1Month")}</option>
+            </select>
+
+            <DateRangePicker
+                startValue={draftCalendarStart}
+                endValue={draftCalendarEnd}
+                onChangeRange={handleRangeChange}
+                placeholder={t("matchPredictionTable.dateRange")}
+                className="w-full"
+            />
+
+            <select
+                value={hotFilter}
+                onChange={(event) => {
+                    setHotFilter(event.target.value as HotFilter);
+                }}
+                className="h-10 w-full rounded-lg border border-border bg-surface-dark px-3 text-sm text-foreground outline-none transition-colors focus:border-primary"
+                aria-label="Filter hot matches"
+            >
+                <option value="all">{t("matchPredictionTable.allMatches")}</option>
+                <option value="hot">{t("matchPredictionTable.hotMatchOnly")}</option>
+            </select>
+        </div>
+    );
+
+    if (loading && matches.length === 0) {
+        return <LoadingOverlay />;
+    }
+
+    if (!loading && matches.length === 0) {
+        return (
+            <div className="overflow-hidden rounded-xl border border-border bg-card shadow-[0_10px_30px_rgba(10,10,30,0.35)]">
+                <div className="border-b border-border bg-surface/55 px-4 py-3">
+                    {filterControls}
+                </div>
+
+                <p className="py-10 text-center text-sm text-muted-foreground">
+                    {t("matchPredictionTable.noMatchesFound")}
+                </p>
+            </div>
+        );
+    }
+
     return (
-        <div className="overflow-hidden rounded-xl border border-border bg-card shadow-[0_10px_30px_rgba(10,10,30,0.35)]">
+        <div className="relative overflow-hidden rounded-xl border border-border bg-card shadow-[0_10px_30px_rgba(10,10,30,0.35)]">
             <div className="border-b border-border bg-surface/55 px-4 py-3">
                 <div className="flex flex-col gap-3">
                     <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
                         <p className="text-xs text-muted-foreground">
-                            {t("common.showing", { from, to, total: filteredMatches.length })}
-                        </p>
-                        <p className="text-[11px] font-semibold text-muted-foreground/80">
-                            {gridLayout.columns} x {gridLayout.rows}
+                            {t("common.showing", { from, to, total: totalCount })}
                         </p>
                     </div>
 
-                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">
-                        <select
-                            value={presetKey}
-                            onChange={(e) => handlePresetChange(e.target.value as PresetKey)}
-                            className="h-10 w-full rounded-lg border border-border bg-surface-dark px-3 text-sm text-foreground outline-none transition-colors focus:border-primary"
-                            aria-label="Quick date filter"
-                        >
-                            <option value="">{t("matchPredictionTable.allDates")}</option>
-                            <option value="today">{t("matchPredictionTable.today")}</option>
-                            <option value="tomorrow">{t("matchPredictionTable.tomorrow")}</option>
-                            <option value="7days">{t("matchPredictionTable.next7Days")}</option>
-                            <option value="14days">{t("matchPredictionTable.next14Days")}</option>
-                            <option value="1month">{t("matchPredictionTable.next1Month")}</option>
-                        </select>
-
-                        <DateRangePicker
-                            startValue={calendarStart}
-                            endValue={calendarEnd}
-                            onChangeRange={handleRangeChange}
-                            placeholder={t("matchPredictionTable.dateRange")}
-                            className="w-full"
-                        />
-
-                        <select
-                            value={hotFilter}
-                            onChange={(e) => {
-                                setHotFilter(e.target.value as HotFilter);
-                                setPage(1);
-                            }}
-                            className="h-10 w-full rounded-lg border border-border bg-surface-dark px-3 text-sm text-foreground outline-none transition-colors focus:border-primary"
-                            aria-label="Filter hot matches"
-                        >
-                            <option value="all">{t("matchPredictionTable.allMatches")}</option>
-                            <option value="hot">{t("matchPredictionTable.hotMatchOnly")}</option>
-                        </select>
-                    </div>
+                    {filterControls}
                 </div>
             </div>
 
-            {visibleMatches.length === 0 ? (
-                <p className="py-10 text-center text-sm text-muted-foreground">
-                    {t("matchPredictionTable.noMatchesFound")}
-                </p>
-            ) : (
+            <div className="relative">
                 <div
                     className="grid gap-px bg-border/60"
                     style={{ gridTemplateColumns: `repeat(${gridLayout.columns}, minmax(0, 1fr))` }}
                 >
-                    {visibleMatches.map((match) => (
+                    {matches.map((match) => (
                         <div key={match.id} className="h-full bg-card p-3 sm:p-4">
                             <MatchCard match={match} onPredictionChange={onPredictionChange} />
                         </div>
@@ -264,72 +345,84 @@ export function MatchPredictionTable({ matches, onPredictionChange }: MatchPredi
                         </div>
                     ))}
                 </div>
-            )}
 
-            {totalPages > 1 && (
-                <div className="border-t border-border bg-surface/35 px-4 py-3">
-                    <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-end">
-                        <div className="flex flex-wrap items-center gap-2">
-                            <button
-                                type="button"
-                                onClick={() => setPage(Math.max(1, currentPage - 1))}
-                                disabled={currentPage === 1}
-                                className="inline-flex h-9 items-center rounded-md border border-border bg-surface-dark px-3 text-xs font-semibold text-foreground/90 transition-colors hover:border-primary hover:text-primary disabled:cursor-not-allowed disabled:opacity-45"
-                                aria-label="Previous page"
-                            >
-                                {t("common.previous")}
-                            </button>
+                {totalPages > 1 && (
+                    <div className="border-t border-border bg-surface/35 px-4 py-3">
+                        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-end">
+                            <div className="flex flex-wrap items-center gap-2">
+                                <button
+                                    type="button"
+                                    onClick={() => handlePageChange(Math.max(1, currentPage - 1))}
+                                    disabled={currentPage === 1 || loading}
+                                    className="inline-flex h-9 items-center rounded-md border border-border bg-surface-dark px-3 text-xs font-semibold text-foreground/90 transition-colors hover:border-primary hover:text-primary disabled:cursor-not-allowed disabled:opacity-45"
+                                    aria-label="Previous page"
+                                >
+                                    {t("common.previous")}
+                                </button>
 
-                            <div className="inline-flex items-center rounded-md border border-border bg-surface-dark/85 p-1">
-                                {paginationItems.map((item) => {
-                                    if (item === "dots-left" || item === "dots-right") {
+                                <div className="inline-flex items-center rounded-md border border-border bg-surface-dark/85 p-1">
+                                    {paginationItems.map((item) => {
+                                        if (item === "dots-left" || item === "dots-right") {
+                                            return (
+                                                <span
+                                                    key={item}
+                                                    className="inline-flex h-7 min-w-7 items-center justify-center px-1 text-xs font-semibold text-muted-foreground"
+                                                >
+                                                    ...
+                                                </span>
+                                            );
+                                        }
+
+                                        const isActive = item === currentPage;
                                         return (
-                                            <span
+                                            <button
                                                 key={item}
-                                                className="inline-flex h-7 min-w-7 items-center justify-center px-1 text-xs font-semibold text-muted-foreground"
+                                                type="button"
+                                                onClick={() => handlePageChange(item)}
+                                                disabled={loading}
+                                                className={`inline-flex h-7 min-w-7 items-center justify-center rounded px-2 text-xs font-semibold transition-colors ${
+                                                    isActive
+                                                        ? "bg-primary text-white shadow-[0_0_0_1px_rgba(255,255,255,0.08)_inset]"
+                                                        : "text-foreground/80 hover:bg-surface hover:text-primary"
+                                                }`}
+                                                aria-label={`Go to page ${item}`}
+                                                aria-current={isActive ? "page" : undefined}
                                             >
-                                                ...
-                                            </span>
+                                                {item}
+                                            </button>
                                         );
-                                    }
+                                    })}
+                                </div>
 
-                                    const isActive = item === currentPage;
-                                    return (
-                                        <button
-                                            key={item}
-                                            type="button"
-                                            onClick={() => setPage(item)}
-                                            className={`inline-flex h-7 min-w-7 items-center justify-center rounded px-2 text-xs font-semibold transition-colors ${
-                                                isActive
-                                                    ? "bg-primary text-white shadow-[0_0_0_1px_rgba(255,255,255,0.08)_inset]"
-                                                    : "text-foreground/80 hover:bg-surface hover:text-primary"
-                                            }`}
-                                            aria-label={`Go to page ${item}`}
-                                            aria-current={isActive ? "page" : undefined}
-                                        >
-                                            {item}
-                                        </button>
-                                    );
-                                })}
+                                <button
+                                    type="button"
+                                    onClick={() =>
+                                        handlePageChange(Math.min(totalPages, currentPage + 1))
+                                    }
+                                    disabled={currentPage === totalPages || loading}
+                                    className="inline-flex h-9 items-center rounded-md border border-border bg-surface-dark px-3 text-xs font-semibold text-foreground/90 transition-colors hover:border-primary hover:text-primary disabled:cursor-not-allowed disabled:opacity-45"
+                                    aria-label="Next page"
+                                >
+                                    {t("common.next")}
+                                </button>
                             </div>
 
-                            <button
-                                type="button"
-                                onClick={() => setPage(Math.min(totalPages, currentPage + 1))}
-                                disabled={currentPage === totalPages}
-                                className="inline-flex h-9 items-center rounded-md border border-border bg-surface-dark px-3 text-xs font-semibold text-foreground/90 transition-colors hover:border-primary hover:text-primary disabled:cursor-not-allowed disabled:opacity-45"
-                                aria-label="Next page"
-                            >
-                                {t("common.next")}
-                            </button>
-                        </div>
-
-                        <div className="text-[11px] font-semibold text-muted-foreground">
-                            {t("common.page", { current: currentPage, total: totalPages })}
+                            <div className="text-[11px] font-semibold text-muted-foreground">
+                                {t("common.page", { current: currentPage, total: totalPages })}
+                            </div>
                         </div>
                     </div>
-                </div>
-            )}
+                )}
+
+                {showContentLoadingOverlay && (
+                    <div className="absolute inset-0 z-10 flex items-center justify-center bg-card/78 backdrop-blur-[1.5px]">
+                        <div className="pointer-events-none w-full max-w-sm px-4">
+                            <LoadingOverlay />
+                        </div>
+                    </div>
+                )}
+            </div>
+
         </div>
     );
 }

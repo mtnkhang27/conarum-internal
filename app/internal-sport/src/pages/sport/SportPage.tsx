@@ -9,6 +9,7 @@ import { LeaderboardSection } from "./components/LeaderboardSection";
 import { RecentPredictionsSection } from "./components/RecentPredictionsSection";
 import { TournamentBracket } from "./components/TournamentBracket";
 import { LoadingOverlay } from "@/components/shared/LoadingOverlay";
+import { BettingBannerPopup } from "@/components/shared/BettingBannerPopup";
 import { useActiveSection } from "@/hooks/useActiveSection";
 import {
     playerMatchesApi,
@@ -194,6 +195,13 @@ export function SportPage() {
 
     return (
         <div className="flex flex-col">
+            {/* ── Betting banner popup ── */}
+            <BettingBannerPopup
+                matches={matches}
+                loading={loadingMatches}
+                onBetNow={() => scrollToSection(SECTION.matches)}
+            />
+
             {/* ── Sticky top controls ── */}
             <div className="sticky top-0 z-20 border-b border-border/60 bg-background/95 backdrop-blur-sm">
                 <div className="flex flex-col gap-3 px-4 py-3 sm:px-5 lg:flex-row lg:items-center lg:justify-between xl:px-6">

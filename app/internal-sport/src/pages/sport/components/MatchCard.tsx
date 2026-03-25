@@ -1,4 +1,5 @@
 import { useEffect, useState, type FocusEvent, type PointerEvent } from "react";
+import { Flame } from "lucide-react";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
 import type { Match } from "@/types";
@@ -91,6 +92,7 @@ export function MatchCard({ match, isCompleted = false, onPredictionChange }: Ma
 
     const hasExistingPrediction = !!initialOption;
     const hasCurrentSelection = !!selectedOption;
+    const isHotMatch = !!match.isHotMatch;
     const hasChanges = selectedOption !== initialOption ||
         JSON.stringify(scores) !== JSON.stringify(initialScores);
     const isIdle = !hasExistingPrediction && !hasCurrentSelection && !hasChanges && !justCancelled;
@@ -244,12 +246,27 @@ export function MatchCard({ match, isCompleted = false, onPredictionChange }: Ma
 
     return (
         <>
-            <div className={`mc-card group relative rounded-2xl border transition-all duration-300 overflow-hidden
-                ${hasCurrentSelection
-                    ? "border-primary/50 shadow-[0_4px_30px_rgba(109,63,199,0.15)]"
-                    : "border-white/[0.08] hover:border-white/[0.15] hover:shadow-lg"
+            <div className={`mc-card group relative overflow-visible rounded-2xl border transition-all duration-300
+                ${isHotMatch
+                    ? hasCurrentSelection
+                        ? "border-amber-400/75 shadow-[0_0_0_1px_rgba(251,191,36,0.16)_inset,0_12px_34px_rgba(251,146,60,0.16)]"
+                        : "border-amber-400/55 shadow-[0_0_0_1px_rgba(251,191,36,0.10)_inset,0_10px_28px_rgba(251,146,60,0.12)] hover:border-amber-300/70 hover:shadow-[0_0_0_1px_rgba(251,191,36,0.15)_inset,0_14px_34px_rgba(251,146,60,0.16)]"
+                    : hasCurrentSelection
+                        ? "border-primary/50 shadow-[0_4px_30px_rgba(109,63,199,0.15)]"
+                        : "border-white/[0.08] hover:border-white/[0.15] hover:shadow-lg"
                 }
             `}>
+                {isHotMatch && (
+                    <div
+                        className="absolute -right-2 -top-3 z-20 inline-flex items-center gap-1.5 overflow-hidden rounded-full border border-amber-300/50 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.14em] text-amber-100 shadow-[0_10px_24px_rgba(251,146,60,0.22)] ring-2 ring-card"
+                    >
+                        <span className="absolute inset-0 bg-card" />
+                        <span className="absolute inset-0 bg-gradient-to-r from-orange-500/30 via-amber-400/24 to-yellow-300/16" />
+                        <Flame className="relative z-[1] h-3.5 w-3.5 text-orange-300" />
+                        <span className="relative z-[1]">{t("common.hot")}</span>
+                    </div>
+                )}
+
                 {/* Saving overlay */}
                 {isSaving && (
                     <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 rounded-2xl bg-black/60 backdrop-blur-sm">

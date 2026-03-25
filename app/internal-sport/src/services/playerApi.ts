@@ -812,65 +812,9 @@ export const playerMatchesApi = {
             })
             .map((item) => item.match);
 
-        // ── Smart date discovery: scan from today forward to find
-        //    the nearest consecutive days that have matches, ensuring
-        //    the user always sees matches.
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        const MAX_LOOK_AHEAD_DAYS = 90;
-
-        // Collect distinct kickoff days from today onwards
-        const kickoffDaysSet = new Set<number>();
-        for (const m of allSorted) {
-            if (!m.kickoffIso) continue;
-            const d = new Date(m.kickoffIso);
-            if (Number.isNaN(d.getTime())) continue;
-            d.setHours(0, 0, 0, 0);
-            if (d.getTime() >= today.getTime()) {
-                kickoffDaysSet.add(d.getTime());
-            }
-        }
-
-        if (kickoffDaysSet.size === 0) {
-            // No future matches with dates → return everything (bracket slots, etc.)
-            return allSorted;
-        }
-
-        // Sort the days and find the first consecutive group
-        const sortedDays = Array.from(kickoffDaysSet).sort((a, b) => a - b);
-        const includedDays = new Set<number>();
-        let foundFirst = false;
-        let lastIncluded = 0;
-
-        for (const dayTs of sortedDays) {
-            const daysFromToday = Math.floor((dayTs - today.getTime()) / (24 * 60 * 60 * 1000));
-            if (daysFromToday > MAX_LOOK_AHEAD_DAYS) break;
-
-            if (!foundFirst) {
-                includedDays.add(dayTs);
-                foundFirst = true;
-                lastIncluded = dayTs;
-                continue;
-            }
-
-            // Include consecutive days (gap ≤ 1 day)
-            const gapDays = Math.floor((dayTs - lastIncluded) / (24 * 60 * 60 * 1000));
-            if (gapDays <= 1) {
-                includedDays.add(dayTs);
-                lastIncluded = dayTs;
-            } else {
-                break;
-            }
-        }
-
-        // Filter: include matches on discovered days + items without kickoff
-        return allSorted.filter((m) => {
-            if (!m.kickoffIso) return true;
-            const d = new Date(m.kickoffIso);
-            if (Number.isNaN(d.getTime())) return true;
-            d.setHours(0, 0, 0, 0);
-            return includedDays.has(d.getTime());
-        });
+        // Return the full upcoming set. The date picker in MatchPredictionTable
+        // should control narrowing/widening the visible time window.
+        return allSorted;
     },
 
     /** Completed (finished) matches — paged via OData $skip/$top/$count.

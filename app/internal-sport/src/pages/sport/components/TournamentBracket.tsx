@@ -334,7 +334,7 @@ export function TournamentBracket({
 
                             {/* Bracket cards for this stage */}
                             <div
-                                className="flex w-full flex-col justify-center gap-3"
+                                className="flex w-full flex-col justify-start gap-3"
                                 style={{
                                     minHeight: compact ? undefined : `${Math.max(stageSlots.length * 92, 220)}px`,
                                 }}

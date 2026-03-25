@@ -35,6 +35,19 @@ const getGridLayout = (width: number, height: number) => {
     return { columns: 3, rows: height < 900 ? 2 : 3 };
 };
 
+const getSpecialMatchRows = (items: Match[], columns: number) => {
+    if (columns < 3) return null;
+    if (items.length === 4) {
+        return [items.slice(0, 2), items.slice(2, 4)];
+    }
+
+    if (items.length === 5) {
+        return [items.slice(0, 3), items.slice(3, 5)];
+    }
+
+    return null;
+};
+
 interface MatchPredictionTableProps {
     matches: Match[];
     onPredictionChange?: () => void | Promise<void>;
@@ -163,13 +176,20 @@ export function MatchPredictionTable({ matches, onPredictionChange }: MatchPredi
         [filteredMatches, startIndex, endIndex]
     );
 
+    const specialMatchRows = useMemo(
+        () => getSpecialMatchRows(visibleMatches, gridLayout.columns),
+        [visibleMatches, gridLayout.columns]
+    );
+
     const placeholderCount =
-        visibleMatches.length === 0
+        specialMatchRows || visibleMatches.length === 0
             ? 0
             : (gridLayout.columns - (visibleMatches.length % gridLayout.columns)) % gridLayout.columns;
 
     const from = filteredMatches.length === 0 ? 0 : startIndex + 1;
     const to = Math.min(endIndex, filteredMatches.length);
+    const displayedColumns = specialMatchRows ? Math.max(...specialMatchRows.map((row) => row.length)) : gridLayout.columns;
+    const displayedRows = specialMatchRows ? specialMatchRows.length : gridLayout.rows;
 
     const paginationItems = useMemo<PaginationItem[]>(() => {
         if (totalPages <= 7) {
@@ -196,7 +216,7 @@ export function MatchPredictionTable({ matches, onPredictionChange }: MatchPredi
                             {t("common.showing", { from, to, total: filteredMatches.length })}
                         </p>
                         <p className="text-[11px] font-semibold text-muted-foreground/80">
-                            {gridLayout.columns} x {gridLayout.rows}
+                            {displayedColumns} x {displayedRows}
                         </p>
                     </div>
 
@@ -243,6 +263,18 @@ export function MatchPredictionTable({ matches, onPredictionChange }: MatchPredi
                 <p className="py-10 text-center text-sm text-muted-foreground">
                     {t("matchPredictionTable.noMatchesFound")}
                 </p>
+            ) : specialMatchRows ? (
+                <div className="flex flex-col gap-px bg-border/60">
+                    {specialMatchRows.map((row, rowIndex) => (
+                        <div key={`special-row-${rowIndex}`} className="flex gap-px bg-border/60">
+                            {row.map((match) => (
+                                <div key={match.id} className="min-w-0 flex-1 bg-card p-3 sm:p-4">
+                                    <MatchCard match={match} onPredictionChange={onPredictionChange} />
+                                </div>
+                            ))}
+                        </div>
+                    ))}
+                </div>
             ) : (
                 <div
                     className="grid gap-px bg-border/60"

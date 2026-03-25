@@ -71,6 +71,17 @@ type BettingStatus    : String enum {
     locked;  // Admin-locked; no new champion picks accepted
 }
 
+type PayoutAwardType  : String enum {
+    scoreBet;
+    championPick;
+    leaderboard;
+}
+
+type PayoutAuditStatus : String enum {
+    awarded;
+    reverted;
+}
+
 type TieBreakRule     : String enum {
     headToHead;
     goalDifference;
@@ -394,6 +405,36 @@ entity ChampionPick : cuid, managed {
 
 // One champion pick per player per tournament
 annotate ChampionPick with @assert.unique: {playerTournamentPick: [player, tournament]};
+
+/**
+ * Admin payout / award audit ledger.
+ * Stores evidence and admin trace for each awarded item across score bet,
+ * champion prediction, or leaderboard result.
+ */
+entity PayoutAward : cuid, managed {
+    tournament        : Association to Tournament           @mandatory;
+    player            : Association to Player               @mandatory;
+    awardType         : PayoutAwardType                     @mandatory;
+    sourceKey         : String(255)                         @mandatory;
+    status            : PayoutAuditStatus default 'awarded';
+    scoreBet          : Association to ScoreBet;
+    championPick      : Association to ChampionPick;
+    leaderboardStat   : Association to PlayerTournamentStats;
+    match             : Association to Match;
+    rewardAmount      : MoneyAmount default 0;
+    rewardDescription : String(500);
+    evidenceNote      : LargeString;
+    evidenceUrl       : String(1000);
+    awardedAt         : DateTime;
+    awardedByName     : String(120);
+    awardedByEmail    : String(255);
+    revertedAt        : DateTime;
+    revertedByName    : String(120);
+    revertedByEmail   : String(255);
+    revertReason      : String(500);
+}
+
+annotate PayoutAward with @assert.unique: {sourceAward: [awardType, sourceKey]};
 
 // ────────────────────────────────────────────────────────────
 //  Per-Match Configuration Entities

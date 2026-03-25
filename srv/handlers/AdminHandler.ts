@@ -1548,4 +1548,12 @@ export class AdminHandler {
         return this.payoutManager.resetAllPayoutStatus(req);
     }
 
+    async upsertPayoutAward(req: Request) {
+        return this.payoutManager.upsertPayoutAward(req);
+    }
+
+    async revertPayoutAward(req: Request) {
+        return this.payoutManager.revertPayoutAward(req);
+    }
+
 }

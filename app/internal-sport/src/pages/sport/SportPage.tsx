@@ -9,6 +9,14 @@ import { LeaderboardSection } from "./components/LeaderboardSection";
 import { RecentPredictionsSection } from "./components/RecentPredictionsSection";
 import { TournamentBracket } from "./components/TournamentBracket";
 import { LoadingOverlay } from "@/components/shared/LoadingOverlay";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { useActiveSection } from "@/hooks/useActiveSection";
 import { playerMatchesApi } from "@/services/playerApi";
 import type { LiveMatch, Match } from "@/types";
@@ -47,6 +55,7 @@ export function SportPage() {
   const [loadingBannerMatches, setLoadingBannerMatches] = useState(true);
   const [recentPredictionsRefreshKey, setRecentPredictionsRefreshKey] =
     useState(0);
+  const [isBracketDialogOpen, setIsBracketDialogOpen] = useState(false);
 
   // Wrap setTournamentId to also mark as ready (prevents double-fire)
   const handleTournamentSelect = useCallback((id: string) => {
@@ -208,6 +217,17 @@ export function SportPage() {
             tournamentReady={tournamentReady}
             onTournamentSelect={handleTournamentSelect}
             onPredictionChange={refreshAll}
+            tournamentActions={
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setIsBracketDialogOpen(true)}
+                disabled={!tournamentId}
+                className="h-10 rounded-lg border-border bg-card px-3 text-sm font-semibold text-foreground hover:border-primary hover:bg-surface disabled:cursor-not-allowed disabled:opacity-45"
+              >
+                {t("nav.tournamentBracket")}
+              </Button>
+            }
           />
 
           {/* Live matches */}
@@ -284,6 +304,23 @@ export function SportPage() {
           )}
         </section>
       </div>
+
+      <Dialog open={isBracketDialogOpen} onOpenChange={setIsBracketDialogOpen}>
+        <DialogContent className="max-h-[min(90vh,860px)] overflow-hidden border-border bg-card text-white sm:max-w-6xl">
+          <DialogHeader>
+            <DialogTitle>{t("nav.tournamentBracket")}</DialogTitle>
+            <DialogDescription>
+              {t("sport.sections.bracketSubtitle")}
+            </DialogDescription>
+          </DialogHeader>
+
+          {isBracketDialogOpen ? (
+            <div className="overflow-auto pb-1">
+              <TournamentBracket tournamentId={tournamentId} />
+            </div>
+          ) : null}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, useCallback } from "react";
+import { useEffect, useMemo, useRef, useState, useCallback, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { TournamentSelector } from "@/components/shared/TournamentSelector";
 import { DateRangePicker } from "@/components/ui/date-range-picker";
@@ -43,6 +43,7 @@ interface MatchPredictionTableProps {
     tournamentReady: boolean;
     onTournamentSelect: (id: string) => void;
     onPredictionChange?: () => void | Promise<void>;
+    tournamentActions?: ReactNode;
 }
 
 export function MatchPredictionTable({
@@ -50,6 +51,7 @@ export function MatchPredictionTable({
     tournamentReady,
     onTournamentSelect,
     onPredictionChange,
+    tournamentActions,
 }: MatchPredictionTableProps) {
     const { t } = useTranslation();
     const [page, setPage] = useState(1);
@@ -259,9 +261,9 @@ export function MatchPredictionTable({
     }, [currentPage, totalPages]);
 
     const filterControls = (
-        <div className="flex flex-col gap-3">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <div className="w-full sm:w-auto">
+        <div className="flex w-full flex-col gap-2">
+            <div className="grid w-full grid-cols-1 gap-2 sm:grid-cols-2 sm:items-center">
+                <div className="min-w-0 w-full">
                     <TournamentSelector
                         selectedId={tournamentId}
                         onSelect={onTournamentSelect}
@@ -269,15 +271,12 @@ export function MatchPredictionTable({
                         preferDefault
                     />
                 </div>
-
-                {tournamentReady && (
-                    <p className="text-xs text-muted-foreground">
-                        {t("common.showing", { from, to, total: totalCount })}
-                    </p>
-                )}
+                {tournamentActions ? (
+                    <div className="w-full [&>*]:w-full">{tournamentActions}</div>
+                ) : null}
             </div>
 
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">
+            <div className="grid w-full grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">
                 <select
                     value={presetKey}
                     onChange={(event) =>
@@ -314,6 +313,12 @@ export function MatchPredictionTable({
                     <option value="hot">{t("matchPredictionTable.hotMatchOnly")}</option>
                 </select>
             </div>
+
+            {tournamentReady && (
+                <p className="w-full text-xs text-muted-foreground sm:text-right">
+                    {t("common.showing", { from, to, total: totalCount })}
+                </p>
+            )}
         </div>
     );
 

@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
     Plus, Edit, Trash2, Trophy, Settings, Lock, Unlock,
-    Download, Search, CheckCircle2, Loader2, RefreshCw,
+    Download, Search, CheckCircle2, Loader2, RefreshCw, Star,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -148,6 +148,18 @@ export function TournamentManagement() {
         } catch (e: any) { toast.error(e.message); }
     }
 
+    async function handleToggleDefault(trn: AdminTournament) {
+        try {
+            await tournamentsApi.update(trn.ID, { isDefault: !trn.isDefault });
+            toast.success(
+                trn.isDefault
+                    ? t("admin.tournamentManagement.defaultRemoved")
+                    : t("admin.tournamentManagement.defaultSet"),
+            );
+            load();
+        } catch (e: any) { toast.error(e.message); }
+    }
+
     // ── Import flow ──────────────────────────────────────────
 
     async function openImportDialog() {
@@ -255,6 +267,11 @@ export function TournamentManagement() {
                             </div>
                             <div className="flex flex-col items-end gap-1">
                                 <Badge variant={statusVariant(trn.status)}>{trn.status}</Badge>
+                                {trn.isDefault && (
+                                    <Badge variant="outline" className="border-yellow-500/40 text-yellow-400 text-[10px]">
+                                        <Star className="mr-1 h-3 w-3 fill-yellow-400" /> {t("admin.tournamentManagement.defaultTournament")}
+                                    </Badge>
+                                )}
                                 {trn.bettingLocked && (
                                     <Badge variant="outline" className="border-amber-500/40 text-amber-400 text-[10px]">
                                         <Lock className="mr-1 h-3 w-3" /> {t("admin.tournamentManagement.bettingLocked")}
@@ -268,6 +285,12 @@ export function TournamentManagement() {
                         )}
 
                         <div className="flex items-center justify-end gap-1 border-t border-border pt-3">
+                            <Button variant="ghost" size="sm"
+                                className={`h-8 w-8 p-0 ${trn.isDefault ? "text-yellow-400 hover:text-yellow-300" : "text-muted-foreground hover:text-yellow-400"}`}
+                                title={trn.isDefault ? t("admin.tournamentManagement.removeDefault") : t("admin.tournamentManagement.setAsDefault")}
+                                onClick={() => handleToggleDefault(trn)}>
+                                <Star className={`h-4 w-4 ${trn.isDefault ? "fill-yellow-400" : ""}`} />
+                            </Button>
                             <Button variant="ghost" size="sm"
                                 className={`h-8 w-8 p-0 ${trn.bettingLocked ? "text-amber-400 hover:text-amber-300" : "text-muted-foreground hover:text-amber-400"}`}
                                 title={trn.bettingLocked ? t("admin.tournamentManagement.unlockBetting") : t("admin.tournamentManagement.lockBetting")}

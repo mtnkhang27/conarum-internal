@@ -618,7 +618,12 @@
       "deleteDescription": "This will remove the tournament. Matches linked to it won't be deleted.",
       "importFailed": "Import failed: {{message}}",
       "loadFailed": "Failed to load competitions: {{message}}",
-      "alreadyImportedToast": "{{name}} is already imported. Navigate to it from the list."
+      "alreadyImportedToast": "{{name}} is already imported. Navigate to it from the list.",
+      "defaultTournament": "Default",
+      "setAsDefault": "Set as default for Sport Page",
+      "removeDefault": "Remove default setting",
+      "defaultSet": "Tournament set as default — users will see it first.",
+      "defaultRemoved": "Default setting removed."
     },
     "tournamentDetail": {
       "title": "Tournament Detail",

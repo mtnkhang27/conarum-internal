@@ -3,6 +3,7 @@ import type {
     AdminMatchListItem,
     AdminTeam,
     AdminTeamMember,
+    AdminTournamentTeam,
     AdminTournament,
     AdminPlayer,
     MatchScoreBetConfig,
@@ -46,14 +47,27 @@ function odataList<T>(path: string) {
     return odata<{ value: T[] }>(path).then((r) => r.value);
 }
 
+function escapeODataString(value: string) {
+    return value.replace(/'/g, "''");
+}
+
 // ── Matches ────────────────────────────────────────────────
 
 export const matchesApi = {
     /** Use CDS view with pre-joined team/tournament data (no $expand). */
-    list: () =>
-        odataList<AdminMatchListItem>(
-            "/AdminMatchListView?$orderby=kickoff asc"
-        ),
+    list: (options?: {
+        tournamentId?: string;
+        status?: AdminMatchListItem["status"];
+    }) => {
+        const filters = [
+            options?.tournamentId ? `tournament_ID eq '${escapeODataString(options.tournamentId)}'` : null,
+            options?.status ? `status eq '${escapeODataString(options.status)}'` : null,
+        ].filter(Boolean);
+        const query = filters.length
+            ? `?$filter=${encodeURIComponent(filters.join(" and "))}&$orderby=kickoff asc`
+            : "?$orderby=kickoff asc";
+        return odataList<AdminMatchListItem>(`/AdminMatchListView${query}`);
+    },
     get: (id: string) =>
         odata<AdminMatch>(
             `/Matches('${id}')?$expand=homeTeam,awayTeam,tournament,scoreBetConfig`
@@ -177,6 +191,32 @@ export const tournamentTeamsApi = {
         odataList<AdminTournamentTeamView>(
             `/AdminTournamentTeamsView?$filter=tournament_ID eq '${tournamentId}'`
         ),
+    list: (tournamentId?: string, teamId?: string) => {
+        const filters = [
+            tournamentId ? `tournament_ID eq '${tournamentId}'` : null,
+            teamId ? `team_ID eq '${teamId}'` : null,
+        ].filter(Boolean);
+        const query = filters.length
+            ? `?$filter=${encodeURIComponent(filters.join(" and "))}`
+            : "";
+        return odataList<AdminTournamentTeam>(`/TournamentTeams${query}`);
+    },
+    create: (data: Partial<AdminTournamentTeam>) =>
+        odata<AdminTournamentTeam>("/TournamentTeams", {
+            method: "POST",
+            body: JSON.stringify(data),
+        }),
+    async ensureMembership(tournamentId: string, teamId: string) {
+        const existing = await tournamentTeamsApi.list(tournamentId, teamId);
+        if (existing.length > 0) {
+            return existing[0];
+        }
+
+        return tournamentTeamsApi.create({
+            tournament_ID: tournamentId,
+            team_ID: teamId,
+        });
+    },
 };
 
 // ── Tournaments ────────────────────────────────────────────

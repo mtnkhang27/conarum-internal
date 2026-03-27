@@ -8,6 +8,7 @@ export interface TournamentInfo {
     endDate: string;
     season?: string;
     championBettingStatus?: 'open' | 'locked';
+    isDefault?: boolean;
 }
 
 // === Match Types ===

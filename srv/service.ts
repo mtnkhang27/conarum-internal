@@ -118,6 +118,22 @@ export class AdminService extends cds.ApplicationService {
         this.on('upsertPayoutAward', this.adminHandler.upsertPayoutAward.bind(this.adminHandler));
         this.on('revertPayoutAward', this.adminHandler.revertPayoutAward.bind(this.adminHandler));
 
+        // Keep the "default tournament" invariant server-side so the admin UI
+        // only needs a single PATCH request when switching the default.
+        this.before(['CREATE', 'UPDATE'], 'Tournaments', async (req: any) => {
+            if (req.data?.isDefault !== true) return;
+
+            const { Tournament } = cds.entities('cnma.prediction');
+            const currentId = (req.params?.[0] as any)?.ID ?? req.data?.ID;
+            const where: Record<string, any> = { isDefault: true };
+
+            if (currentId) {
+                where.ID = { '!=': currentId };
+            }
+
+            await UPDATE(Tournament).where(where).set({ isDefault: false });
+        });
+
         // Guard: block match creation/update for completed/cancelled tournaments
         this.before(['CREATE', 'UPDATE'], 'Matches', async (req: any) => {
             const { Tournament, Match } = cds.entities('cnma.prediction');

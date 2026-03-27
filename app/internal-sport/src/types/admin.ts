@@ -43,6 +43,8 @@ export interface AdminTournament {
     externalCode: string | null;  // football-data.org code e.g. 'CL'
     // Betting lock
     bettingLocked: boolean;
+    // Default tournament
+    isDefault: boolean;
 }
 
 export interface AdminTournamentTeam {

@@ -68,6 +68,7 @@ export interface ODataTournament {
   endDate: string;
   season: string | null;
   championBettingStatus: "open" | "locked" | null;
+  isDefault: boolean | null;
 }
 
 export interface ODataMatch {
@@ -600,6 +601,7 @@ export const playerTournamentsApi = {
       endDate: t.endDate,
       season: t.season ?? undefined,
       championBettingStatus: t.championBettingStatus ?? undefined,
+      // isDefault: t.isDefault === true,
     }));
   },
 
@@ -617,6 +619,7 @@ export const playerTournamentsApi = {
       endDate: t.endDate,
       season: t.season ?? undefined,
       championBettingStatus: t.championBettingStatus ?? undefined,
+      // isDefault: t.isDefault === true,
     }));
   },
 };

@@ -60,6 +60,7 @@ export function TeamManagement() {
         tla: "",
         crest: "",
         flagCode: "",
+        tournamentId: "",
         confederation: "",
         fifaRanking: "",
     });
@@ -130,6 +131,7 @@ export function TeamManagement() {
             tla: "",
             crest: "",
             flagCode: "",
+            tournamentId: selectedTournament !== "all" ? selectedTournament : "",
             confederation: "",
             fifaRanking: "",
         });
@@ -145,6 +147,7 @@ export function TeamManagement() {
             tla: team.tla || "",
             crest: team.crest || "",
             flagCode: team.flagCode,
+            tournamentId: selectedTournament !== "all" ? selectedTournament : "",
             confederation: team.confederation || "",
             fifaRanking: team.fifaRanking != null ? String(team.fifaRanking) : "",
         });
@@ -178,9 +181,15 @@ export function TeamManagement() {
             };
             if (editing) {
                 await teamsApi.update(editing.ID, data);
+                if (form.tournamentId) {
+                    await tournamentTeamsApi.ensureMembership(form.tournamentId, editing.ID);
+                }
                 toast.success(t("admin.teamManagement.teamUpdated"));
             } else {
-                await teamsApi.create(data);
+                const createdTeam = await teamsApi.create(data);
+                if (form.tournamentId) {
+                    await tournamentTeamsApi.ensureMembership(form.tournamentId, createdTeam.ID);
+                }
                 toast.success(t("admin.teamManagement.teamCreated"));
             }
             setDialogOpen(false);
@@ -188,7 +197,7 @@ export function TeamManagement() {
             const teams = await teamsApi.list();
             setAllTeams(teams);
             if (selectedTournament !== "all") {
-                loadTournamentTeams(selectedTournament);
+                await loadTournamentTeams(selectedTournament);
             }
         } catch (e: any) {
             toast.error(e.message);
@@ -204,7 +213,7 @@ export function TeamManagement() {
             const teams = await teamsApi.list();
             setAllTeams(teams);
             if (selectedTournament !== "all") {
-                loadTournamentTeams(selectedTournament);
+                await loadTournamentTeams(selectedTournament);
             }
         } catch (e: any) {
             toast.error(e.message);
@@ -534,6 +543,26 @@ export function TeamManagement() {
                                     <span className="text-xs text-muted-foreground">{t("common.preview")}</span>
                                 </div>
                             )}
+                        </div>
+                        <div className="space-y-2">
+                            <label className="text-xs font-medium text-muted-foreground">
+                                {t("admin.tournamentManagement.tournament")}
+                            </label>
+                            <Select
+                                value={form.tournamentId}
+                                onValueChange={(value) => setForm({ ...form, tournamentId: value })}
+                            >
+                                <SelectTrigger>
+                                    <SelectValue placeholder={t("admin.teamManagement.filterByTournament")} />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {tournaments.map((tournament) => (
+                                        <SelectItem key={tournament.ID} value={tournament.ID}>
+                                            {tournament.name}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
                         </div>
                         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                             <div className="space-y-2">

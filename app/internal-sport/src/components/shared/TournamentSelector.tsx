@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Trophy, ChevronDown } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { playerTournamentsApi } from "@/services/playerApi";
@@ -13,6 +13,8 @@ interface TournamentSelectorProps {
     allowAll?: boolean;
     /** Optional preloaded tournaments to avoid duplicate page-level fetches. */
     tournaments?: TournamentInfo[];
+    /** When true, prefer the admin-configured default tournament on first auto-select. */
+    preferDefault?: boolean;
 }
 
 export function TournamentSelector({
@@ -21,10 +23,12 @@ export function TournamentSelector({
     onTournamentName,
     allowAll = false,
     tournaments: providedTournaments,
+    preferDefault = false,
 }: TournamentSelectorProps) {
     const { t } = useTranslation();
     const [internalTournaments, setInternalTournaments] = useState<TournamentInfo[]>([]);
     const [open, setOpen] = useState(false);
+    const hasAutoSelected = useRef(false);
     const tournaments = providedTournaments ?? internalTournaments;
 
     const FORMAT_LABELS: Record<string, string> = {
@@ -45,14 +49,25 @@ export function TournamentSelector({
     }, [providedTournaments]);
 
     useEffect(() => {
-        if (selectedId || tournaments.length === 0) {
+        if (selectedId) {
+            hasAutoSelected.current = true;
             return;
         }
 
-        const active = tournaments.find((t) => t.status === "active") ?? tournaments[0];
-        onSelect(active.ID);
-        onTournamentName?.(active.name);
-    }, [selectedId, tournaments, onSelect, onTournamentName]);
+        if (tournaments.length === 0 || hasAutoSelected.current) {
+            return;
+        }
+
+        // First-load priority can be customized by the parent page.
+        const preferred =
+            (preferDefault ? tournaments.find((t) => t.isDefault) : undefined) ??
+            tournaments.find((t) => t.status === "active") ??
+            tournaments[0];
+
+        hasAutoSelected.current = true;
+        onSelect(preferred.ID);
+        onTournamentName?.(preferred.name);
+    }, [selectedId, tournaments, onSelect, onTournamentName, preferDefault]);
 
     const selected = tournaments.find((t) => t.ID === selectedId);
     const label = selected ? selected.name : allowAll ? t("tournamentSelector.allTournaments") : t("tournamentSelector.selectTournament");
@@ -84,7 +99,12 @@ export function TournamentSelector({
                             <button
                                 key={t.ID}
                                 type="button"
-                                onClick={() => { onSelect(t.ID); onTournamentName?.(t.name); setOpen(false); }}
+                                onClick={() => {
+                                    hasAutoSelected.current = true;
+                                    onSelect(t.ID);
+                                    onTournamentName?.(t.name);
+                                    setOpen(false);
+                                }}
                                 className={`flex w-full items-center gap-3 px-4 py-3 text-left text-sm transition-colors hover:bg-surface ${t.ID === selectedId ? "bg-primary/10 text-primary" : "text-foreground"}`}
                             >
                                 <Trophy className="h-4 w-4 text-muted-foreground" />
@@ -114,7 +134,12 @@ export function TournamentSelector({
                                 {tournaments.length > 0 && <div className="mx-4 border-t border-border" />}
                                 <button
                                     type="button"
-                                    onClick={() => { onSelect(""); onTournamentName?.(""); setOpen(false); }}
+                                    onClick={() => {
+                                        hasAutoSelected.current = true;
+                                        onSelect("");
+                                        onTournamentName?.("");
+                                        setOpen(false);
+                                    }}
                                     className={`flex w-full items-center gap-3 px-4 py-3 text-left text-sm transition-colors hover:bg-surface ${!selectedId ? "bg-primary/10 text-primary" : "text-foreground"}`}
                                 >
                                     <Trophy className="h-4 w-4 text-muted-foreground" />

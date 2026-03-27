@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
@@ -51,7 +51,7 @@ import {
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
-import { bracketSlotsApi, matchesApi, teamsApi, tournamentsApi, tournamentActionsApi } from "@/services/adminApi";
+import { bracketSlotsApi, matchesApi, teamsApi, tournamentsApi, tournamentActionsApi, tournamentTeamsApi } from "@/services/adminApi";
 import type { AdminBracketSlot, AdminMatchListItem, AdminTeam, AdminTournament } from "@/types/admin";
 
 const STAGES = [
@@ -139,6 +139,8 @@ export function MatchManagement() {
     const [selectedDay, setSelectedDay] = useState<string>("");
     const [teamSearch, setTeamSearch] = useState<string>("");
     const [loading, setLoading] = useState(true);
+    const [filtersReady, setFiltersReady] = useState(false);
+    const scopedLoadIdRef = useRef(0);
 
     // Dialog state
     const [dialogOpen, setDialogOpen] = useState(false);
@@ -180,31 +182,64 @@ export function MatchManagement() {
     });
 
     useEffect(() => {
-        load();
+        void loadBaseData();
     }, []);
 
-    async function load() {
+    useEffect(() => {
+        if (!filtersReady) return;
+        void loadScopedData(selectedTournament, selectedStatus);
+    }, [filtersReady, selectedTournament, selectedStatus]);
+
+    async function loadBaseData() {
         setLoading(true);
         try {
-            const [m, t, tr, bs] = await Promise.all([
-                matchesApi.list(),
+            const [t, tr] = await Promise.all([
                 teamsApi.list(),
                 tournamentsApi.list(),
-                bracketSlotsApi.list(),
             ]);
-            setMatches(m);
             setTeams(t);
             setTournaments(tr);
-            setBracketSlots(bs);
-            // Auto-select active tournament if available
+
             const active = tr.find((tournament) => tournament.status === "active");
             if (active) {
                 setSelectedTournament(active.ID);
             }
+            setFiltersReady(true);
         } catch (e: any) {
             toast.error(e.message);
-        } finally {
             setLoading(false);
+        }
+    }
+
+    async function loadScopedData(
+        tournamentId: string = selectedTournament,
+        status: string = selectedStatus,
+    ) {
+        const requestId = ++scopedLoadIdRef.current;
+        const tournamentFilter = tournamentId !== "all" ? tournamentId : undefined;
+        const statusFilter = status !== "all" ? status as AdminMatchListItem["status"] : undefined;
+
+        setLoading(true);
+        try {
+            const [nextMatches, nextBracketSlots] = await Promise.all([
+                matchesApi.list({
+                    tournamentId: tournamentFilter,
+                    status: statusFilter,
+                }),
+                bracketSlotsApi.list(tournamentFilter),
+            ]);
+
+            if (requestId !== scopedLoadIdRef.current) return;
+
+            setMatches(nextMatches);
+            setBracketSlots(nextBracketSlots);
+        } catch (e: any) {
+            if (requestId !== scopedLoadIdRef.current) return;
+            toast.error(e.message);
+        } finally {
+            if (requestId === scopedLoadIdRef.current) {
+                setLoading(false);
+            }
         }
     }
 
@@ -213,7 +248,7 @@ export function MatchManagement() {
         setForm({
             homeTeam_ID: "",
             awayTeam_ID: "",
-            tournament_ID: tournaments[0]?.ID || "",
+            tournament_ID: selectedTournament !== "all" ? selectedTournament : tournaments[0]?.ID || "",
             kickoff: "",
             venue: "",
             stage: "group",
@@ -256,6 +291,16 @@ export function MatchManagement() {
         setResultDialogOpen(true);
     }
 
+    async function ensureTeamsBelongToTournament(tournamentId: string, teamIds: Array<string | null>) {
+        if (!tournamentId) return;
+        const uniqueTeamIds = [...new Set(teamIds.filter((teamId): teamId is string => !!teamId))];
+        await Promise.all(
+            uniqueTeamIds.map((teamId) =>
+                tournamentTeamsApi.ensureMembership(tournamentId, teamId)
+            )
+        );
+    }
+
     async function handleSave() {
         try {
             const nextStatus = form.status as AdminMatchListItem["status"];
@@ -276,6 +321,11 @@ export function MatchManagement() {
                 data.awayScore = 0;
             }
 
+            await ensureTeamsBelongToTournament(form.tournament_ID, [
+                data.homeTeam_ID,
+                data.awayTeam_ID,
+            ]);
+
             if (editing) {
                 await matchesApi.update(editing.ID, data);
                 toast.success(t("admin.matchManagement.matchUpdated"));
@@ -284,7 +334,7 @@ export function MatchManagement() {
                 toast.success(t("admin.matchManagement.matchCreated"));
             }
             setDialogOpen(false);
-            load();
+            await loadScopedData();
         } catch (e: any) {
             toast.error(e.message);
         }
@@ -296,7 +346,7 @@ export function MatchManagement() {
             await matchesApi.delete(deleteId);
             toast.success(t("admin.matchManagement.matchDeleted"));
             setDeleteId(null);
-            load();
+            await loadScopedData();
         } catch (e: any) {
             toast.error(e.message);
         }
@@ -310,7 +360,7 @@ export function MatchManagement() {
                 : await matchesApi.enterResult(resultMatch.ID, parseInt(resultHome), parseInt(resultAway));
             toast.success(res.message);
             setResultDialogOpen(false);
-            load();
+            await loadScopedData();
         } catch (e: any) {
             toast.error(e.message);
         }
@@ -330,7 +380,7 @@ export function MatchManagement() {
             setPenaltyDialogOpen(false);
             setPenHome("");
             setPenAway("");
-            load();
+            await loadScopedData();
         } catch (e: any) {
             toast.error(e.message);
         }
@@ -347,7 +397,7 @@ export function MatchManagement() {
             const res = await tournamentActionsApi.syncMatchResults(tournamentId);
             toast.success(res.message);
             setSyncDialogOpen(false);
-            load();
+            await loadScopedData();
         } catch (e: any) {
             toast.error(e.message);
         } finally {
@@ -360,7 +410,7 @@ export function MatchManagement() {
         try {
             const res = await matchesApi.lockBetting(match.ID, !match.bettingLocked);
             toast.success(res.message);
-            load();
+            await loadScopedData();
         } catch (e: any) {
             toast.error(e.message);
         } finally {
@@ -401,7 +451,7 @@ export function MatchManagement() {
                         { count: successCount },
                     ),
                 );
-                load();
+                await loadScopedData();
             }
 
             if (failedCount > 0) {

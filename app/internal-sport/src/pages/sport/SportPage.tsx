@@ -6,6 +6,7 @@ import { LiveMatchesTable } from "./components/LiveMatchesTable";
 import { CompletedMatchesTable } from "./components/CompletedMatchesTable";
 import { SECTION, scrollToSection } from "./sectionNavigation";
 import { TournamentSelector } from "@/components/shared/TournamentSelector";
+import { Button } from "@/components/ui/button";
 import { LeaderboardSection } from "./components/LeaderboardSection";
 import { RecentPredictionsSection } from "./components/RecentPredictionsSection";
 import { TournamentBracket } from "./components/TournamentBracket";
@@ -61,6 +62,7 @@ export function SportPage() {
   useEffect(() => {
     if (!tournamentReady) return;
     let cancelled = false;
+    setLoadingBannerMatches(true);
 
     const loadBannerMatches = async () => {
       try {
@@ -187,12 +189,23 @@ export function SportPage() {
               {t("sport.subtitle")}
             </p>
           </div>
-          <div className="w-full lg:w-auto lg:min-w-[280px] xl:min-w-[320px]">
-            <TournamentSelector
-              selectedId={tournamentId}
-              onSelect={handleTournamentSelect}
-              allowAll
-            />
+          <div className="flex w-full flex-col gap-2 lg:w-auto lg:flex-row lg:items-center">
+            <div className="w-full lg:min-w-[280px] xl:min-w-[320px]">
+              <TournamentSelector
+                selectedId={tournamentId}
+                onSelect={handleTournamentSelect}
+                allowAll
+                preferDefault
+              />
+            </div>
+            {/* <Button
+              type="button"
+              variant={!tournamentId ? "default" : "outline"}
+              className="w-full lg:w-auto"
+              onClick={() => handleTournamentSelect("")}
+            >
+              {t("tournamentSelector.allTournaments")}
+            </Button> */}
           </div>
         </div>
       </div>

@@ -155,6 +155,8 @@ entity Tournament : cuid, managed {
     externalCode   : String(20); // football-data.org competition code, e.g., 'CL', 'WC'
     // ── Betting Lock (admin-controlled) ──
     bettingLocked  : Boolean default false; // if true, no new bets (outcome/score/champion) accepted
+    // ── Default Tournament (admin-controlled) ──
+    isDefault      : Boolean default false; // if true, auto-selected on SportPage for users
 }
 
 /**

@@ -620,7 +620,12 @@
       "deleteDescription": "Das Turnier wird entfernt. Zugehörige Spiele werden nicht gelöscht.",
       "importFailed": "Import fehlgeschlagen: {{message}}",
       "loadFailed": "Wettbewerbe konnten nicht geladen werden: {{message}}",
-      "alreadyImportedToast": "{{name}} wurde bereits importiert. Navigiere von der Liste dorthin."
+      "alreadyImportedToast": "{{name}} wurde bereits importiert. Navigiere von der Liste dorthin.",
+      "defaultTournament": "Standard",
+      "setAsDefault": "Als Standard für die Sportseite setzen",
+      "removeDefault": "Standardeinstellung entfernen",
+      "defaultSet": "Turnier als Standard gesetzt — Benutzer sehen es zuerst.",
+      "defaultRemoved": "Standardeinstellung entfernt."
     },
     "tournamentDetail": {
       "title": "Turnierdetail",

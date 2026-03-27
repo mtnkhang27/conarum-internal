@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { useTranslation } from "react-i18next";
+import { TournamentSelector } from "@/components/shared/TournamentSelector";
 import { DateRangePicker } from "@/components/ui/date-range-picker";
 import { LoadingOverlay } from "@/components/shared/LoadingOverlay";
 import { playerMatchesApi } from "@/services/playerApi";
@@ -39,11 +40,15 @@ const getGridLayout = (width: number, height: number) => {
 
 interface MatchPredictionTableProps {
     tournamentId: string;
+    tournamentReady: boolean;
+    onTournamentSelect: (id: string) => void;
     onPredictionChange?: () => void | Promise<void>;
 }
 
 export function MatchPredictionTable({
     tournamentId,
+    tournamentReady,
+    onTournamentSelect,
     onPredictionChange,
 }: MatchPredictionTableProps) {
     const { t } = useTranslation();
@@ -167,9 +172,10 @@ export function MatchPredictionTable({
     );
 
     useEffect(() => {
+        if (!tournamentReady) return;
         setPage(1);
         void loadPage(1, pageSize);
-    }, [tournamentId, pageSize, queryFilters, loadPage]);
+    }, [tournamentId, tournamentReady, pageSize, queryFilters, loadPage]);
 
     const handlePresetChange = (key: PresetKey) => {
         setPresetKey(key);
@@ -253,47 +259,90 @@ export function MatchPredictionTable({
     }, [currentPage, totalPages]);
 
     const filterControls = (
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">
-            <select
-                value={presetKey}
-                onChange={(event) =>
-                    handlePresetChange(event.target.value as PresetKey)
-                }
-                className="h-10 w-full rounded-lg border border-border bg-surface-dark px-3 text-sm text-foreground outline-none transition-colors focus:border-primary"
-                aria-label="Quick date filter"
-            >
-                <option value="">{t("matchPredictionTable.allDates")}</option>
-                <option value="today">{t("matchPredictionTable.today")}</option>
-                <option value="tomorrow">{t("matchPredictionTable.tomorrow")}</option>
-                <option value="7days">{t("matchPredictionTable.next7Days")}</option>
-                <option value="14days">{t("matchPredictionTable.next14Days")}</option>
-                <option value="1month">{t("matchPredictionTable.next1Month")}</option>
-            </select>
+        <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="w-full sm:w-auto">
+                    <TournamentSelector
+                        selectedId={tournamentId}
+                        onSelect={onTournamentSelect}
+                        allowAll
+                        preferDefault
+                    />
+                </div>
 
-            <DateRangePicker
-                startValue={draftCalendarStart}
-                endValue={draftCalendarEnd}
-                onChangeRange={handleRangeChange}
-                placeholder={t("matchPredictionTable.dateRange")}
-                className="w-full"
-            />
+                {tournamentReady && (
+                    <p className="text-xs text-muted-foreground">
+                        {t("common.showing", { from, to, total: totalCount })}
+                    </p>
+                )}
+            </div>
 
-            <select
-                value={hotFilter}
-                onChange={(event) => {
-                    setHotFilter(event.target.value as HotFilter);
-                }}
-                className="h-10 w-full rounded-lg border border-border bg-surface-dark px-3 text-sm text-foreground outline-none transition-colors focus:border-primary"
-                aria-label="Filter hot matches"
-            >
-                <option value="all">{t("matchPredictionTable.allMatches")}</option>
-                <option value="hot">{t("matchPredictionTable.hotMatchOnly")}</option>
-            </select>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                <select
+                    value={presetKey}
+                    onChange={(event) =>
+                        handlePresetChange(event.target.value as PresetKey)
+                    }
+                    className="h-10 w-full rounded-lg border border-border bg-surface-dark px-3 text-sm text-foreground outline-none transition-colors focus:border-primary"
+                    aria-label="Quick date filter"
+                >
+                    <option value="">{t("matchPredictionTable.allDates")}</option>
+                    <option value="today">{t("matchPredictionTable.today")}</option>
+                    <option value="tomorrow">{t("matchPredictionTable.tomorrow")}</option>
+                    <option value="7days">{t("matchPredictionTable.next7Days")}</option>
+                    <option value="14days">{t("matchPredictionTable.next14Days")}</option>
+                    <option value="1month">{t("matchPredictionTable.next1Month")}</option>
+                </select>
+
+                <DateRangePicker
+                    startValue={draftCalendarStart}
+                    endValue={draftCalendarEnd}
+                    onChangeRange={handleRangeChange}
+                    placeholder={t("matchPredictionTable.dateRange")}
+                    className="w-full"
+                />
+
+                <select
+                    value={hotFilter}
+                    onChange={(event) => {
+                        setHotFilter(event.target.value as HotFilter);
+                    }}
+                    className="h-10 w-full rounded-lg border border-border bg-surface-dark px-3 text-sm text-foreground outline-none transition-colors focus:border-primary"
+                    aria-label="Filter hot matches"
+                >
+                    <option value="all">{t("matchPredictionTable.allMatches")}</option>
+                    <option value="hot">{t("matchPredictionTable.hotMatchOnly")}</option>
+                </select>
+            </div>
         </div>
     );
 
+    if (!tournamentReady) {
+        return (
+            <div className="overflow-hidden rounded-xl border border-border bg-card shadow-[0_10px_30px_rgba(10,10,30,0.35)]">
+                <div className="border-b border-border bg-surface/55 px-4 py-3">
+                    {filterControls}
+                </div>
+
+                <div className="px-4 py-8">
+                    <LoadingOverlay />
+                </div>
+            </div>
+        );
+    }
+
     if (loading && matches.length === 0) {
-        return <LoadingOverlay />;
+        return (
+            <div className="overflow-hidden rounded-xl border border-border bg-card shadow-[0_10px_30px_rgba(10,10,30,0.35)]">
+                <div className="border-b border-border bg-surface/55 px-4 py-3">
+                    {filterControls}
+                </div>
+
+                <div className="px-4 py-8">
+                    <LoadingOverlay />
+                </div>
+            </div>
+        );
     }
 
     if (!loading && matches.length === 0) {
@@ -313,15 +362,7 @@ export function MatchPredictionTable({
     return (
         <div className="relative overflow-hidden rounded-xl border border-border bg-card shadow-[0_10px_30px_rgba(10,10,30,0.35)]">
             <div className="border-b border-border bg-surface/55 px-4 py-3">
-                <div className="flex flex-col gap-3">
-                    <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-                        <p className="text-xs text-muted-foreground">
-                            {t("common.showing", { from, to, total: totalCount })}
-                        </p>
-                    </div>
-
-                    {filterControls}
-                </div>
+                {filterControls}
             </div>
 
             <div className="relative">

@@ -5,8 +5,6 @@ import { MatchPredictionTable } from "./components/MatchPredictionTable";
 import { LiveMatchesTable } from "./components/LiveMatchesTable";
 import { CompletedMatchesTable } from "./components/CompletedMatchesTable";
 import { SECTION, scrollToSection } from "./sectionNavigation";
-import { TournamentSelector } from "@/components/shared/TournamentSelector";
-import { Button } from "@/components/ui/button";
 import { LeaderboardSection } from "./components/LeaderboardSection";
 import { RecentPredictionsSection } from "./components/RecentPredictionsSection";
 import { TournamentBracket } from "./components/TournamentBracket";
@@ -180,7 +178,7 @@ export function SportPage() {
             />
       {/* ── Sticky top controls ── */}
       <div className="sticky top-0 z-20 border-b border-border/60 bg-background/95 backdrop-blur-sm">
-        <div className="flex flex-col gap-3 px-4 py-3 sm:px-5 lg:flex-row lg:items-center lg:justify-between xl:px-6">
+        <div className="px-4 py-3 sm:px-5 xl:px-6">
           <div className="min-w-0">
             <h1 className="text-lg font-extrabold text-white sm:text-xl">
               {t("sport.title")}
@@ -188,24 +186,6 @@ export function SportPage() {
             <p className="text-[11px] text-muted-foreground sm:text-xs">
               {t("sport.subtitle")}
             </p>
-          </div>
-          <div className="flex w-full flex-col gap-2 lg:w-auto lg:flex-row lg:items-center">
-            <div className="w-full lg:min-w-[280px] xl:min-w-[320px]">
-              <TournamentSelector
-                selectedId={tournamentId}
-                onSelect={handleTournamentSelect}
-                allowAll
-                preferDefault
-              />
-            </div>
-            {/* <Button
-              type="button"
-              variant={!tournamentId ? "default" : "outline"}
-              className="w-full lg:w-auto"
-              onClick={() => handleTournamentSelect("")}
-            >
-              {t("tournamentSelector.allTournaments")}
-            </Button> */}
           </div>
         </div>
       </div>
@@ -223,14 +203,12 @@ export function SportPage() {
             subtitle={t("sport.sections.matchesSubtitle")}
           />
 
-          {tournamentReady ? (
-            <MatchPredictionTable
-              tournamentId={tournamentId}
-              onPredictionChange={refreshAll}
-            />
-          ) : (
-            <LoadingOverlay />
-          )}
+          <MatchPredictionTable
+            tournamentId={tournamentId}
+            tournamentReady={tournamentReady}
+            onTournamentSelect={handleTournamentSelect}
+            onPredictionChange={refreshAll}
+          />
 
           {/* Live matches */}
           {live.length > 0 && (

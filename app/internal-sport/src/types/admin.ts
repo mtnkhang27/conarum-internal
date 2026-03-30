@@ -193,8 +193,6 @@ export interface AdminScoreBet {
     predictedAwayScore: number;
     status: string;
     isCorrect: boolean | null;
-    payout: number;
-    isPaidOut: boolean;
     submittedAt: string | null;
     player?: AdminPlayer;
 }
@@ -221,64 +219,6 @@ export interface AdminPlayerTournamentStats {
     bestStreak: number;
     rank: number | null;
     player?: AdminPlayer;
-}
-
-// === Payout Management Types ===
-
-export interface PayoutItem {
-    sourceKey: string;
-    awardId: string | null;
-    awardType: "scoreBet" | "championPick" | "leaderboard";
-    awardTypeLabel: string;
-    awardStatus: "pending" | "awarded" | "reverted";
-    isAwarded: boolean;
-    tournamentId: string;
-    playerId: string;
-    playerDisplayName: string;
-    playerEmail: string;
-    playerAvatarUrl: string;
-    matchId: string | null;
-    homeTeam: string;
-    awayTeam: string;
-    kickoff: string | null;
-    scoreBetId: string | null;
-    predictedHomeScore: number | null;
-    predictedAwayScore: number | null;
-    actualHomeScore: number | null;
-    actualAwayScore: number | null;
-    championPickId: string | null;
-    championTeamId: string | null;
-    championTeamName: string;
-    leaderboardStatId: string | null;
-    leaderboardRank: number | null;
-    leaderboardPoints: number;
-    rewardAmount: number;
-    rewardDescription: string;
-    evidenceNote: string;
-    evidenceUrl: string;
-    awardedAt: string | null;
-    awardedByName: string;
-    awardedByEmail: string;
-    revertedAt: string | null;
-    revertedByName: string;
-    revertedByEmail: string;
-    revertReason: string;
-    submittedAt: string | null;
-}
-
-export interface PayoutAwardInput {
-    sourceKey: string;
-    awardType: "scoreBet" | "championPick" | "leaderboard";
-    tournamentId: string;
-    playerId: string;
-    matchId?: string | null;
-    scoreBetId?: string | null;
-    championPickId?: string | null;
-    leaderboardStatId?: string | null;
-    rewardAmount?: number;
-    rewardDescription?: string;
-    evidenceNote?: string;
-    evidenceUrl?: string;
 }
 
 // === CDS View Types (pre-joined, flat structure) ===
@@ -339,8 +279,6 @@ export interface AdminScoreBetView {
     predictedAwayScore: number;
     status: string;
     isCorrect: boolean | null;
-    payout: number;
-    isPaidOut: boolean;
     submittedAt: string | null;
     playerName: string | null;
     playerAvatar: string | null;

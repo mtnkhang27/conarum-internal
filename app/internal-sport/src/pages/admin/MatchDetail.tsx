@@ -87,22 +87,11 @@ function statusVariant(status: string) {
 }
 
 const CO_FORMATTER = new Intl.NumberFormat("vi-VN");
-function toSafeAmount(value: unknown) {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : 0;
-}
-
-function formatCoAmount(value: unknown) {
-  return `${CO_FORMATTER.format(toSafeAmount(value))} CO`;
-}
-
-function formatSignedCoAmount(value: unknown) {
-  const amount = toSafeAmount(value);
-  return amount > 0 ? `+${CO_FORMATTER.format(amount)} CO` : "0 CO";
-}
 
 function formatPrizeInput(value: unknown) {
-  return CO_FORMATTER.format(Math.trunc(toSafeAmount(value)));
+  const parsed = Number(value);
+  const safeValue = Number.isFinite(parsed) ? parsed : 0;
+  return CO_FORMATTER.format(Math.trunc(safeValue));
 }
 
 function sanitizePrizeInput(value: string) {
@@ -518,21 +507,6 @@ export function MatchDetail() {
   const awayPicks = predictions.filter((p) => p.pick === "away");
   const correctPredictions = predictions.filter((p) => p.isCorrect === true);
   const correctScoreBets = scoreBets.filter((sb) => sb.isCorrect === true);
-  const totalCorrectScoreBetPayout = correctScoreBets.reduce(
-    (sum, bet) => sum + toSafeAmount(bet.payout),
-    0
-  );
-  const winningPayoutValues = Array.from(
-    new Set(correctScoreBets.map((bet) => toSafeAmount(bet.payout)).filter((value) => value > 0))
-  );
-  const hasUniformWinningPayout = winningPayoutValues.length === 1;
-  const winningPayoutLabel = hasUniformWinningPayout ? "Payout per win" : "Average payout";
-  const winningPayoutValue = hasUniformWinningPayout
-    ? winningPayoutValues[0] ?? 0
-    : correctScoreBets.length > 0
-      ? totalCorrectScoreBetPayout / correctScoreBets.length
-      : 0;
-  const paidOutCorrectScoreBets = correctScoreBets.filter((sb) => sb.isPaidOut).length;
 
   const tabs: { key: Tab; label: string; count?: number }[] = [
     { key: "config", label: t("admin.matchDetail.configTab") },
@@ -760,7 +734,6 @@ export function MatchDetail() {
           </div>
           {isFinished && correctPredictions.length > 0 && (
             <div className="flex items-center gap-2 rounded-lg border border-green-500/30 bg-green-500/10 px-3 py-2 text-sm text-green-400">
-              <CheckCircle2 className="h-4 w-4" />
               <strong>{correctPredictions.length}</strong> {t("admin.matchDetail.correctPrediction")}{correctPredictions.length !== 1 && "s"}
             </div>
           )}
@@ -861,7 +834,7 @@ export function MatchDetail() {
         <div className="space-y-4">
           {isFinished && correctScoreBets.length > 0 && (
             <>
-              <div className="grid gap-3 sm:grid-cols-3">
+              <div>
                 <div className="rounded-xl border border-green-500/30 bg-green-500/10 p-4">
                   <div className="flex items-center gap-2 text-sm font-semibold text-green-300">
                     <CheckCircle2 className="h-4 w-4" />
@@ -873,34 +846,8 @@ export function MatchDetail() {
                   </p>
                 </div>
 
-                <div className="rounded-xl border border-border/70 bg-card/90 p-4">
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                    {winningPayoutLabel}
-                  </div>
-                  <div className="mt-3 text-xl font-semibold text-white">
-                    {formatCoAmount(winningPayoutValue)}
-                  </div>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    {hasUniformWinningPayout ? "Applied to each winning bet" : "Calculated across winning bets"}
-                  </p>
-                </div>
-
-                <div className="rounded-xl border border-border/70 bg-card/90 p-4">
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                    Total payout
-                  </div>
-                  <div className="mt-3 text-xl font-semibold text-white">
-                    {formatCoAmount(totalCorrectScoreBetPayout)}
-                  </div>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    Paid out: {paidOutCorrectScoreBets}/{correctScoreBets.length}
-                  </p>
-                </div>
               </div>
-              {/* legacy score bet summary removed after card redesign
-              <CheckCircle2 className="h-4 w-4" />
-              <strong>{correctScoreBets.length}</strong> {t("admin.matchDetail.correctScoreBet")}{correctScoreBets.length !== 1 && "s"} — {t("admin.matchDetail.payout")}:{" "}
-              */}</>
+            </>
           )}
 
           {loadingScoreBets ? (
@@ -935,21 +882,13 @@ export function MatchDetail() {
                       </span>
                     </div>
 
-                    <div className="mt-4 grid grid-cols-2 gap-2">
+                    <div className="mt-4">
                       <div className="rounded-lg border border-border/60 bg-card/50 px-3 py-2 text-center">
                         <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
                           {t("admin.matchDetail.predictedScore")}
                         </p>
                         <p className="mt-1 font-mono text-sm font-bold text-white">
                           {sb.predictedHomeScore} - {sb.predictedAwayScore}
-                        </p>
-                      </div>
-                      <div className="rounded-lg border border-border/60 bg-card/50 px-3 py-2 text-center">
-                        <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
-                          {t("admin.matchDetail.payout")}
-                        </p>
-                        <p className="mt-1 font-mono text-sm text-foreground">
-                          {formatSignedCoAmount(sb.payout)}
                         </p>
                       </div>
                     </div>
@@ -968,7 +907,6 @@ export function MatchDetail() {
                     <th className="px-4 py-3">{t("admin.matchDetail.player")}</th>
                     <th className="px-4 py-3 text-center">{t("admin.matchDetail.predictedScore")}</th>
                     <th className="px-4 py-3">{t("admin.matchDetail.status")}</th>
-                    <th className="px-4 py-3 text-right">{t("admin.matchDetail.payout")}</th>
                     <th className="px-4 py-3 text-center">{t("admin.matchManagement.result")}</th>
                   </tr>
                 </thead>
@@ -988,15 +926,6 @@ export function MatchDetail() {
                       </td>
                       <td className="px-4 py-2.5">
                         <Badge variant="outline" className="text-xs">{sb.status}</Badge>
-                      </td>
-                      <td className="px-4 py-2.5 text-right font-mono text-muted-foreground">
-                        {toSafeAmount(sb.payout) > 0 ? (
-                          <span className="whitespace-nowrap text-green-400">
-                            {formatSignedCoAmount(sb.payout)}
-                          </span>
-                        ) : (
-                          "0 CO"
-                        )}
                       </td>
                       <td className="px-4 py-2.5 text-center">
                         {sb.isCorrect === true && <CheckCircle2 className="inline h-4 w-4 text-green-400" />}

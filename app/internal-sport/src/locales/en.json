@@ -455,7 +455,6 @@
       "points": "Points",
       "pick": "Pick",
       "correctScoreBet": "correct score bet",
-      "payout": "Payout",
       "loadingScoreBets": "Loading score bets…",
       "noScoreBets": "No score bets for this match.",
       "status": "Status",
@@ -673,45 +672,6 @@
       "deleteTitle": "Delete Player",
       "deleteDescription": "This will remove the player and all their predictions.",
       "playerDeleted": "Player deleted"
-    },
-    "payoutManagement": {
-      "title": "Payout Management",
-      "subtitle": "Track and manage CO payouts for correct score predictions",
-      "selectTournament": "Select tournament…",
-      "selectTournamentHint": "Select a tournament to view payout records.",
-      "loading": "Loading payouts…",
-      "noPayout": "No winning score bets found for this tournament.",
-      "searchPlaceholder": "Search by player or team…",
-      "filter": {
-        "all": "All",
-        "unpaid": "Unpaid",
-        "paid": "Paid"
-      },
-      "stats": {
-        "totalWinners": "Total Winners",
-        "unpaid": "Unpaid",
-        "paid": "Paid",
-        "totalAmount": "Total Amount",
-        "remaining": "Remaining"
-      },
-      "column": {
-        "player": "Player",
-        "match": "Match",
-        "prediction": "Prediction",
-        "actual": "Actual",
-        "amount": "Amount",
-        "status": "Status",
-        "action": "Action"
-      },
-      "status": {
-        "paid": "Paid",
-        "unpaid": "Unpaid"
-      },
-      "selected": "{{count}} selected",
-      "markPaid": "Mark as Paid",
-      "markUnpaid": "Mark as Unpaid",
-      "pay": "Pay",
-      "revert": "Revert"
     }
   },
   "confederation": {
@@ -724,3 +684,6 @@
   }
 
 }
+
+
+

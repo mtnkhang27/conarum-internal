@@ -103,12 +103,6 @@ function formatDate(iso: string): string {
   );
 }
 
-function formatMoney(amount: number): string {
-  // if (amount >= 1_000_000) return `${(amount / 1_000_000).toFixed(1)} CO`;
-  if (amount >= 1_000) return `${(amount / 1_000).toFixed(0)} CO`;
-  return amount.toString();
-}
-
 // ─── Score Bets sub-section ───────────────────────────────────
 
 function ScoreBetsSection({
@@ -123,7 +117,6 @@ function ScoreBetsSection({
   if (bets.length === 0) return null;
 
   const correctCount = bets.filter((b) => b.isCorrect === true).length;
-  const totalPayout = bets.reduce((sum, b) => sum + (b.payout || 0), 0);
 
   return (
     <div className="mt-3 rounded-md border border-border/60 bg-surface/40 px-3 py-2">
@@ -142,11 +135,6 @@ function ScoreBetsSection({
               {correctCount}/{bets.filter((b) => b.isCorrect !== null).length}{" "}
               {t("sport.status.correct").toLowerCase()}
             </span>
-            {totalPayout > 0 && (
-              <span className="ml-2 text-secondary">
-                +{formatMoney(totalPayout)}
-              </span>
-            )}
           </p>
         )}
       </div>
@@ -170,11 +158,6 @@ function ScoreBetsSection({
               )}
             </div>
             <div className="flex items-center gap-2">
-              {bet.isCorrect === true && bet.payout > 0 && (
-                <span className="text-[10px] font-extrabold text-secondary">
-                  +{formatMoney(bet.payout)}
-                </span>
-              )}
               {scoreBetBadge(bet, t)}
             </div>
           </div>
@@ -261,10 +244,6 @@ export function RecentPredictionsSection({
   const allScoreBets = predictions.flatMap((p) => p.scoreBets ?? []);
   const settledBets = allScoreBets.filter((b) => b.isCorrect !== null);
   const correctBets = allScoreBets.filter((b) => b.isCorrect === true);
-  const totalWinnings = allScoreBets.reduce(
-    (sum, b) => sum + (b.payout || 0),
-    0,
-  );
 
   const grouped = useMemo(
     () =>
@@ -351,7 +330,7 @@ export function RecentPredictionsSection({
 
       {/* Score bet stats strip (only if player has any score bets) */}
       {allScoreBets.length > 0 && (
-        <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {[
             {
               label: t("sport.scoreBets"),
@@ -370,12 +349,6 @@ export function RecentPredictionsSection({
                   ? `${Math.round((correctBets.length / settledBets.length) * 100)}%`
                   : "—",
               color: "text-secondary",
-            },
-            {
-              label: t("sport.totalWinnings"),
-              value: totalWinnings > 0 ? `+${formatMoney(totalWinnings)}` : "0",
-              color:
-                totalWinnings > 0 ? "text-secondary" : "text-foreground/50",
             },
           ].map((card) => (
             <div

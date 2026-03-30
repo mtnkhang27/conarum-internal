@@ -139,7 +139,6 @@ CREATE TABLE cnma_prediction_ScoreBet (
     status            TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'won', 'lost')),
     submittedAt       DATETIME,
     isCorrect         BOOLEAN,
-    payout            DECIMAL(15,2) DEFAULT 0,
     
     FOREIGN KEY (player_ID) REFERENCES cnma_prediction_Player(ID),
     FOREIGN KEY (match_ID) REFERENCES cnma_prediction_Match(ID)
@@ -185,7 +184,6 @@ CREATE TABLE cnma_prediction_ScorePredictionConfig (
     lockBeforeMatch        INTEGER DEFAULT 30,
     minBetAmount           DECIMAL(15,2) DEFAULT 10000,
     maxBetAmount           DECIMAL(15,2) DEFAULT 500000,
-    payoutDelay            INTEGER DEFAULT 24,
     autoLockOnKickoff      BOOLEAN DEFAULT TRUE
 );
 

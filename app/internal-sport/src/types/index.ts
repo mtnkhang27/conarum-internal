@@ -215,7 +215,6 @@ export interface ScoreBetDetail {
     predictedAwayScore: number;
     status: string;
     isCorrect: boolean | null;
-    payout: number;
 }
 
 export interface RecentPredictionItem {

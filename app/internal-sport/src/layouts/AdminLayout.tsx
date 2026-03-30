@@ -5,7 +5,6 @@ import { MobileBottomNav } from "@/components/layout/MobileBottomNav";
 import { playerProfileApi } from "@/services/playerApi";
 import { isLocalDevAuthBypass } from "@/lib/authMode";
 import {
-    Banknote,
     Calendar,
     Shield,
     Trophy,
@@ -17,7 +16,6 @@ const adminNavItems = [
     { label: "Teams", to: "/admin/teams", icon: Shield },
     { label: "Matches", to: "/admin/matches", icon: Calendar },
     { label: "Players", to: "/admin/players", icon: Users },
-    { label: "Payouts", to: "/admin/payouts", icon: Banknote },
 ];
 
 export function AdminLayout() {

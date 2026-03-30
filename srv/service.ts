@@ -111,12 +111,6 @@ export class AdminService extends cds.ApplicationService {
         this.on('lockTournamentBetting', this.adminHandler.lockTournamentBetting.bind(this.adminHandler));
         this.on('getAvailableCompetitions', this.adminHandler.getAvailableCompetitions.bind(this.adminHandler));
         this.on('importTournament', this.adminHandler.importTournament.bind(this.adminHandler));
-        this.on('markScoreBetsPaid', this.adminHandler.markScoreBetsPaid.bind(this.adminHandler));
-        this.on('markScoreBetsUnpaid', this.adminHandler.markScoreBetsUnpaid.bind(this.adminHandler));
-        this.on('resetAllPayoutStatus', this.adminHandler.resetAllPayoutStatus.bind(this.adminHandler));
-        this.on('getPayoutSummary', this.adminHandler.getPayoutSummary.bind(this.adminHandler));
-        this.on('upsertPayoutAward', this.adminHandler.upsertPayoutAward.bind(this.adminHandler));
-        this.on('revertPayoutAward', this.adminHandler.revertPayoutAward.bind(this.adminHandler));
 
         // Keep the "default tournament" invariant server-side so the admin UI
         // only needs a single PATCH request when switching the default.

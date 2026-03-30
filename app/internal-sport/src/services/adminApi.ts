@@ -18,8 +18,6 @@ import type {
     AdminBracketSlot,
     AdminTournamentStatsView,
     AdminTournamentTeamView,
-    PayoutItem,
-    PayoutAwardInput,
 } from "@/types/admin";
 import { mapExternalAssetUrls } from "@/utils/externalAssetProxy";
 
@@ -329,49 +327,4 @@ export const playerTournamentStatsApi = {
         ),
 };
 
-// ── Payout Management ──────────────────────────────────────
 
-export const payoutApi = {
-    getByTournament: (tournamentId: string) =>
-        odata<{ value: PayoutItem[] }>(
-            `/getPayoutSummary(tournamentId='${tournamentId}')`
-        ).then((r) => r.value ?? (r as any)),
-    award: (payload: PayoutAwardInput) =>
-        odata<ActionResult>("/upsertPayoutAward", {
-            method: "POST",
-            body: JSON.stringify({
-                sourceKey: payload.sourceKey,
-                awardType: payload.awardType,
-                tournamentId: payload.tournamentId,
-                playerId: payload.playerId,
-                matchId: payload.matchId ?? null,
-                scoreBetId: payload.scoreBetId ?? null,
-                championPickId: payload.championPickId ?? null,
-                leaderboardStatId: payload.leaderboardStatId ?? null,
-                rewardAmount: payload.rewardAmount ?? 0,
-                rewardDescription: payload.rewardDescription ?? "",
-                evidenceNote: payload.evidenceNote ?? "",
-                evidenceUrl: payload.evidenceUrl ?? "",
-            }),
-        }),
-    revert: (awardId: string, revertReason: string) =>
-        odata<ActionResult>("/revertPayoutAward", {
-            method: "POST",
-            body: JSON.stringify({ awardId, revertReason }),
-        }),
-    markPaid: (betIds: string[]) =>
-        odata<ActionResult>("/markScoreBetsPaid", {
-            method: "POST",
-            body: JSON.stringify({ betIds }),
-        }),
-    markUnpaid: (betIds: string[]) =>
-        odata<ActionResult>("/markScoreBetsUnpaid", {
-            method: "POST",
-            body: JSON.stringify({ betIds }),
-        }),
-    resetAllPayoutStatus: (tournamentId: string) =>
-        odata<ActionResult>("/resetAllPayoutStatus", {
-            method: "POST",
-            body: JSON.stringify({ tournamentId }),
-        }),
-};

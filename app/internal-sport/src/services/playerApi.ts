@@ -139,7 +139,6 @@ export interface ExpandedScoreBetViewRow {
   predictedAwayScore: number;
   status: string;
   isCorrect: boolean | null;
-  payout: number;
 }
 
 export interface AvailableMatchViewRow {
@@ -213,7 +212,6 @@ export interface ODataScoreBet {
   predictedAwayScore: number;
   status: string;
   isCorrect: boolean | null;
-  payout: number;
   submittedAt: string | null;
   match?: ODataMatch;
 }
@@ -238,7 +236,6 @@ export interface ODataSlotScoreBet {
   predictedAwayScore: number;
   status: string;
   isCorrect: boolean | null;
-  payout: number;
   submittedAt: string | null;
   slot?: ODataBracketSlot;
 }
@@ -800,7 +797,7 @@ export const playerMatchesApi = {
     const skip = (safePage - 1) * safePageSize;
     const filter = buildAvailableMatchesFilter(options);
     const filterParam = filter ? `$filter=${encodeURIComponent(filter)}&` : "";
-    const expandScores = "$expand=myScores($select=betId,matchId,predictedHomeScore,predictedAwayScore,status,isCorrect,payout)&";
+    const expandScores = "$expand=myScores($select=betId,matchId,predictedHomeScore,predictedAwayScore,status,isCorrect)&";
 
     const { items, totalCount } = await odataCollection<AvailableMatchViewRow>(
       `${BASE}/AvailableMatchesView?${filterParam}${expandScores}$orderby=kickoff asc&$skip=${skip}&$top=${safePageSize}&$count=true`,
@@ -822,7 +819,7 @@ export const playerMatchesApi = {
 
     const filterParam = filter ? `$filter=${encodeURIComponent(filter)}&` : "";
     const res = await fetch(
-      `${BASE}/AvailableMatchesView?${filterParam}$expand=myScores($select=betId,matchId,predictedHomeScore,predictedAwayScore,status,isCorrect,payout)&$orderby=kickoff asc`,
+      `${BASE}/AvailableMatchesView?${filterParam}$expand=myScores($select=betId,matchId,predictedHomeScore,predictedAwayScore,status,isCorrect)&$orderby=kickoff asc`,
     );
     if (!res.ok) throw new Error(`Request failed: ${res.status}`);
     const data = await res.json();
@@ -1147,7 +1144,7 @@ export const playerTournamentQueryApi = {
       : "";
 
     return odataCollection<RecentPredictionItem>(
-      `${BASE}/RecentPredictionsView?${filter}$expand=scoreBets($select=betId,matchId,predictedHomeScore,predictedAwayScore,status,isCorrect,payout)&$orderby=submittedAt desc&$skip=${skip}&$top=${safePageSize}&$count=true`,
+      `${BASE}/RecentPredictionsView?${filter}$expand=scoreBets($select=betId,matchId,predictedHomeScore,predictedAwayScore,status,isCorrect)&$orderby=submittedAt desc&$skip=${skip}&$top=${safePageSize}&$count=true`,
     );
   },
 

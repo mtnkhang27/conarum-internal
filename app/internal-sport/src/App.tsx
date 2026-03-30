@@ -11,7 +11,6 @@ import { TeamDetail } from "@/pages/admin/TeamDetail";
 import { TournamentManagement } from "@/pages/admin/TournamentManagement";
 import { TournamentDetail } from "@/pages/admin/TournamentDetail";
 import { PlayerManagement } from "@/pages/admin/PlayerManagement";
-import { PayoutManagement } from "@/pages/admin/PayoutManagement";
 import { TournamentChampionPage } from "./pages/tournament-champion/TournamentChampionPage";
 import { useFLPSyncDirect, getInitialFLPRoute } from "./hooks/useFLPSync";
 
@@ -66,7 +65,6 @@ export default function App() {
           <Route path="/admin/tournaments" element={<TournamentManagement />} />
           <Route path="/admin/tournaments/:tournamentId" element={<TournamentDetail />} />
           <Route path="/admin/players" element={<PlayerManagement />} />
-          <Route path="/admin/payouts" element={<PayoutManagement />} />
           <Route path="/admin" element={<Navigate to="/admin/matches" replace />} />
         </Route>
 

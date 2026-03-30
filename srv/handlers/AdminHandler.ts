@@ -2,7 +2,6 @@ import cds, { Request } from '@sap/cds';
 import { ScoringEngine } from '../lib/ScoringEngine';
 import { materializeSlotBetsForMatch } from '../lib/SlotBetMaterializer';
 import { STAGE_MAP, STATUS_MAP, OUTCOME_MAP } from '../lib/constants';
-import { PayoutManager } from '../lib/PayoutManager';
 import { BracketBuilder } from '../lib/BracketBuilder';
 
 /** football-data.org API token — read from env, falls back to empty string. */
@@ -15,13 +14,11 @@ const FOOTBALL_DATA_API_TOKEN = 'f96dc87cc7b54da08321475e744a52f2';
 export class AdminHandler {
     private srv: cds.ApplicationService;
     private scoringEngine: ScoringEngine;
-    private payoutManager: PayoutManager;
     private bracketBuilder: BracketBuilder;
 
     constructor(srv: cds.ApplicationService) {
         this.srv = srv;
         this.scoringEngine = new ScoringEngine();
-        this.payoutManager = new PayoutManager();
         this.bracketBuilder = new BracketBuilder();
     }
 
@@ -128,8 +125,6 @@ export class AdminHandler {
             .where({ match_ID: matchId, status: 'pending' });
 
         let scoreBetsScored = 0;
-        const prize = Number(scoreBetCfg?.prize ?? 200000);
-
         // Group bets by player to handle duplicate-bet multiplier
         const betsByPlayer = new Map<string, typeof bets>();
         for (const bet of bets) {
@@ -143,11 +138,8 @@ export class AdminHandler {
                 const isCorrect = bet.predictedHomeScore === homeScore
                     && bet.predictedAwayScore === awayScore;
 
-                const payout = isCorrect ? prize : 0;
-
                 await UPDATE(ScoreBet).where({ ID: bet.ID }).set({
                     isCorrect,
-                    payout,
                     status: isCorrect ? 'won' : 'lost'
                 });
                 scoreBetsScored++;
@@ -190,7 +182,7 @@ export class AdminHandler {
         // Reset score bets
         await UPDATE(ScoreBet)
             .where({ match_ID: matchId, status: { in: ['won', 'lost'] } })
-            .set({ status: 'pending', isCorrect: null, payout: 0 });
+            .set({ status: 'pending', isCorrect: null });
 
         // Re-open the match so _scoreMatch accepts it
         await UPDATE(Match).where({ ID: matchId }).set({ status: 'live' });
@@ -1530,30 +1522,5 @@ export class AdminHandler {
         return this.bracketBuilder.determineFormat(type, code);
     }
 
-    // ── Payout Management (delegated to PayoutManager) ─────
-
-    async markScoreBetsPaid(req: Request) {
-        return this.payoutManager.markScoreBetsPaid(req);
-    }
-
-    async markScoreBetsUnpaid(req: Request) {
-        return this.payoutManager.markScoreBetsUnpaid(req);
-    }
-
-    async getPayoutSummary(req: Request) {
-        return this.payoutManager.getPayoutSummary(req);
-    }
-
-    async resetAllPayoutStatus(req: Request) {
-        return this.payoutManager.resetAllPayoutStatus(req);
-    }
-
-    async upsertPayoutAward(req: Request) {
-        return this.payoutManager.upsertPayoutAward(req);
-    }
-
-    async revertPayoutAward(req: Request) {
-        return this.payoutManager.revertPayoutAward(req);
-    }
 
 }

@@ -1,6 +1,5 @@
 import { Link, useLocation } from "react-router-dom";
 import {
-    Banknote,
     BarChart3,
     Calendar,
     Clock,
@@ -24,7 +23,6 @@ const adminNavItems = [
     { to: "/admin/teams", icon: Shield, label: "Teams" },
     { to: "/admin/matches", icon: Calendar, label: "Matches" },
     { to: "/admin/players", icon: Users, label: "Players" },
-    { to: "/admin/payouts", icon: Banknote, label: "Payouts" },
 ];
 
 export function MobileBottomNav() {

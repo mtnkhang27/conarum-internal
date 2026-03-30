@@ -88,7 +88,6 @@ export async function materializeSlotBetsForMatch(matchId: string): Promise<Mate
                 status: 'pending',
                 submittedAt: sb.submittedAt ?? nowIso,
                 isCorrect: sb.isCorrect ?? null,
-                payout: sb.payout ?? 0,
             });
             movedScoreBets++;
         }

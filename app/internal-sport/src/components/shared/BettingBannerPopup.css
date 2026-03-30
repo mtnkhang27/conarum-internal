@@ -63,35 +63,7 @@
   animation: betBannerSlideDown 0.28s ease-in forwards;
 }
 
-/* ── Close button — fixed to screen top-right ──────────── */
-.betting-banner__close {
-  position: fixed;
-  top: 20px;
-  right: 20px;
-  z-index: 10000;
-  width: 44px;
-  height: 44px;
-  border-radius: 50%;
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  background: rgba(17, 17, 34, 0.5);
-  backdrop-filter: blur(8px);
-  color: rgba(255, 255, 255, 0.7);
-  font-size: 18px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.25s ease;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
-}
-
-.betting-banner__close:hover {
-  background: rgba(109, 63, 199, 0.6);
-  color: #fff;
-  transform: rotate(90deg) scale(1.1);
-  border-color: rgba(139, 92, 246, 0.5);
-  box-shadow: 0 0 30px rgba(109, 63, 199, 0.4);
-}
+/* ── Close button — REMOVED (user must agree to terms) ──── */
 
 /* ── Header / Title ──────────────────────────────────────── */
 .betting-banner__header {
@@ -142,7 +114,7 @@
   display: flex;
   flex-direction: column;
   gap: 10px;
-  margin-bottom: 28px;
+  margin-bottom: 20px;
 }
 
 .betting-match {
@@ -277,6 +249,84 @@
   letter-spacing: 0.5px;
 }
 
+/* ── Agreement checkbox ──────────────────────────────────── */
+.betting-banner__agreement {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 18px;
+  cursor: pointer;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: rgba(17, 17, 34, 0.45);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(139, 92, 246, 0.2);
+  transition: all 0.25s ease;
+}
+
+.betting-banner__agreement:hover {
+  border-color: rgba(139, 92, 246, 0.45);
+  background: rgba(17, 17, 34, 0.6);
+}
+
+.betting-banner__checkbox {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 20px;
+  height: 20px;
+  min-width: 20px;
+  border: 2px solid rgba(139, 92, 246, 0.5);
+  border-radius: 5px;
+  background: rgba(17, 17, 34, 0.6);
+  cursor: pointer;
+  position: relative;
+  margin-top: 1px;
+  transition: all 0.2s ease;
+}
+
+.betting-banner__checkbox:checked {
+  background: linear-gradient(135deg, #6d3fc7, #8b5cf6);
+  border-color: #8b5cf6;
+  box-shadow: 0 0 12px rgba(139, 92, 246, 0.4);
+}
+
+.betting-banner__checkbox:checked::after {
+  content: '✓';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.betting-banner__agreement-text {
+  font-size: 12.5px;
+  color: rgba(220, 220, 240, 0.85);
+  line-height: 1.5;
+  user-select: none;
+}
+
+.betting-banner__terms-link {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: inherit;
+  font-weight: 600;
+  color: #a78bfa;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  transition: all 0.2s ease;
+}
+
+.betting-banner__terms-link:hover {
+  color: #c4b5fd;
+  text-shadow: 0 0 10px rgba(139, 92, 246, 0.5);
+}
+
 /* ── CTA Button ──────────────────────────────────────────── */
 .betting-banner__cta {
   display: block;
@@ -301,7 +351,7 @@
   animation: betCtaGlow 2.5s ease-in-out infinite;
 }
 
-.betting-banner__cta:hover {
+.betting-banner__cta:hover:not(:disabled) {
   transform: translateY(-3px);
   box-shadow:
     0 0 60px rgba(139, 92, 246, 0.55),
@@ -309,8 +359,25 @@
   background-position: 100% 50%;
 }
 
-.betting-banner__cta:active {
+.betting-banner__cta:active:not(:disabled) {
   transform: translateY(0);
+}
+
+/* Disabled state — greyed out */
+.betting-banner__cta--disabled,
+.betting-banner__cta:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+  animation: none;
+  background: linear-gradient(135deg, #3a3a5c 0%, #4a4a6a 50%, #3a3a5c 100%);
+  box-shadow:
+    0 0 10px rgba(60, 60, 90, 0.25),
+    0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.betting-banner__cta--disabled::after,
+.betting-banner__cta:disabled::after {
+  display: none;
 }
 
 /* Shine sweep */
@@ -350,6 +417,107 @@
 .betting-banner__empty-icon {
   font-size: 40px;
   margin-bottom: 10px;
+}
+
+/* ── Terms popup ─────────────────────────────────────────── */
+.betting-terms-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10001;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(4px);
+  animation: betOverlayIn 0.2s ease-out;
+  padding: 16px;
+}
+
+.betting-terms-popup {
+  width: 100%;
+  max-width: 520px;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  background: linear-gradient(170deg, #1a1a2e 0%, #16162a 50%, #111122 100%);
+  border: 1px solid rgba(139, 92, 246, 0.3);
+  border-radius: 20px;
+  box-shadow:
+    0 0 60px rgba(109, 63, 199, 0.25),
+    0 20px 50px rgba(0, 0, 0, 0.5);
+  animation: betBannerSlideUp 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  overflow: hidden;
+}
+
+.betting-terms-popup__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 22px;
+  border-bottom: 1px solid rgba(139, 92, 246, 0.15);
+  background: rgba(139, 92, 246, 0.06);
+}
+
+.betting-terms-popup__title {
+  font-size: 17px;
+  font-weight: 700;
+  color: #e2e2f0;
+  letter-spacing: 0.5px;
+}
+
+.betting-terms-popup__close {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 14px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.betting-terms-popup__close:hover {
+  background: rgba(139, 92, 246, 0.3);
+  color: #fff;
+  border-color: rgba(139, 92, 246, 0.5);
+}
+
+.betting-terms-popup__body {
+  padding: 22px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.betting-terms-popup__body p {
+  font-size: 13.5px;
+  line-height: 1.75;
+  color: rgba(200, 200, 220, 0.9);
+  text-align: justify;
+}
+
+.betting-terms-popup__ok {
+  margin: 0 22px 20px;
+  padding: 12px 24px;
+  border: none;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #6d3fc7, #8b5cf6);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  box-shadow: 0 4px 20px rgba(109, 63, 199, 0.35);
+}
+
+.betting-terms-popup__ok:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 28px rgba(139, 92, 246, 0.45);
 }
 
 /* ── Keyframes ───────────────────────────────────────────── */
@@ -467,4 +635,13 @@
     padding: 14px 20px;
     letter-spacing: 2px;
   }
+
+  .betting-banner__agreement {
+    padding: 10px 12px;
+  }
+
+  .betting-banner__agreement-text {
+    font-size: 11.5px;
+  }
 }
+

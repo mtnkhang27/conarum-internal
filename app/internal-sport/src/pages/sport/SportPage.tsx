@@ -56,6 +56,7 @@ export function SportPage() {
   const [recentPredictionsRefreshKey, setRecentPredictionsRefreshKey] =
     useState(0);
   const [isBracketDialogOpen, setIsBracketDialogOpen] = useState(false);
+  const [bannerDismissed, setBannerDismissed] = useState(false);
 
   // Wrap setTournamentId to also mark as ready (prevents double-fire)
   const handleTournamentSelect = useCallback((id: string) => {
@@ -181,12 +182,16 @@ export function SportPage() {
   return (
     <div className="flex flex-col">
       <BettingBannerPopup
-                matches={bannerMatches}
-                loading={loadingBannerMatches}
-                onBetNow={() => scrollToSection(SECTION.matches)}
-            />
+        matches={bannerMatches}
+        loading={loadingBannerMatches}
+        onBetNow={() => scrollToSection(SECTION.matches)}
+        onDismiss={() => setBannerDismissed(true)}
+      />
       {/* ── Sticky top controls ── */}
-      <div className="sticky top-0 z-20 border-b border-border/60 bg-background/95 backdrop-blur-sm">
+      <div
+        data-sport-sticky-header="true"
+        className="sticky top-0 z-20 border-b border-border/60 bg-background/95 backdrop-blur-sm"
+      >
         <div className="px-4 py-3 sm:px-5 xl:px-6">
           <div className="min-w-0">
             <h1 className="text-lg font-extrabold text-white sm:text-xl">
@@ -217,6 +222,7 @@ export function SportPage() {
             tournamentReady={tournamentReady}
             onTournamentSelect={handleTournamentSelect}
             onPredictionChange={refreshAll}
+            bannerDismissed={bannerDismissed}
             tournamentActions={
               <Button
                 type="button"

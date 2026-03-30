@@ -6,6 +6,7 @@ import { LoadingOverlay } from "@/components/shared/LoadingOverlay";
 import { playerMatchesApi } from "@/services/playerApi";
 import { MatchCard } from "./MatchCard";
 import type { Match } from "@/types";
+import { SECTION } from "../sectionNavigation";
 
 type PaginationItem = number | "dots-left" | "dots-right";
 type HotFilter = "all" | "hot";
@@ -38,11 +39,37 @@ const getGridLayout = (width: number, height: number) => {
     return { columns: 3, rows: height < 900 ? 2 : 3 };
 };
 
+const INTRO_CARD_TARGET = 6;
+const INTRO_SCROLL_DELAY_MS = 600;
+const MIN_INTRO_SCROLL_DURATION_MS = 1000;
+const MAX_INTRO_SCROLL_DURATION_MS = 2200;
+
+const clamp = (value: number, min: number, max: number) => {
+    return Math.min(Math.max(value, min), max);
+};
+
+/**
+ * Quintic ease-in-out — feels like a real user scroll:
+ * slow start, accelerates through the middle, then gently decelerates to a stop.
+ */
+const easeInOutQuint = (t: number) => {
+    if (t < 0.5) {
+        return 16 * t * t * t * t * t;
+    }
+    return 1 - Math.pow(-2 * t + 2, 5) / 2;
+};
+
+const getIntroScrollDuration = (distance: number) => {
+    // Longer distances get proportionally longer durations for a natural feel
+    return clamp(900 + distance * 0.7, MIN_INTRO_SCROLL_DURATION_MS, MAX_INTRO_SCROLL_DURATION_MS);
+};
+
 interface MatchPredictionTableProps {
     tournamentId: string;
     tournamentReady: boolean;
     onTournamentSelect: (id: string) => void;
     onPredictionChange?: () => void | Promise<void>;
+    bannerDismissed?: boolean;
     tournamentActions?: ReactNode;
 }
 
@@ -51,6 +78,7 @@ export function MatchPredictionTable({
     tournamentReady,
     onTournamentSelect,
     onPredictionChange,
+    bannerDismissed,
     tournamentActions,
 }: MatchPredictionTableProps) {
     const { t } = useTranslation();
@@ -59,6 +87,13 @@ export function MatchPredictionTable({
     const [totalCount, setTotalCount] = useState(0);
     const [loading, setLoading] = useState(true);
     const requestSequence = useRef(0);
+    const matchGridRef = useRef<HTMLDivElement | null>(null);
+    const introAnimationFrameRef = useRef<number | null>(null);
+    const introScrollTimeoutRef = useRef<number | null>(null);
+    const introScrollAnimationFrameRef = useRef<number | null>(null);
+    const introScrollCleanupRef = useRef<(() => void) | null>(null);
+    const hasPlayedIntroRef = useRef(false);
+    const [introActive, setIntroActive] = useState(false);
     const [gridLayout, setGridLayout] = useState(() =>
         typeof window === "undefined"
             ? { columns: 1, rows: 4 }
@@ -81,6 +116,37 @@ export function MatchPredictionTable({
         window.addEventListener("resize", handleResize);
         return () => window.removeEventListener("resize", handleResize);
     }, []);
+
+    useEffect(() => {
+        hasPlayedIntroRef.current = false;
+
+        if (typeof window === "undefined") {
+            setIntroActive(true);
+            return;
+        }
+
+        const activeHash = window.location.hash.replace("#", "");
+        const shouldPrimeIntro = !activeHash || activeHash === SECTION.matches;
+        setIntroActive(!shouldPrimeIntro);
+    }, [tournamentId]);
+
+    const stopIntroScrollAnimation = useCallback(() => {
+        if (introScrollAnimationFrameRef.current !== null) {
+            cancelAnimationFrame(introScrollAnimationFrameRef.current);
+            introScrollAnimationFrameRef.current = null;
+        }
+
+        if (introScrollCleanupRef.current) {
+            introScrollCleanupRef.current();
+            introScrollCleanupRef.current = null;
+        }
+    }, []);
+
+    useEffect(() => {
+        return () => {
+            stopIntroScrollAnimation();
+        };
+    }, [stopIntroScrollAnimation]);
 
     const resolvedRange = useMemo<{ start: Date | null; end: Date | null }>(() => {
         if (presetKey) {
@@ -228,6 +294,132 @@ export function MatchPredictionTable({
     const to = Math.min(currentPage * pageSize, totalCount);
     const showContentLoadingOverlay = loading && matches.length > 0;
 
+    useEffect(() => {
+        if (typeof window === "undefined") return;
+        if (!tournamentReady || loading || matches.length === 0 || !bannerDismissed) return;
+        if (currentPage !== 1 || hasPlayedIntroRef.current) {
+            setIntroActive(true);
+            return;
+        }
+
+        const activeHash = window.location.hash.replace("#", "");
+        if (activeHash && activeHash !== SECTION.matches) {
+            setIntroActive(true);
+            return;
+        }
+
+        const grid = matchGridRef.current;
+        if (!grid) return;
+
+        const cards = Array.from(
+            grid.querySelectorAll<HTMLElement>("[data-match-card-shell='true']")
+        );
+        if (cards.length === 0) return;
+
+        // Find the actual scroll container (.app-scroll-area in AppShell)
+        const scrollContainer = document.querySelector<HTMLElement>(".app-scroll-area");
+        if (!scrollContainer) return;
+
+        hasPlayedIntroRef.current = true;
+        setIntroActive(false);
+
+        if (introAnimationFrameRef.current !== null) {
+            cancelAnimationFrame(introAnimationFrameRef.current);
+        }
+        if (introScrollTimeoutRef.current !== null) {
+            window.clearTimeout(introScrollTimeoutRef.current);
+        }
+        stopIntroScrollAnimation();
+
+        // Trigger the card fade-in animation
+        introAnimationFrameRef.current = window.requestAnimationFrame(() => {
+            setIntroActive(true);
+            introAnimationFrameRef.current = null;
+        });
+
+        // After a brief delay (let cards start appearing), scroll down
+        introScrollTimeoutRef.current = window.setTimeout(() => {
+            const stickyHeader = document.querySelector<HTMLElement>("[data-sport-sticky-header='true']");
+            const stickyHeight = stickyHeader?.offsetHeight ?? 0;
+
+            // Get positions relative to the scroll container
+            const containerRect = scrollContainer.getBoundingClientRect();
+            const gridRect = grid.getBoundingClientRect();
+
+            // How far the grid top is from the container's visible top
+            const gridTopRelativeToContainer = gridRect.top - containerRect.top;
+
+            // We want the grid top to sit right below the sticky header
+            const desiredGridTop = stickyHeight + 6;
+            const scrollOffset = gridTopRelativeToContainer - desiredGridTop;
+            const targetTop = Math.max(0, scrollContainer.scrollTop + scrollOffset);
+            const startTop = scrollContainer.scrollTop;
+            const distance = targetTop - startTop;
+
+            if (Math.abs(distance) < 6) {
+                scrollContainer.scrollTop = targetTop;
+                introScrollTimeoutRef.current = null;
+                return;
+            }
+
+            const duration = getIntroScrollDuration(Math.abs(distance));
+            const startTime = performance.now();
+            const interruptScroll = () => {
+                stopIntroScrollAnimation();
+            };
+
+            // Listen on the scroll container itself, plus global touch/key events
+            const containerEvents: Array<keyof HTMLElementEventMap> = ["wheel", "touchstart", "mousedown"];
+            const windowEvents: Array<keyof WindowEventMap> = ["keydown"];
+
+            for (const eventName of containerEvents) {
+                scrollContainer.addEventListener(eventName, interruptScroll, { passive: true });
+            }
+            for (const eventName of windowEvents) {
+                window.addEventListener(eventName, interruptScroll, { passive: true });
+            }
+
+            introScrollCleanupRef.current = () => {
+                for (const eventName of containerEvents) {
+                    scrollContainer.removeEventListener(eventName, interruptScroll);
+                }
+                for (const eventName of windowEvents) {
+                    window.removeEventListener(eventName, interruptScroll);
+                }
+            };
+
+            const step = (timestamp: number) => {
+                const progress = clamp((timestamp - startTime) / duration, 0, 1);
+                const easedProgress = easeInOutQuint(progress);
+                scrollContainer.scrollTop = startTop + distance * easedProgress;
+
+                if (progress < 1) {
+                    introScrollAnimationFrameRef.current = window.requestAnimationFrame(step);
+                    return;
+                }
+
+                scrollContainer.scrollTop = targetTop;
+                stopIntroScrollAnimation();
+            };
+
+            introScrollAnimationFrameRef.current = window.requestAnimationFrame(step);
+
+            introScrollTimeoutRef.current = null;
+        }, INTRO_SCROLL_DELAY_MS);
+
+        return () => {
+            if (introAnimationFrameRef.current !== null) {
+                cancelAnimationFrame(introAnimationFrameRef.current);
+                introAnimationFrameRef.current = null;
+            }
+            if (introScrollTimeoutRef.current !== null) {
+                window.clearTimeout(introScrollTimeoutRef.current);
+                introScrollTimeoutRef.current = null;
+            }
+            stopIntroScrollAnimation();
+        };
+    }, [bannerDismissed, currentPage, loading, matches, stopIntroScrollAnimation, tournamentReady]);
+
     const paginationItems = useMemo<PaginationItem[]>(() => {
         if (totalPages <= 7) {
             return Array.from({ length: totalPages }, (_, idx) => idx + 1);
@@ -372,11 +564,23 @@ export function MatchPredictionTable({
 
             <div className="relative">
                 <div
+                    ref={matchGridRef}
                     className="grid gap-px bg-border/60"
                     style={{ gridTemplateColumns: `repeat(${gridLayout.columns}, minmax(0, 1fr))` }}
                 >
-                    {matches.map((match) => (
-                        <div key={match.id} className="h-full bg-card p-3 sm:p-4">
+                    {matches.map((match, index) => (
+                        <div
+                            key={match.id}
+                            data-match-card-shell="true"
+                            className={`h-full bg-card p-3 transition-[opacity,transform] duration-700 ease-out sm:p-4 ${
+                                introActive
+                                    ? "translate-y-0 opacity-100"
+                                    : "translate-y-6 opacity-0"
+                            }`}
+                            style={{
+                                transitionDelay: `${Math.min(index, INTRO_CARD_TARGET - 1) * 70}ms`,
+                            }}
+                        >
                             <MatchCard match={match} onPredictionChange={onPredictionChange} />
                         </div>
                     ))}

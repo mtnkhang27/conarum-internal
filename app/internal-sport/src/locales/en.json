@@ -78,6 +78,34 @@
   "account": {
     "title": "My Account",
     "subtitle": "Manage your profile and preferences",
+    "predictions": {
+      "subtitle": "Review your winner picks and exact score bets across every tournament.",
+      "reload": "Refresh",
+      "latestActivity": "Latest Activity",
+      "submitted": "Submitted",
+      "matchWinner": "Match Winner",
+      "slotWinner": "Bracket Winner",
+      "bracketSlot": "Bracket Slot",
+      "noResultsTitle": "No predictions found",
+      "noResultsSubtitle": "Try another tournament, search term, or filter.",
+      "filters": {
+        "allTournaments": "All tournaments",
+        "searchPlaceholder": "Search by team, stage, tournament, or score",
+        "typeAll": "All",
+        "typeWinner": "Winner Picks",
+        "typeScoreBet": "Score Bets",
+        "typeSlot": "Bracket TBD",
+        "statusAll": "All statuses",
+        "statusPending": "Pending",
+        "statusResolved": "Resolved"
+      },
+      "stats": {
+        "trackedItems": "Tracked Matches",
+        "winnerPicks": "Winner Picks",
+        "scoreBets": "Score Bets",
+        "pendingItems": "Pending Items"
+      }
+    },
     "profile": {
       "title": "Profile",
       "displayName": "Display Name",

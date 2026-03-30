@@ -1,4 +1,5 @@
 import { useTranslation } from "react-i18next";
+import { useSearchParams } from "react-router-dom";
 import {
     AlertDialog,
     AlertDialogAction,
@@ -9,12 +10,6 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import {
-    Tabs,
-    TabsContent,
-    TabsList,
-    TabsTrigger,
-} from "@/components/ui/tabs";
 import { LoadingOverlay } from "@/components/shared/LoadingOverlay";
 import { AccountPredictionsTab } from "@/pages/account/components/AccountPredictionsTab";
 import { AccountProfileTab } from "@/pages/account/components/AccountProfileTab";
@@ -23,6 +18,9 @@ import { COUNTRY_OPTIONS } from "@/utils/accountProfile";
 
 export function AccountPage() {
     const { t } = useTranslation();
+    const [searchParams] = useSearchParams();
+    const activeTab = searchParams.get("tab") || "account";
+
     const {
         profile,
         draft,
@@ -34,8 +32,6 @@ export function AccountPage() {
         avatarInputRef,
         confirmOpen,
         setConfirmOpen,
-        activeTab,
-        myPredictionCount,
         confirmConfig,
         currentAvatarUrl,
         currentDisplayName,
@@ -51,7 +47,6 @@ export function AccountPage() {
         onAvatarSelected,
         onRemoveAvatar,
         handleConfirmAction,
-        onTabChange,
     } = useAccountPageState();
 
     if (isLoading) {
@@ -64,7 +59,8 @@ export function AccountPage() {
 
     return (
         <div className="p-4 pb-20 xl:pb-4">
-            <div className="mb-6">
+            {/* Page heading */}
+            <div className="mb-5">
                 <h2 className="flex items-center gap-2 text-lg font-bold text-white">
                     <span className="h-6 w-1 rounded-full bg-primary" />
                     {t("account.title")}
@@ -74,47 +70,34 @@ export function AccountPage() {
                 </p>
             </div>
 
-            <Tabs value={activeTab} onValueChange={onTabChange} className="gap-4">
-                <TabsList className="bg-card">
-                    <TabsTrigger value="account">{t("account.title")}</TabsTrigger>
-                    <TabsTrigger value="predictions" className="gap-2">
-                        {t("nav.myPredictions")}
-                        <span className="inline-flex min-w-6 items-center justify-center rounded-full bg-primary px-2 py-0.5 text-[10px] font-extrabold text-white">
-                            {myPredictionCount ?? "..."}
-                        </span>
-                    </TabsTrigger>
-                </TabsList>
-
-                <TabsContent value="account">
-                    <AccountProfileTab
-                        profile={profile}
-                        draft={draft}
-                        isEditing={isEditing}
-                        isSaving={isSaving}
-                        avatarError={avatarError}
-                        avatarInputRef={avatarInputRef}
-                        currentAvatarUrl={currentAvatarUrl}
-                        currentDisplayName={currentDisplayName}
-                        currentEmail={currentEmail}
-                        currentCountryLabel={currentCountryLabel}
-                        displayNameValue={draftDisplayName}
-                        countryValue={draftCountryCode}
-                        favoriteTeamOptions={favoriteTeamOptions}
-                        countryOptions={COUNTRY_OPTIONS}
-                        onFieldChange={onFieldChange}
-                        onAvatarSelected={onAvatarSelected}
-                        onOpenAvatarPicker={onOpenAvatarPicker}
-                        onRemoveAvatar={onRemoveAvatar}
-                        onCancelEdit={onCancelEdit}
-                        onSaveProfile={onSaveProfile}
-                        onStartEdit={onStartEdit}
-                    />
-                </TabsContent>
-
-                <TabsContent value="predictions">
-                    <AccountPredictionsTab />
-                </TabsContent>
-            </Tabs>
+            {/* Content — driven by ?tab= search param synced with LeftSidebar */}
+            {activeTab === "predictions" ? (
+                <AccountPredictionsTab />
+            ) : (
+                <AccountProfileTab
+                    profile={profile}
+                    draft={draft}
+                    isEditing={isEditing}
+                    isSaving={isSaving}
+                    avatarError={avatarError}
+                    avatarInputRef={avatarInputRef}
+                    currentAvatarUrl={currentAvatarUrl}
+                    currentDisplayName={currentDisplayName}
+                    currentEmail={currentEmail}
+                    currentCountryLabel={currentCountryLabel}
+                    displayNameValue={draftDisplayName}
+                    countryValue={draftCountryCode}
+                    favoriteTeamOptions={favoriteTeamOptions}
+                    countryOptions={COUNTRY_OPTIONS}
+                    onFieldChange={onFieldChange}
+                    onAvatarSelected={onAvatarSelected}
+                    onOpenAvatarPicker={onOpenAvatarPicker}
+                    onRemoveAvatar={onRemoveAvatar}
+                    onCancelEdit={onCancelEdit}
+                    onSaveProfile={onSaveProfile}
+                    onStartEdit={onStartEdit}
+                />
+            )}
 
             <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
                 <AlertDialogContent className="border-border bg-card">
@@ -135,8 +118,6 @@ export function AccountPage() {
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
-
         </div>
     );
 }
-

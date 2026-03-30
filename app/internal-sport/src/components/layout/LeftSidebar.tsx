@@ -1,5 +1,5 @@
-import { Link, NavLink, useLocation } from "react-router-dom";
-import { Info } from "lucide-react";
+import { Link, NavLink, useLocation, useSearchParams } from "react-router-dom";
+import { Info, Trophy, User } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { scrollToSection, SECTION } from "@/pages/sport/sectionNavigation";
 import { useActiveSection } from "@/hooks/useActiveSection";
@@ -21,6 +21,10 @@ export function LeftSidebar() {
     const { t } = useTranslation();
     const { activeSection, setActiveSection } = useActiveSection();
     const isOnSportPage = pathname === "/";
+    const isOnAccountPage = pathname === "/account";
+    const [searchParams, setSearchParams] = useSearchParams();
+
+    const accountTab = searchParams.get("tab") || "account";
 
     const SECTIONS = [
         { id: SECTION.matches, label: t("nav.matchesAndLive"), dot: "bg-primary" },
@@ -29,6 +33,11 @@ export function LeftSidebar() {
         { id: SECTION.bracket, label: t("nav.tournamentBracket"), dot: "bg-secondary" },
         { id: SECTION.completed, label: t("nav.completedMatches"), dot: "bg-foreground/30" },
     ] as const;
+
+    const ACCOUNT_ITEMS = [
+        { id: "account", label: t("account.profile.title"), dot: "bg-primary", icon: <User className="h-3.5 w-3.5" /> },
+        { id: "predictions", label: t("nav.myPredictions"), dot: "bg-yellow-400", icon: <Trophy className="h-3.5 w-3.5" /> },
+    ];
 
     const INFO: Record<string, string> = {
         "/tournament-champion": t("nav.adminManagedRewards"),
@@ -43,35 +52,62 @@ export function LeftSidebar() {
                         {t("nav.navigation")}
                     </div>
 
-                    {/* Sport page sections */}
-                    {SECTIONS.map((s) => {
-                        const isActive = isOnSportPage && (activeSection === s.id || (activeSection === "" && s.id === SECTION.matches));
-                        return (
-                            <Link
-                                key={s.id}
-                                to={`/#${s.id}`}
-                                onClick={(e) => {
-                                    if (isOnSportPage) {
-                                        e.preventDefault();
-                                        scrollToSection(s.id);
-                                        setActiveSection(s.id);
-                                    }
-                                }}
-                                className={sectionLinkClass(isActive)}
-                            >
-                                <span className={`mr-2.5 h-2 w-2 flex-shrink-0 rounded-full ${s.dot}`} />
-                                <span className="truncate">{s.label}</span>
-                            </Link>
-                        );
-                    })}
+                    {isOnAccountPage ? (
+                        /* ── Account page nav ── */
+                        <>
+                            {ACCOUNT_ITEMS.map((item) => {
+                                const isActive = accountTab === item.id;
+                                return (
+                                    <button
+                                        key={item.id}
+                                        type="button"
+                                        onClick={() => {
+                                            setSearchParams(
+                                                item.id === "account" ? {} : { tab: item.id },
+                                                { replace: true },
+                                            );
+                                        }}
+                                        className={sectionLinkClass(isActive)}
+                                    >
+                                        <span className={`mr-2.5 h-2 w-2 flex-shrink-0 rounded-full ${item.dot}`} />
+                                        <span className="truncate">{item.label}</span>
+                                    </button>
+                                );
+                            })}
+                        </>
+                    ) : (
+                        /* ── Sport page nav ── */
+                        <>
+                            {SECTIONS.map((s) => {
+                                const isActive = isOnSportPage && (activeSection === s.id || (activeSection === "" && s.id === SECTION.matches));
+                                return (
+                                    <Link
+                                        key={s.id}
+                                        to={`/#${s.id}`}
+                                        onClick={(e) => {
+                                            if (isOnSportPage) {
+                                                e.preventDefault();
+                                                scrollToSection(s.id);
+                                                setActiveSection(s.id);
+                                            }
+                                        }}
+                                        className={sectionLinkClass(isActive)}
+                                    >
+                                        <span className={`mr-2.5 h-2 w-2 flex-shrink-0 rounded-full ${s.dot}`} />
+                                        <span className="truncate">{s.label}</span>
+                                    </Link>
+                                );
+                            })}
 
-                    {/* Divider */}
-                    <div className="mx-4 my-2 border-t border-border" />
+                            {/* Divider */}
+                            <div className="mx-4 my-2 border-t border-border" />
 
-                    {/* Separate pages */}
-                    <NavLink to="/tournament-champion" className={pageLink(pathname === "/tournament-champion")}>
-                        <span className="truncate">{t("nav.tournamentChampion")}</span>
-                    </NavLink>
+                            {/* Separate pages */}
+                            <NavLink to="/tournament-champion" className={pageLink(pathname === "/tournament-champion")}>
+                                <span className="truncate">{t("nav.tournamentChampion")}</span>
+                            </NavLink>
+                        </>
+                    )}
                 </div>
             </div>
 
@@ -85,4 +121,3 @@ export function LeftSidebar() {
         </aside>
     );
 }
-

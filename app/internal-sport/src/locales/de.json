@@ -78,6 +78,34 @@
   "account": {
     "title": "Mein Konto",
     "subtitle": "Verwalte dein Profil und deine Einstellungen",
+    "predictions": {
+      "subtitle": "Prüfe deine Siegertipps und Ergebnistipps über alle Turniere hinweg.",
+      "reload": "Aktualisieren",
+      "latestActivity": "Letzte Aktivität",
+      "submitted": "Abgegeben",
+      "matchWinner": "Spielausgang",
+      "slotWinner": "Bracket-Sieger",
+      "bracketSlot": "Bracket-Slot",
+      "noResultsTitle": "Keine Tipps gefunden",
+      "noResultsSubtitle": "Versuche ein anderes Turnier, einen anderen Suchbegriff oder Filter.",
+      "filters": {
+        "allTournaments": "Alle Turniere",
+        "searchPlaceholder": "Nach Team, Runde, Turnier oder Ergebnis suchen",
+        "typeAll": "Alle",
+        "typeWinner": "Siegertipps",
+        "typeScoreBet": "Ergebniswetten",
+        "typeSlot": "Bracket TBD",
+        "statusAll": "Alle Status",
+        "statusPending": "Offen",
+        "statusResolved": "Ausgewertet"
+      },
+      "stats": {
+        "trackedItems": "Verfolgte Spiele",
+        "winnerPicks": "Siegertipps",
+        "scoreBets": "Ergebniswetten",
+        "pendingItems": "Offene Einträge"
+      }
+    },
     "profile": {
       "title": "Profil",
       "displayName": "Anzeigename",

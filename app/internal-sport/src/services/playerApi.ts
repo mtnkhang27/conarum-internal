@@ -922,6 +922,36 @@ export const playerTeamsApi = {
 };
 
 export const playerPredictionsApi = {
+  async getMyDetailedData(): Promise<{
+    predictions: ODataPrediction[];
+    scoreBets: ODataScoreBet[];
+    slotPredictions: ODataSlotPrediction[];
+    slotScoreBets: ODataSlotScoreBet[];
+  }> {
+    const [predictions, scoreBets, slotPredictions, slotScoreBets] =
+      await Promise.all([
+        json<ODataPrediction[]>(
+          `${BASE}/MyPredictions?$expand=match($expand=homeTeam,awayTeam,tournament)`,
+        ).catch(() => [] as ODataPrediction[]),
+        json<ODataScoreBet[]>(
+          `${BASE}/MyScoreBets?$expand=match($expand=homeTeam,awayTeam,tournament)`,
+        ).catch(() => [] as ODataScoreBet[]),
+        json<ODataSlotPrediction[]>(
+          `${BASE}/MySlotPredictions?$expand=slot($expand=homeTeam,awayTeam,tournament)`,
+        ).catch(() => [] as ODataSlotPrediction[]),
+        json<ODataSlotScoreBet[]>(
+          `${BASE}/MySlotScoreBets?$expand=slot($expand=homeTeam,awayTeam,tournament)`,
+        ).catch(() => [] as ODataSlotScoreBet[]),
+      ]);
+
+    return {
+      predictions,
+      scoreBets,
+      slotPredictions,
+      slotScoreBets,
+    };
+  },
+
   /** Get current user's predictions. */
   async getMy(): Promise<{
     summary: PredictionSummary;

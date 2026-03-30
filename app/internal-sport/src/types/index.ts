@@ -237,3 +237,59 @@ export interface RecentPredictionItem {
     awayScore: number | null;
     scoreBets: ScoreBetDetail[];
 }
+
+export type AccountPredictionScope = "match" | "slot";
+
+export type AccountPredictionTypeFilter = "all" | "winner" | "scoreBet" | "slot";
+
+export type AccountPredictionStatusFilter = "all" | "pending" | "resolved";
+
+export interface AccountWinnerPick {
+    id: string;
+    scope: AccountPredictionScope;
+    pick: string;
+    status: string;
+    isCorrect: boolean | null;
+    pointsEarned: number;
+    submittedAt: string | null;
+}
+
+export interface AccountScoreBetPick {
+    id: string;
+    scope: AccountPredictionScope;
+    predictedHomeScore: number;
+    predictedAwayScore: number;
+    status: string;
+    isCorrect: boolean | null;
+    submittedAt: string | null;
+}
+
+export interface AccountPredictionFeedItem {
+    id: string;
+    scope: AccountPredictionScope;
+    subjectId: string;
+    tournamentId: string;
+    tournamentName: string;
+    stage: string;
+    label: string;
+    kickoff: string | null;
+    latestSubmittedAt: string | null;
+    homeTeam: string;
+    homeFlag: string;
+    homeCrest: string;
+    awayTeam: string;
+    awayFlag: string;
+    awayCrest: string;
+    homeScore: number | null;
+    awayScore: number | null;
+    winnerPick: AccountWinnerPick | null;
+    scoreBets: AccountScoreBetPick[];
+}
+
+export interface AccountPredictionFeedSummary {
+    trackedItems: number;
+    winnerPicks: number;
+    scoreBets: number;
+    pendingItems: number;
+    resolvedItems: number;
+}

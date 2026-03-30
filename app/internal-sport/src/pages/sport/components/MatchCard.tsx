@@ -192,7 +192,7 @@ export function MatchCard({ match, isCompleted = false, onPredictionChange }: Ma
 
     /* ── Team logo/flag render helper ── */
     const renderTeamBadge = (team: Match["home"], size: "lg" | "sm" = "lg") => {
-        const dim = size === "lg" ? "h-12 w-12" : "h-8 w-8";
+        const dim = size === "lg" ? "h-10 w-10 sm:h-12 sm:w-12" : "h-8 w-8";
         if (team.crest) {
             return <img src={team.crest} alt={team.name} className={`${dim} object-contain drop-shadow-lg`} />;
         }
@@ -300,9 +300,16 @@ export function MatchCard({ match, isCompleted = false, onPredictionChange }: Ma
 
                 {/* ── Team matchup section ── */}
                 <div className="mc-matchup relative px-5 py-4">
-                    <div className="flex items-center justify-between">
+                    <div className="flex justify-center">
+                        <div
+                            className={`grid w-fit max-w-full items-start ${
+                                match.scoreBettingEnabled
+                                    ? "grid-cols-[minmax(4.75rem,6rem)_auto_minmax(4.75rem,6rem)] gap-3 sm:grid-cols-[minmax(5.25rem,6.5rem)_auto_minmax(5.25rem,6.5rem)] sm:gap-4"
+                                    : "grid-cols-[minmax(4.75rem,6rem)_auto_minmax(4.75rem,6rem)] gap-2 sm:grid-cols-[minmax(5.25rem,6.5rem)_auto_minmax(5.25rem,6.5rem)] sm:gap-3"
+                            }`}
+                        >
                         {/* Home team */}
-                        <div className="mc-team flex flex-col items-center gap-2 w-[90px]">
+                        <div className="mc-team flex min-w-0 w-full flex-col items-center gap-2">
                             <div className="mc-team-badge relative z-10 overflow-visible">
                                 {renderTeamBadge(match.home)}
                                 {selectedOption === "home" && (
@@ -311,13 +318,13 @@ export function MatchCard({ match, isCompleted = false, onPredictionChange }: Ma
                                     </span>
                                 )}
                             </div>
-                            <span className="text-[11px] font-bold text-white/90 text-center leading-tight">
+                            <span className="w-full text-center text-[11px] font-bold leading-tight text-white/90">
                                 {match.home.name}
                             </span>
                         </div>
 
                         {/* Score section */}
-                        <div className="mc-scores flex flex-col items-center gap-1.5 flex-1 mx-3">
+                        <div className="mc-scores flex shrink-0 flex-col items-center gap-1.5 justify-self-center">
                             {match.scoreBettingEnabled ? (
                                 scores.map((row, i) => (
                                     <div key={i} className="mc-score-row flex items-center gap-1.5">
@@ -353,8 +360,8 @@ export function MatchCard({ match, isCompleted = false, onPredictionChange }: Ma
                                     </div>
                                 ))
                             ) : (
-                                <div className="mc-vs flex items-center justify-center">
-                                    <span className="text-lg font-black tracking-[0.25em] text-white/20 uppercase">
+                                <div className="mc-vs flex h-10 items-center justify-center px-1 sm:h-12">
+                                    <span className="text-base font-black leading-none uppercase tracking-[0.18em] text-white/20 sm:text-lg sm:tracking-[0.25em]">
                                         {t("common.vs")}
                                     </span>
                                 </div>
@@ -362,7 +369,7 @@ export function MatchCard({ match, isCompleted = false, onPredictionChange }: Ma
                         </div>
 
                         {/* Away team */}
-                        <div className="mc-team flex flex-col items-center gap-2 w-[90px]">
+                        <div className="mc-team flex min-w-0 w-full flex-col items-center gap-2">
                             <div className="mc-team-badge relative z-10 overflow-visible">
                                 {renderTeamBadge(match.away)}
                                 {selectedOption === "away" && (
@@ -371,9 +378,10 @@ export function MatchCard({ match, isCompleted = false, onPredictionChange }: Ma
                                     </span>
                                 )}
                             </div>
-                            <span className="text-[11px] font-bold text-white/90 text-center leading-tight">
+                            <span className="w-full text-center text-[11px] font-bold leading-tight text-white/90">
                                 {match.away.name}
                             </span>
+                        </div>
                         </div>
                     </div>
                 </div>

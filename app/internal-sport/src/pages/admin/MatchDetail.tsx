@@ -143,8 +143,6 @@ const DEFAULT_SCORE_BET_CONFIG: Omit<MatchScoreBetConfig, "ID" | "match_ID"> = {
   prize: 200000,
 };
 
-const predictionsCache = new Map<string, AdminPredictionView[]>();
-const scoreBetsCache = new Map<string, AdminScoreBetView[]>();
 
 // ── Tab type ────────────────────────────────────────────────
 
@@ -267,50 +265,32 @@ export function MatchDetail() {
     }
   }, [matchId]);
 
-  const loadPredictions = useCallback(async (options?: { force?: boolean }) => {
+  const loadPredictions = useCallback(async () => {
     if (!matchId) return;
-
-    if (!options?.force) {
-      const cached = predictionsCache.get(matchId);
-      if (cached) {
-        setPredictions(cached);
-        setHasLoadedPredictions(true);
-        return;
-      }
-    }
 
     setLoadingPredictions(true);
     try {
       const data = await predictionsApi.listByMatch(matchId);
       setPredictions(data);
-      predictionsCache.set(matchId, data);
       setHasLoadedPredictions(true);
     } catch (e: any) {
+      setHasLoadedPredictions(false);
       toast.error(e.message);
     } finally {
       setLoadingPredictions(false);
     }
   }, [matchId]);
 
-  const loadScoreBets = useCallback(async (options?: { force?: boolean }) => {
+  const loadScoreBets = useCallback(async () => {
     if (!matchId) return;
-
-    if (!options?.force) {
-      const cached = scoreBetsCache.get(matchId);
-      if (cached) {
-        setScoreBets(cached);
-        setHasLoadedScoreBets(true);
-        return;
-      }
-    }
 
     setLoadingScoreBets(true);
     try {
       const data = await scoreBetsApi.listByMatch(matchId);
       setScoreBets(data);
-      scoreBetsCache.set(matchId, data);
       setHasLoadedScoreBets(true);
     } catch (e: any) {
+      setHasLoadedScoreBets(false);
       toast.error(e.message);
     } finally {
       setLoadingScoreBets(false);
@@ -334,30 +314,31 @@ export function MatchDetail() {
   useEffect(() => {
     if (!matchId) return;
 
-    const cachedPredictions = predictionsCache.get(matchId);
-    const cachedScoreBets = scoreBetsCache.get(matchId);
+    setPredictions([]);
+    setScoreBets([]);
+    setHasLoadedPredictions(false);
+    setHasLoadedScoreBets(false);
 
-    setPredictions(cachedPredictions ?? []);
-    setScoreBets(cachedScoreBets ?? []);
-    setHasLoadedPredictions(Boolean(cachedPredictions));
-    setHasLoadedScoreBets(Boolean(cachedScoreBets));
-
-    if (!cachedPredictions) {
-      void loadPredictions();
-    }
-    if (!cachedScoreBets) {
-      void loadScoreBets();
-    }
+    void loadPredictions();
+    void loadScoreBets();
   }, [matchId, loadPredictions, loadScoreBets]);
 
   // Load tab-specific data
   useEffect(() => {
-    if (activeTab === "predictions" && !hasLoadedPredictions && !loadingPredictions) {
+    if (
+      activeTab === "predictions" &&
+      !loadingPredictions &&
+      !hasLoadedPredictions
+    ) {
       void loadPredictions();
       return;
     }
 
-    if (activeTab === "scoreBets" && !hasLoadedScoreBets && !loadingScoreBets) {
+    if (
+      activeTab === "scoreBets" &&
+      !loadingScoreBets &&
+      !hasLoadedScoreBets
+    ) {
       void loadScoreBets();
       return;
     }
@@ -367,6 +348,7 @@ export function MatchDetail() {
     }
   }, [
     activeTab,
+    matchId,
     hasLoadedPredictions,
     hasLoadedScoreBets,
     loadingPredictions,
@@ -446,12 +428,12 @@ export function MatchDetail() {
         : await matchesApi.enterResult(matchId, parseInt(resultHome), parseInt(resultAway));
       toast.success(res.message);
       setResultDialogOpen(false);
-      predictionsCache.delete(matchId);
-      scoreBetsCache.delete(matchId);
+      setHasLoadedPredictions(false);
+      setHasLoadedScoreBets(false);
       load();
       // Refresh predictions/score bets since they got scored
-      loadPredictions({ force: true });
-      loadScoreBets({ force: true });
+      loadPredictions();
+      loadScoreBets();
     } catch (e: any) {
       toast.error(e.message);
     }
@@ -817,8 +799,12 @@ export function MatchDetail() {
                     <tr key={p.ID} className="border-b border-border/50">
                       <td className="px-4 py-2.5">
                         <div className="flex items-center gap-2">
-                          {p.playerAvatar && (
+                          {p.playerAvatar ? (
                             <img src={p.playerAvatar} alt="" className="h-6 w-6 rounded-full object-cover" />
+                          ) : (
+                            <div className="flex h-6 w-6 items-center justify-center rounded-full border border-border bg-surface text-[10px] font-bold text-white">
+                              {(p.playerName ?? p.player_ID).charAt(0).toUpperCase()}
+                            </div>
                           )}
                           <span className="font-medium text-white">{p.playerName ?? p.player_ID}</span>
                         </div>
@@ -935,8 +921,12 @@ export function MatchDetail() {
                     <tr key={sb.ID} className={`border-b border-border/50 ${sb.isCorrect === true ? "bg-green-500/5" : ""}`}>
                       <td className="px-4 py-2.5">
                         <div className="flex items-center gap-2">
-                          {sb.playerAvatar && (
+                          {sb.playerAvatar ? (
                             <img src={sb.playerAvatar} alt="" className="h-6 w-6 rounded-full object-cover" />
+                          ) : (
+                            <div className="flex h-6 w-6 items-center justify-center rounded-full border border-border bg-surface text-[10px] font-bold text-white">
+                              {(sb.playerName ?? sb.player_ID).charAt(0).toUpperCase()}
+                            </div>
                           )}
                           <span className="font-medium text-white">{sb.playerName ?? sb.player_ID}</span>
                         </div>

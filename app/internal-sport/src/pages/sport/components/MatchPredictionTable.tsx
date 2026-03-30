@@ -464,7 +464,9 @@ export function MatchPredictionTable({
                     />
                 </div>
                 {tournamentActions ? (
-                    <div className="w-full [&>*]:w-full">{tournamentActions}</div>
+                    <div className="flex w-full justify-end sm:w-auto sm:justify-self-end">
+                        {tournamentActions}
+                    </div>
                 ) : null}
             </div>
 

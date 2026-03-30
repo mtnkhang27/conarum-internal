@@ -330,7 +330,7 @@ export function TournamentBracket({
     return (
         <div className="w-full overflow-hidden rounded-2xl border border-border/70 bg-card/40">
             <div className="overflow-x-auto">
-                <div className="flex min-w-max items-stretch gap-3 p-3 sm:p-4">
+                <div className="flex min-w-max items-stretch gap-2.5 p-3 sm:gap-3 sm:p-4">
                 {orderedStages.map((stage) => {
                     const stageSlots = stageGroups.get(stage)!;
                     stageSlots.sort((a, b) => a.position - b.position);
@@ -339,7 +339,7 @@ export function TournamentBracket({
                     const showLegs = hasLegs && stage !== "final";
 
                     return (
-                        <div key={stage} className="flex min-w-[240px] flex-1 snap-start flex-col items-center gap-2 sm:min-w-[260px] xl:min-w-[280px]">
+                        <div key={stage} className="flex min-w-[210px] flex-1 snap-start flex-col items-center gap-2 sm:min-w-[228px] xl:min-w-[248px]">
                             {/* Stage header */}
                             <div className="mb-2 text-center">
                                 <h3 className="text-xs font-bold uppercase tracking-widest text-primary/80">

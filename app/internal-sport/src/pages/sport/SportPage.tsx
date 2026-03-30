@@ -10,6 +10,7 @@ import { RecentPredictionsSection } from "./components/RecentPredictionsSection"
 import { TournamentBracket } from "./components/TournamentBracket";
 import { LoadingOverlay } from "@/components/shared/LoadingOverlay";
 import { Button } from "@/components/ui/button";
+import { Workflow } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -226,11 +227,13 @@ export function SportPage() {
             tournamentActions={
               <Button
                 type="button"
-                variant="outline"
                 onClick={() => setIsBracketDialogOpen(true)}
                 disabled={!tournamentId}
-                className="h-10 rounded-lg border-border bg-card px-3 text-sm font-semibold text-foreground hover:border-primary hover:bg-surface disabled:cursor-not-allowed disabled:opacity-45"
+                className="group h-10 rounded-xl border border-primary/35 bg-gradient-to-r from-primary via-primary/90 to-secondary px-3.5 text-sm font-semibold text-white shadow-[0_12px_30px_rgba(109,63,199,0.28)] transition-all hover:-translate-y-0.5 hover:border-primary/60 hover:shadow-[0_16px_36px_rgba(109,63,199,0.36)] disabled:border-border disabled:bg-card disabled:text-muted-foreground disabled:shadow-none"
               >
+                <span className="mr-2 inline-flex h-6 w-6 items-center justify-center rounded-full bg-white/16 ring-1 ring-white/20 transition-colors group-hover:bg-white/22">
+                  <Workflow className="h-3.5 w-3.5" />
+                </span>
                 {t("nav.tournamentBracket")}
               </Button>
             }
@@ -312,7 +315,7 @@ export function SportPage() {
       </div>
 
       <Dialog open={isBracketDialogOpen} onOpenChange={setIsBracketDialogOpen}>
-        <DialogContent className="max-h-[min(90vh,860px)] overflow-hidden border-border bg-card text-white sm:max-w-6xl">
+        <DialogContent className="flex max-h-[min(90vh,860px)] flex-col overflow-hidden border-border bg-card text-white sm:max-w-[92vw] xl:max-w-[1400px] 2xl:max-w-[1500px]">
           <DialogHeader>
             <DialogTitle>{t("nav.tournamentBracket")}</DialogTitle>
             <DialogDescription>
@@ -321,7 +324,7 @@ export function SportPage() {
           </DialogHeader>
 
           {isBracketDialogOpen ? (
-            <div className="overflow-auto pb-1">
+            <div className="min-h-0 overflow-y-auto overflow-x-hidden pb-1 pr-1">
               <TournamentBracket tournamentId={tournamentId} />
             </div>
           ) : null}

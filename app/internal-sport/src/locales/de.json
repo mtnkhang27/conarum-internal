@@ -445,7 +445,7 @@
       "enabledDesc": "Wetten aktivieren",
       "maxBets": "Max. Wetten",
       "maxBetsDesc": "Maximale Ergebniswetten pro Spieler",
-      "prizeVND": "Preis (VND)",
+      "prizeVND": "Preis (CO)",
       "prizeVNDDesc": "Preis pro richtiger Ergebniswette",
       "total": "Gesamt",
       "draw": "Unentschieden",

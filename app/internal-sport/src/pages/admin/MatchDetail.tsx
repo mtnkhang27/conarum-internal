@@ -86,6 +86,43 @@ function statusVariant(status: string) {
   }
 }
 
+const CO_FORMATTER = new Intl.NumberFormat("vi-VN");
+function toSafeAmount(value: unknown) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function formatCoAmount(value: unknown) {
+  return `${CO_FORMATTER.format(toSafeAmount(value))} CO`;
+}
+
+function formatSignedCoAmount(value: unknown) {
+  const amount = toSafeAmount(value);
+  return amount > 0 ? `+${CO_FORMATTER.format(amount)} CO` : "0 CO";
+}
+
+function formatPrizeInput(value: unknown) {
+  return CO_FORMATTER.format(Math.trunc(toSafeAmount(value)));
+}
+
+function sanitizePrizeInput(value: string) {
+  return value.replace(/\D/g, "");
+}
+
+function formatPrizeDraft(value: string) {
+  const sanitized = sanitizePrizeInput(value);
+  if (!sanitized) return "";
+  return CO_FORMATTER.format(Number.parseInt(sanitized, 10));
+}
+
+function normalizePrizeInput(value: string) {
+  const sanitized = sanitizePrizeInput(value);
+  if (!sanitized) return 0;
+
+  const parsed = Number.parseInt(sanitized, 10);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
 const STAGES = [
   { value: "group", label: "admin.matchManagement.stages.group" },
   { value: "roundOf16", label: "admin.matchManagement.stages.roundOf16" },
@@ -111,6 +148,9 @@ const DEFAULT_SCORE_BET_CONFIG: Omit<MatchScoreBetConfig, "ID" | "match_ID"> = {
   prize: 200000,
 };
 
+const predictionsCache = new Map<string, AdminPredictionView[]>();
+const scoreBetsCache = new Map<string, AdminScoreBetView[]>();
+
 // ── Tab type ────────────────────────────────────────────────
 
 type Tab = "config" | "predictions" | "scoreBets" | "edit";
@@ -133,15 +173,18 @@ export function MatchDetail() {
   const [outcomePoints, setOutcomePoints] = useState(1);
   const [isHotMatch, setIsHotMatch] = useState(false);
   const [sbCfg, setSbCfg] = useState(DEFAULT_SCORE_BET_CONFIG);
+  const [prizeInput, setPrizeInput] = useState(() => formatPrizeInput(DEFAULT_SCORE_BET_CONFIG.prize));
   const [scoreBettingEnabled, setScoreBettingEnabled] = useState(false);
 
   // Predictions tab state
   const [predictions, setPredictions] = useState<AdminPredictionView[]>([]);
   const [loadingPredictions, setLoadingPredictions] = useState(false);
+  const [hasLoadedPredictions, setHasLoadedPredictions] = useState(false);
 
   // Score bets tab state
   const [scoreBets, setScoreBets] = useState<AdminScoreBetView[]>([]);
   const [loadingScoreBets, setLoadingScoreBets] = useState(false);
+  const [hasLoadedScoreBets, setHasLoadedScoreBets] = useState(false);
 
   // Edit tab state
   const [allTeams, setAllTeams] = useState<AdminTeam[]>([]);
@@ -215,10 +258,12 @@ export function MatchDetail() {
         setScoreBetCfgExists(true);
         setScoreBettingEnabled(true);
         setSbCfg({ enabled: cfg.enabled, maxBets: cfg.maxBets, prize: cfg.prize });
+        setPrizeInput(formatPrizeInput(cfg.prize));
       } else {
         setScoreBetCfgExists(false);
         setScoreBettingEnabled(false);
         setSbCfg(DEFAULT_SCORE_BET_CONFIG);
+        setPrizeInput(formatPrizeInput(DEFAULT_SCORE_BET_CONFIG.prize));
       }
     } catch (e: any) {
       toast.error(e.message);
@@ -227,12 +272,24 @@ export function MatchDetail() {
     }
   }, [matchId]);
 
-  const loadPredictions = useCallback(async () => {
+  const loadPredictions = useCallback(async (options?: { force?: boolean }) => {
     if (!matchId) return;
+
+    if (!options?.force) {
+      const cached = predictionsCache.get(matchId);
+      if (cached) {
+        setPredictions(cached);
+        setHasLoadedPredictions(true);
+        return;
+      }
+    }
+
     setLoadingPredictions(true);
     try {
       const data = await predictionsApi.listByMatch(matchId);
       setPredictions(data);
+      predictionsCache.set(matchId, data);
+      setHasLoadedPredictions(true);
     } catch (e: any) {
       toast.error(e.message);
     } finally {
@@ -240,12 +297,24 @@ export function MatchDetail() {
     }
   }, [matchId]);
 
-  const loadScoreBets = useCallback(async () => {
+  const loadScoreBets = useCallback(async (options?: { force?: boolean }) => {
     if (!matchId) return;
+
+    if (!options?.force) {
+      const cached = scoreBetsCache.get(matchId);
+      if (cached) {
+        setScoreBets(cached);
+        setHasLoadedScoreBets(true);
+        return;
+      }
+    }
+
     setLoadingScoreBets(true);
     try {
       const data = await scoreBetsApi.listByMatch(matchId);
       setScoreBets(data);
+      scoreBetsCache.set(matchId, data);
+      setHasLoadedScoreBets(true);
     } catch (e: any) {
       toast.error(e.message);
     } finally {
@@ -267,12 +336,50 @@ export function MatchDetail() {
     load();
   }, [load]);
 
+  useEffect(() => {
+    if (!matchId) return;
+
+    const cachedPredictions = predictionsCache.get(matchId);
+    const cachedScoreBets = scoreBetsCache.get(matchId);
+
+    setPredictions(cachedPredictions ?? []);
+    setScoreBets(cachedScoreBets ?? []);
+    setHasLoadedPredictions(Boolean(cachedPredictions));
+    setHasLoadedScoreBets(Boolean(cachedScoreBets));
+
+    if (!cachedPredictions) {
+      void loadPredictions();
+    }
+    if (!cachedScoreBets) {
+      void loadScoreBets();
+    }
+  }, [matchId, loadPredictions, loadScoreBets]);
+
   // Load tab-specific data
   useEffect(() => {
-    if (activeTab === "predictions") loadPredictions();
-    else if (activeTab === "scoreBets") loadScoreBets();
-    else if (activeTab === "edit") loadTeams();
-  }, [activeTab, loadPredictions, loadScoreBets, loadTeams]);
+    if (activeTab === "predictions" && !hasLoadedPredictions && !loadingPredictions) {
+      void loadPredictions();
+      return;
+    }
+
+    if (activeTab === "scoreBets" && !hasLoadedScoreBets && !loadingScoreBets) {
+      void loadScoreBets();
+      return;
+    }
+
+    if (activeTab === "edit") {
+      void loadTeams();
+    }
+  }, [
+    activeTab,
+    hasLoadedPredictions,
+    hasLoadedScoreBets,
+    loadingPredictions,
+    loadingScoreBets,
+    loadPredictions,
+    loadScoreBets,
+    loadTeams,
+  ]);
 
   // ── Save handlers ─────────────────────────────────────────
 
@@ -339,10 +446,12 @@ export function MatchDetail() {
         : await matchesApi.enterResult(matchId, parseInt(resultHome), parseInt(resultAway));
       toast.success(res.message);
       setResultDialogOpen(false);
+      predictionsCache.delete(matchId);
+      scoreBetsCache.delete(matchId);
       load();
       // Refresh predictions/score bets since they got scored
-      loadPredictions();
-      loadScoreBets();
+      loadPredictions({ force: true });
+      loadScoreBets({ force: true });
     } catch (e: any) {
       toast.error(e.message);
     }
@@ -409,6 +518,21 @@ export function MatchDetail() {
   const awayPicks = predictions.filter((p) => p.pick === "away");
   const correctPredictions = predictions.filter((p) => p.isCorrect === true);
   const correctScoreBets = scoreBets.filter((sb) => sb.isCorrect === true);
+  const totalCorrectScoreBetPayout = correctScoreBets.reduce(
+    (sum, bet) => sum + toSafeAmount(bet.payout),
+    0
+  );
+  const winningPayoutValues = Array.from(
+    new Set(correctScoreBets.map((bet) => toSafeAmount(bet.payout)).filter((value) => value > 0))
+  );
+  const hasUniformWinningPayout = winningPayoutValues.length === 1;
+  const winningPayoutLabel = hasUniformWinningPayout ? "Payout per win" : "Average payout";
+  const winningPayoutValue = hasUniformWinningPayout
+    ? winningPayoutValues[0] ?? 0
+    : correctScoreBets.length > 0
+      ? totalCorrectScoreBetPayout / correctScoreBets.length
+      : 0;
+  const paidOutCorrectScoreBets = correctScoreBets.filter((sb) => sb.isPaidOut).length;
 
   const tabs: { key: Tab; label: string; count?: number }[] = [
     { key: "config", label: t("admin.matchDetail.configTab") },
@@ -502,21 +626,21 @@ export function MatchDetail() {
 
       {/* Tabs */}
       <div className="overflow-x-auto">
-        <div className="inline-flex min-w-full gap-1 rounded-2xl border border-border bg-card/60 p-1 sm:min-w-0">
+        <div className="inline-flex min-w-max gap-1 rounded-2xl border border-border bg-card/60 p-1">
           {tabs.map((tab) => (
             <button
               key={tab.key}
               type="button"
               onClick={() => setActiveTab(tab.key)}
-              className={`inline-flex min-h-11 shrink-0 items-center justify-center gap-1.5 rounded-xl px-4 py-2.5 text-sm font-medium transition-colors sm:flex-1 ${
+              className={`inline-flex min-h-11 shrink-0 items-center justify-center gap-1.5 rounded-xl px-4 py-2.5 text-sm font-medium transition-colors ${
                 activeTab === tab.key
                   ? "bg-primary/15 text-primary shadow-[0_0_0_1px_rgba(109,63,199,0.18)_inset]"
                   : "text-muted-foreground hover:bg-surface hover:text-white"
               }`}
             >
-              <span>{tab.label}</span>
+              <span className="whitespace-nowrap">{tab.label}</span>
               {tab.count != null && tab.count > 0 && (
-                <span className="rounded-full bg-surface-dark px-1.5 py-0.5 text-[10px]">
+                <span className="shrink-0 rounded-full bg-surface-dark px-1.5 py-0.5 text-[10px]">
                   {tab.count}
                 </span>
               )}
@@ -595,10 +719,16 @@ export function MatchDetail() {
               </ConfigRow>
               <ConfigRow label={t("admin.matchDetail.prizeVND")} description={t("admin.matchDetail.prizeVNDDesc")}>
                 <Input
-                  type="number"
-                  className="w-28 text-right border-white"
-                  value={sbCfg.prize}
-                  onChange={(e) => setSbCfg({ ...sbCfg, prize: parseInt(e.target.value) || 0 })}
+                  type="text"
+                  inputMode="numeric"
+                  className="w-32 text-right border-white"
+                  value={prizeInput}
+                  onChange={(e) => {
+                    const nextValue = sanitizePrizeInput(e.target.value);
+                    setPrizeInput(formatPrizeDraft(nextValue));
+                    setSbCfg({ ...sbCfg, prize: normalizePrizeInput(nextValue) });
+                  }}
+                  onBlur={() => setPrizeInput(formatPrizeInput(sbCfg.prize))}
                 />
               </ConfigRow>
             </>
@@ -730,11 +860,47 @@ export function MatchDetail() {
       {activeTab === "scoreBets" && (
         <div className="space-y-4">
           {isFinished && correctScoreBets.length > 0 && (
-            <div className="flex items-center gap-2 rounded-lg border border-green-500/30 bg-green-500/10 px-3 py-2 text-sm text-green-400">
+            <>
+              <div className="grid gap-3 sm:grid-cols-3">
+                <div className="rounded-xl border border-green-500/30 bg-green-500/10 p-4">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-green-300">
+                    <CheckCircle2 className="h-4 w-4" />
+                    {t("admin.matchDetail.correctScoreBet")}
+                  </div>
+                  <div className="mt-3 text-3xl font-bold text-white">{correctScoreBets.length}</div>
+                  <p className="mt-1 text-xs text-green-200/80">
+                    Winning exact score bets for this match
+                  </p>
+                </div>
+
+                <div className="rounded-xl border border-border/70 bg-card/90 p-4">
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                    {winningPayoutLabel}
+                  </div>
+                  <div className="mt-3 text-xl font-semibold text-white">
+                    {formatCoAmount(winningPayoutValue)}
+                  </div>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {hasUniformWinningPayout ? "Applied to each winning bet" : "Calculated across winning bets"}
+                  </p>
+                </div>
+
+                <div className="rounded-xl border border-border/70 bg-card/90 p-4">
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                    Total payout
+                  </div>
+                  <div className="mt-3 text-xl font-semibold text-white">
+                    {formatCoAmount(totalCorrectScoreBetPayout)}
+                  </div>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Paid out: {paidOutCorrectScoreBets}/{correctScoreBets.length}
+                  </p>
+                </div>
+              </div>
+              {/* legacy score bet summary removed after card redesign
               <CheckCircle2 className="h-4 w-4" />
               <strong>{correctScoreBets.length}</strong> {t("admin.matchDetail.correctScoreBet")}{correctScoreBets.length !== 1 && "s"} — {t("admin.matchDetail.payout")}:{" "}
-              <strong>{correctScoreBets.reduce((s, b) => s + b.payout, 0).toLocaleString()} VND</strong> each
-            </div>
+              */}</>
           )}
 
           {loadingScoreBets ? (
@@ -783,7 +949,7 @@ export function MatchDetail() {
                           {t("admin.matchDetail.payout")}
                         </p>
                         <p className="mt-1 font-mono text-sm text-foreground">
-                          {sb.payout > 0 ? `+${sb.payout.toLocaleString()}` : "0"}
+                          {formatSignedCoAmount(sb.payout)}
                         </p>
                       </div>
                     </div>
@@ -824,7 +990,13 @@ export function MatchDetail() {
                         <Badge variant="outline" className="text-xs">{sb.status}</Badge>
                       </td>
                       <td className="px-4 py-2.5 text-right font-mono text-muted-foreground">
-                        {sb.payout > 0 ? <span className="text-green-400">+{sb.payout.toLocaleString()}</span> : "0"}
+                        {toSafeAmount(sb.payout) > 0 ? (
+                          <span className="whitespace-nowrap text-green-400">
+                            {formatSignedCoAmount(sb.payout)}
+                          </span>
+                        ) : (
+                          "0 CO"
+                        )}
                       </td>
                       <td className="px-4 py-2.5 text-center">
                         {sb.isCorrect === true && <CheckCircle2 className="inline h-4 w-4 text-green-400" />}

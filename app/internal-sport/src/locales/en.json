@@ -445,7 +445,7 @@
       "enabledDesc": "Activate betting",
       "maxBets": "Max Bets",
       "maxBetsDesc": "Maximum score bets per player",
-      "prizeVND": "Prize (VND)",
+      "prizeVND": "Prize (CO)",
       "prizeVNDDesc": "Prize per correct score bet",
       "total": "Total",
       "draw": "Draw",

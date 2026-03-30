@@ -5,6 +5,7 @@
  */
 
 import { mapExternalAssetUrls } from "@/utils/externalAssetProxy";
+import { formatLocalRelativeKickoff, toValidDate } from "@/utils/localTime";
 
 const BASE = "api/player";
 
@@ -296,26 +297,14 @@ export interface PlayerChampionPickerSnapshot {
 // ─── Transform helpers ──────────────────────────────────────
 
 function formatKickoff(iso: string): string {
-  const d = new Date(iso);
-  const now = new Date();
-  const diff = d.getTime() - now.getTime();
-  const isToday = d.toDateString() === now.toDateString();
-  const tomorrow = new Date(now);
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  const isTomorrow = d.toDateString() === tomorrow.toDateString();
-  const time = d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-
-  if (diff < 0) return "Started";
-  if (isToday) return `Today / ${time}`;
-  if (isTomorrow) return `Tomorrow / ${time}`;
-  return `${d.toLocaleDateString("en-US", { month: "short", day: "numeric" })} / ${time}`;
+  return formatLocalRelativeKickoff(iso);
 }
 
 /** Returns true when the kickoff time is in the past. */
 function isKickoffPast(iso?: string | null): boolean {
   if (!iso) return false;
-  const d = new Date(iso);
-  return !Number.isNaN(d.getTime()) && d.getTime() < Date.now();
+  const d = toValidDate(iso);
+  return !!d && d.getTime() < Date.now();
 }
 
 // ── DEPRECATED: Helper constants/functions only used by getAvailable() ──

@@ -53,6 +53,14 @@ import {
 import { toast } from "sonner";
 import { bracketSlotsApi, matchesApi, teamsApi, tournamentsApi, tournamentActionsApi, tournamentTeamsApi } from "@/services/adminApi";
 import type { AdminBracketSlot, AdminMatchListItem, AdminTeam, AdminTournament } from "@/types/admin";
+import {
+    formatLocalDate,
+    formatLocalDateTimeInputValue,
+    formatLocalTime,
+    toValidDate,
+    getLocalDateKey,
+    localDateTimeInputToIso,
+} from "@/utils/localTime";
 
 const STAGES = [
     { value: "group", label: "admin.matchManagement.stages.group" },
@@ -106,17 +114,16 @@ function formatKickoff(kickoff?: string | null) {
     if (!kickoff) {
         return { date: "TBD", time: "Kickoff pending" };
     }
-    const kickoffDate = new Date(kickoff);
-    if (Number.isNaN(kickoffDate.getTime())) {
+    if (!toValidDate(kickoff)) {
         return { date: "TBD", time: "Kickoff pending" };
     }
     return {
-        date: kickoffDate.toLocaleDateString(undefined, {
+        date: formatLocalDate(kickoff, undefined, {
             day: "2-digit",
             month: "short",
             year: "numeric",
         }),
-        time: kickoffDate.toLocaleTimeString(undefined, {
+        time: formatLocalTime(kickoff, undefined, {
             hour: "2-digit",
             minute: "2-digit",
             hour12: false,
@@ -265,7 +272,7 @@ export function MatchManagement() {
             homeTeam_ID: match.homeTeam_ID || "",
             awayTeam_ID: match.awayTeam_ID || "",
             tournament_ID: match.tournament_ID,
-            kickoff: match.kickoff?.slice(0, 16) || "",
+            kickoff: formatLocalDateTimeInputValue(match.kickoff),
             venue: match.venue || "",
             stage: match.stage,
             status: match.status,
@@ -304,11 +311,16 @@ export function MatchManagement() {
     async function handleSave() {
         try {
             const nextStatus = form.status as AdminMatchListItem["status"];
+            const kickoffIso = localDateTimeInputToIso(form.kickoff);
+            if (!kickoffIso) {
+                toast.error("Invalid kickoff time");
+                return;
+            }
             const data: Record<string, any> = {
                 homeTeam_ID: form.homeTeam_ID || null,
                 awayTeam_ID: form.awayTeam_ID || null,
                 tournament_ID: form.tournament_ID,
-                kickoff: new Date(form.kickoff).toISOString(),
+                kickoff: kickoffIso,
                 venue: form.venue || null,
                 stage: form.stage as AdminMatchListItem["stage"],
                 status: nextStatus,
@@ -470,11 +482,7 @@ export function MatchManagement() {
     }
 
     function formatLocalDateKey(value: string) {
-        const date = new Date(value);
-        const year = date.getFullYear();
-        const month = String(date.getMonth() + 1).padStart(2, "0");
-        const day = String(date.getDate()).padStart(2, "0");
-        return `${year}-${month}-${day}`;
+        return getLocalDateKey(value);
     }
 
     function teamName(id?: string | null) {

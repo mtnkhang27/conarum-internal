@@ -6,26 +6,16 @@ import { LoadingOverlay } from "@/components/shared/LoadingOverlay";
 import { playerMatchesApi } from "@/services/playerApi";
 import { MatchCard } from "./MatchCard";
 import type { Match } from "@/types";
+import {
+    addDaysToDateKey,
+    getLocalDayRangeIso,
+    getLocalTodayDateKey,
+} from "@/utils/localTime";
 import { SECTION } from "../sectionNavigation";
 
 type PaginationItem = number | "dots-left" | "dots-right";
 type HotFilter = "all" | "hot";
 type PresetKey = "" | "today" | "tomorrow" | "7days" | "14days" | "1month";
-
-const addDays = (date: Date, amount: number) => {
-    const next = new Date(date);
-    next.setDate(next.getDate() + amount);
-    return next;
-};
-
-const parseDateInputValue = (value?: string) => {
-    if (!value) return null;
-    const [year, month, day] = value.split("-").map(Number);
-    if (!year || !month || !day) return null;
-    const date = new Date(year, month - 1, day);
-    date.setHours(0, 0, 0, 0);
-    return date;
-};
 
 const getGridLayout = (width: number, height: number) => {
     if (width < 768) {
@@ -148,27 +138,29 @@ export function MatchPredictionTable({
         };
     }, [stopIntroScrollAnimation]);
 
-    const resolvedRange = useMemo<{ start: Date | null; end: Date | null }>(() => {
+    const resolvedRange = useMemo<{ startKey: string; endKey: string }>(() => {
         if (presetKey) {
-            const today = new Date();
-            today.setHours(0, 0, 0, 0);
+            const todayKey = getLocalTodayDateKey();
             switch (presetKey) {
                 case "today":
-                    return { start: today, end: today };
+                    return { startKey: todayKey, endKey: todayKey };
                 case "tomorrow":
-                    return { start: addDays(today, 1), end: addDays(today, 1) };
+                    return {
+                        startKey: addDaysToDateKey(todayKey, 1),
+                        endKey: addDaysToDateKey(todayKey, 1),
+                    };
                 case "7days":
-                    return { start: today, end: addDays(today, 6) };
+                    return { startKey: todayKey, endKey: addDaysToDateKey(todayKey, 6) };
                 case "14days":
-                    return { start: today, end: addDays(today, 13) };
+                    return { startKey: todayKey, endKey: addDaysToDateKey(todayKey, 13) };
                 case "1month":
-                    return { start: today, end: addDays(today, 29) };
+                    return { startKey: todayKey, endKey: addDaysToDateKey(todayKey, 29) };
             }
         }
 
         return {
-            start: parseDateInputValue(appliedCalendarStart),
-            end: parseDateInputValue(appliedCalendarEnd),
+            startKey: appliedCalendarStart,
+            endKey: appliedCalendarEnd || appliedCalendarStart,
         };
     }, [presetKey, appliedCalendarStart, appliedCalendarEnd]);
 
@@ -176,9 +168,9 @@ export function MatchPredictionTable({
 
     const queryFilters = useMemo(() => {
         const hotOnly = hotFilter === "hot";
-        const { start, end } = resolvedRange;
+        const { startKey, endKey } = resolvedRange;
 
-        if (!start) {
+        if (!startKey) {
             return {
                 hotOnly,
                 kickoffStartIso: undefined,
@@ -186,19 +178,13 @@ export function MatchPredictionTable({
             };
         }
 
-        const startAt = new Date(start);
-        startAt.setHours(0, 0, 0, 0);
-
-        const endAt = new Date(end ?? start);
-        endAt.setHours(0, 0, 0, 0);
-
-        const endExclusive = addDays(endAt, 1);
-        endExclusive.setHours(0, 0, 0, 0);
+        const { startIso } = getLocalDayRangeIso(startKey);
+        const { endExclusiveIso } = getLocalDayRangeIso(endKey || startKey);
 
         return {
             hotOnly,
-            kickoffStartIso: startAt.toISOString(),
-            kickoffEndIso: endExclusive.toISOString(),
+            kickoffStartIso: startIso || undefined,
+            kickoffEndIso: endExclusiveIso || undefined,
         };
     }, [resolvedRange, hotFilter]);
 

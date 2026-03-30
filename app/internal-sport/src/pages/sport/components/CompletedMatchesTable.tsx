@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { playerMatchesApi } from "@/services/playerApi";
 import { LoadingOverlay } from "@/components/shared/LoadingOverlay";
 import type { Match } from "@/types";
+import { formatLocalDateTime } from "@/utils/localTime";
 
 const PAGE_SIZE = 10;
 type PaginationItem = number | "dots-left" | "dots-right";
@@ -12,13 +13,13 @@ interface CompletedMatchesTableProps {
 }
 
 function formatKickoffDisplay(iso?: string): string {
-    if (!iso) return "—";
-    const d = new Date(iso);
-    return (
-        d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) +
-        " · " +
-        d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-    );
+    if (!iso) return "-";
+    return formatLocalDateTime(iso, {
+        locale: "en-US",
+        dateOptions: { month: "short", day: "numeric", year: "numeric" },
+        timeOptions: { hour: "numeric", minute: "2-digit", hour12: false },
+        separator: " · ",
+    });
 }
 
 export function CompletedMatchesTable({ tournamentId }: CompletedMatchesTableProps) {
@@ -32,7 +33,7 @@ export function CompletedMatchesTable({ tournamentId }: CompletedMatchesTablePro
         if (pick === "home") return t("completedMatchesTable.homeWin", { team: home });
         if (pick === "away") return t("completedMatchesTable.awayWin", { team: away });
         if (pick === "draw") return t("common.draw");
-        return pick || "—";
+        return pick || "â€”";
     }
 
     const loadPage = useCallback(async (tid: string, pg: number) => {
@@ -60,7 +61,7 @@ export function CompletedMatchesTable({ tournamentId }: CompletedMatchesTablePro
         loadPage(tournamentId, 1);
     }, [tournamentId, loadPage]);
 
-    // Fetch data when page changes (but not on tournament change — handled above)
+    // Fetch data when page changes (but not on tournament change â€” handled above)
     const handlePageChange = useCallback((newPage: number) => {
         setPage(newPage);
         loadPage(tournamentId, newPage);
@@ -254,10 +255,10 @@ export function CompletedMatchesTable({ tournamentId }: CompletedMatchesTablePro
                                     <td className="px-4 py-3 text-center">
                                         {hasScore ? (
                                             <span className="inline-block rounded border border-border bg-surface-dark px-2.5 py-1 font-mono text-sm font-bold text-success">
-                                                {match.finalScore!.home} – {match.finalScore!.away}
+                                                {match.finalScore!.home} â€“ {match.finalScore!.away}
                                             </span>
                                         ) : (
-                                            <span className="text-xs text-muted-foreground">—</span>
+                                            <span className="text-xs text-muted-foreground">â€”</span>
                                         )}
                                     </td>
 

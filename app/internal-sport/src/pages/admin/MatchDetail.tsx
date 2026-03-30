@@ -40,6 +40,12 @@ import {
   teamsApi,
   bracketSlotsApi,
 } from "@/services/adminApi";
+import {
+  formatLocalDate,
+  formatLocalDateTimeInputValue,
+  formatLocalTime,
+  localDateTimeInputToIso,
+} from "@/utils/localTime";
 import type {
   AdminMatch,
   AdminTeam,
@@ -234,7 +240,7 @@ export function MatchDetail() {
       setEditForm({
         homeTeam_ID: m.homeTeam_ID || "",
         awayTeam_ID: m.awayTeam_ID || "",
-        kickoff: m.kickoff?.slice(0, 16) || "",
+        kickoff: formatLocalDateTimeInputValue(m.kickoff),
         venue: m.venue || "",
         stage: m.stage,
         status: m.status,
@@ -403,10 +409,15 @@ export function MatchDetail() {
     setSaving(true);
     try {
       const nextStatus = editForm.status as AdminMatch["status"];
+      const kickoffIso = localDateTimeInputToIso(editForm.kickoff);
+      if (!kickoffIso) {
+        toast.error("Invalid kickoff time");
+        return;
+      }
       const updatePayload: Partial<AdminMatch> = {
         homeTeam_ID: editForm.homeTeam_ID || null,
         awayTeam_ID: editForm.awayTeam_ID || null,
-        kickoff: new Date(editForm.kickoff).toISOString(),
+        kickoff: kickoffIso,
         venue: editForm.venue || null,
         stage: editForm.stage as AdminMatch["stage"],
         status: nextStatus,
@@ -545,8 +556,17 @@ export function MatchDetail() {
             <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
               <span className="flex items-center gap-1">
                 <Calendar className="h-3.5 w-3.5" />
-                {new Date(match.kickoff).toLocaleDateString()}{" "}
-                {new Date(match.kickoff).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                {formatLocalDate(match.kickoff, undefined, {
+                  day: "2-digit",
+                  month: "short",
+                  year: "numeric",
+                })}{" "}
+                {formatLocalTime(match.kickoff, undefined, {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                  hour12: false,
+                  timeZoneName: "short",
+                })}
               </span>
               {match.venue && (
                 <span className="flex items-center gap-1">

@@ -579,6 +579,13 @@ export class AdminHandler {
                 nextSlot.stage !== 'final'
                 && (tournament?.hasLegs === true || tournament?.format === 'knockout');
             const hasKnownTeam = !!(nextSlot.homeTeam_ID || nextSlot.awayTeam_ID);
+            const findReusableMatchByExternalId = async (externalId: number | null | undefined) => {
+                if (externalId == null || !Number.isFinite(Number(externalId))) return null;
+                return SELECT.one.from(Match).where({
+                    tournament_ID: slot.tournament_ID,
+                    externalId: Number(externalId),
+                });
+            };
 
             // Keep next-stage match teams in sync as soon as one side is known.
             if (nextSlot.leg1_ID) {
@@ -598,22 +605,48 @@ export class AdminHandler {
                         await UPDATE(Match).where({ ID: nextSlot.leg2_ID }).set(leg2Patch);
                     }
                 } else if (shouldCreateLeg2 && hasKnownTeam) {
-                    // Backfill missing second leg for two-leg knockout rounds.
-                    const leg2Id = cds.utils.uuid();
-                    await INSERT.into(Match).entries({
-                        ID: leg2Id,
-                        tournament_ID: slot.tournament_ID,
-                        homeTeam_ID: nextSlot.awayTeam_ID ?? null,
-                        awayTeam_ID: nextSlot.homeTeam_ID ?? null,
-                        kickoff: new Date().toISOString(),
-                        stage: nextSlot.stage,
-                        status: 'upcoming',
-                        leg: 2,
-                        bracketSlot_ID: nextSlot.ID,
-                    });
-                    await UPDATE(BracketSlot).where({ ID: nextSlot.ID }).set({ leg2_ID: leg2Id });
+                    const reusableLeg2 = await findReusableMatchByExternalId(nextSlot.leg2ExternalId ?? null);
+                    if (reusableLeg2?.ID) {
+                        await UPDATE(Match).where({ ID: reusableLeg2.ID }).set({
+                            homeTeam_ID: nextSlot.awayTeam_ID ?? null,
+                            awayTeam_ID: nextSlot.homeTeam_ID ?? null,
+                            stage: nextSlot.stage,
+                            status: reusableLeg2.status ?? 'upcoming',
+                            leg: 2,
+                            bracketSlot_ID: nextSlot.ID,
+                        });
+                        await UPDATE(BracketSlot).where({ ID: nextSlot.ID }).set({ leg2_ID: reusableLeg2.ID });
+                    } else {
+                        // No authoritative external fixture linked yet; create a temporary shell.
+                        const leg2Id = cds.utils.uuid();
+                        await INSERT.into(Match).entries({
+                            ID: leg2Id,
+                            tournament_ID: slot.tournament_ID,
+                            homeTeam_ID: nextSlot.awayTeam_ID ?? null,
+                            awayTeam_ID: nextSlot.homeTeam_ID ?? null,
+                            kickoff: new Date().toISOString(),
+                            stage: nextSlot.stage,
+                            status: 'upcoming',
+                            leg: 2,
+                            bracketSlot_ID: nextSlot.ID,
+                        });
+                        await UPDATE(BracketSlot).where({ ID: nextSlot.ID }).set({ leg2_ID: leg2Id });
+                    }
                 }
             } else if (hasKnownTeam) {
+                const reusableLeg1 = await findReusableMatchByExternalId(nextSlot.leg1ExternalId ?? null);
+                if (reusableLeg1?.ID) {
+                    await UPDATE(Match).where({ ID: reusableLeg1.ID }).set({
+                        homeTeam_ID: nextSlot.homeTeam_ID ?? null,
+                        awayTeam_ID: nextSlot.awayTeam_ID ?? null,
+                        stage: nextSlot.stage,
+                        status: reusableLeg1.status ?? 'upcoming',
+                        leg: 1,
+                        bracketSlot_ID: nextSlot.ID,
+                    });
+                    await UPDATE(BracketSlot).where({ ID: nextSlot.ID }).set({ leg1_ID: reusableLeg1.ID });
+                    leg1IdForMaterialize = reusableLeg1.ID;
+                } else {
                 // No pre-created leg1 yet → create it now, even if only one side is known.
                 const leg1MatchId = cds.utils.uuid();
                 await INSERT.into(Match).entries({
@@ -630,20 +663,35 @@ export class AdminHandler {
                 await UPDATE(BracketSlot).where({ ID: nextSlot.ID }).set({ leg1_ID: leg1MatchId });
                 leg1IdForMaterialize = leg1MatchId;
 
+                }
+
                 if (shouldCreateLeg2) {
-                    const leg2Id = cds.utils.uuid();
-                    await INSERT.into(Match).entries({
-                        ID: leg2Id,
-                        tournament_ID: slot.tournament_ID,
-                        homeTeam_ID: nextSlot.awayTeam_ID ?? null,
-                        awayTeam_ID: nextSlot.homeTeam_ID ?? null,
-                        kickoff: new Date().toISOString(),
-                        stage: nextSlot.stage,
-                        status: 'upcoming',
-                        leg: 2,
-                        bracketSlot_ID: nextSlot.ID,
-                    });
-                    await UPDATE(BracketSlot).where({ ID: nextSlot.ID }).set({ leg2_ID: leg2Id });
+                    const reusableLeg2 = await findReusableMatchByExternalId(nextSlot.leg2ExternalId ?? null);
+                    if (reusableLeg2?.ID) {
+                        await UPDATE(Match).where({ ID: reusableLeg2.ID }).set({
+                            homeTeam_ID: nextSlot.awayTeam_ID ?? null,
+                            awayTeam_ID: nextSlot.homeTeam_ID ?? null,
+                            stage: nextSlot.stage,
+                            status: reusableLeg2.status ?? 'upcoming',
+                            leg: 2,
+                            bracketSlot_ID: nextSlot.ID,
+                        });
+                        await UPDATE(BracketSlot).where({ ID: nextSlot.ID }).set({ leg2_ID: reusableLeg2.ID });
+                    } else {
+                        const leg2Id = cds.utils.uuid();
+                        await INSERT.into(Match).entries({
+                            ID: leg2Id,
+                            tournament_ID: slot.tournament_ID,
+                            homeTeam_ID: nextSlot.awayTeam_ID ?? null,
+                            awayTeam_ID: nextSlot.homeTeam_ID ?? null,
+                            kickoff: new Date().toISOString(),
+                            stage: nextSlot.stage,
+                            status: 'upcoming',
+                            leg: 2,
+                            bracketSlot_ID: nextSlot.ID,
+                        });
+                        await UPDATE(BracketSlot).where({ ID: nextSlot.ID }).set({ leg2_ID: leg2Id });
+                    }
                 }
             }
 
@@ -703,9 +751,13 @@ export class AdminHandler {
 
         // Fetch from football-data.org
         let apiData: any;
+        const upstreamTimeoutMs = 15000;
+        const upstreamController = new AbortController();
+        const upstreamTimeout = setTimeout(() => upstreamController.abort(), upstreamTimeoutMs);
         try {
             const res = await fetch(`https://api.football-data.org/v4/competitions/${code}/matches`, {
-                headers: { 'X-Auth-Token': token }
+                headers: { 'X-Auth-Token': token },
+                signal: upstreamController.signal,
             });
             if (!res.ok) {
                 const errText = await res.text();
@@ -713,7 +765,12 @@ export class AdminHandler {
             }
             apiData = await res.json();
         } catch (err: any) {
+            if (err?.name === 'AbortError') {
+                return req.error(504, `football-data.org did not respond within ${upstreamTimeoutMs / 1000}s`);
+            }
             return req.error(502, `Failed to reach football-data.org: ${err.message}`);
+        } finally {
+            clearTimeout(upstreamTimeout);
         }
 
         const externalMatches: any[] = apiData.matches ?? [];
@@ -744,9 +801,37 @@ export class AdminHandler {
         const bracketSlots = await SELECT.from(BracketSlot).where({ tournament_ID: tournamentId });
         const bracketSlotByLegExternalId = new Map<number, { slotId: string; leg: 1 | 2 }>();
         const bracketSlotByStageAndTeams = new Map<string, { slotId: string; leg: 1 | 2 }>();
+        const matchByBracketSlotLeg = new Map<string, any>();
+        const matchByFingerprint = new Map<string, any>();
+        const bracketSlotsByStage = new Map<string, any[]>();
         const toBracketTeamKey = (stage: string, homeTeamId: string, awayTeamId: string) =>
             `${stage}|${homeTeamId}|${awayTeamId}`;
+        const toBracketLegKey = (slotId: string, leg: 1 | 2) => `${slotId}|${leg}`;
+        const toMatchFingerprint = (
+            stage: string,
+            matchday: number | null | undefined,
+            homeTeamId: string,
+            awayTeamId: string,
+        ) => `${stage}|${matchday ?? ''}|${homeTeamId}|${awayTeamId}`;
+
+        for (const m of ourMatches) {
+            if (m.bracketSlot_ID && (m.leg === 1 || m.leg === 2)) {
+                matchByBracketSlotLeg.set(toBracketLegKey(m.bracketSlot_ID, m.leg), m);
+            }
+            if (m.homeTeam_ID && m.awayTeam_ID) {
+                matchByFingerprint.set(
+                    toMatchFingerprint(m.stage ?? 'group', m.matchday, m.homeTeam_ID, m.awayTeam_ID),
+                    m,
+                );
+            }
+        }
+
         for (const slot of bracketSlots) {
+            if (!bracketSlotsByStage.has(slot.stage)) {
+                bracketSlotsByStage.set(slot.stage, []);
+            }
+            bracketSlotsByStage.get(slot.stage)!.push(slot);
+
             const slotPatch: Record<string, any> = {};
             const leg1Match = slot.leg1_ID ? matchById.get(slot.leg1_ID) : null;
             const leg2Match = slot.leg2_ID ? matchById.get(slot.leg2_ID) : null;
@@ -795,19 +880,134 @@ export class AdminHandler {
             }
         }
 
+        const relevantStages = new Set<string>();
+        for (const match of ourMatches) {
+            if (match.stage) relevantStages.add(match.stage);
+        }
+        for (const slot of bracketSlots) {
+            if (slot.stage) relevantStages.add(slot.stage);
+        }
+
+        const relevantExternalMatches = relevantStages.size > 0
+            ? externalMatches.filter((ext) => relevantStages.has(stageMap[ext.stage] ?? 'group'))
+            : externalMatches;
+
+        type ExternalTie = { leg1: any; leg2: any | null };
+        const buildStageTies = (stage: string, stageMatches: any[], slotCount: number): ExternalTie[] => {
+            const orderedMatches = [...stageMatches].sort((a, b) => {
+                const aId = Number(a.id ?? 0);
+                const bId = Number(b.id ?? 0);
+                if (Number.isFinite(aId) && Number.isFinite(bId) && aId !== bId) {
+                    return aId - bId;
+                }
+
+                const aKickoff = Date.parse(a.utcDate ?? '');
+                const bKickoff = Date.parse(b.utcDate ?? '');
+                if (Number.isFinite(aKickoff) && Number.isFinite(bKickoff) && aKickoff !== bKickoff) {
+                    return aKickoff - bKickoff;
+                }
+
+                return String(a.id ?? '').localeCompare(String(b.id ?? ''));
+            });
+
+            const supportsSecondLeg = stage !== 'final' && stage !== 'thirdPlace';
+            const looksLikeTwoLegStage = supportsSecondLeg && slotCount > 0 && orderedMatches.length === slotCount * 2;
+            if (!looksLikeTwoLegStage) {
+                return orderedMatches.map((match) => ({ leg1: match, leg2: null }));
+            }
+
+            const matchesByMatchday = new Map<number, any[]>();
+            for (const match of orderedMatches) {
+                if (match.matchday == null) continue;
+                if (!matchesByMatchday.has(match.matchday)) {
+                    matchesByMatchday.set(match.matchday, []);
+                }
+                matchesByMatchday.get(match.matchday)!.push(match);
+            }
+
+            let leg1Candidates: any[] = [];
+            let leg2Candidates: any[] = [];
+            const matchdays = Array.from(matchesByMatchday.keys()).sort((a, b) => a - b);
+            if (
+                matchdays.length === 2 &&
+                (matchesByMatchday.get(matchdays[0])?.length ?? 0) === slotCount &&
+                (matchesByMatchday.get(matchdays[1])?.length ?? 0) === slotCount
+            ) {
+                leg1Candidates = [...(matchesByMatchday.get(matchdays[0]) ?? [])];
+                leg2Candidates = [...(matchesByMatchday.get(matchdays[1]) ?? [])];
+            } else {
+                leg1Candidates = orderedMatches.slice(0, slotCount);
+                leg2Candidates = orderedMatches.slice(slotCount);
+            }
+
+            const ties: ExternalTie[] = [];
+            for (let index = 0; index < slotCount; index++) {
+                const legA = leg1Candidates[index];
+                const legB = leg2Candidates[index];
+                if (!legA) continue;
+                if (!legB) {
+                    ties.push({ leg1: legA, leg2: null });
+                    continue;
+                }
+
+                const legATs = Date.parse(legA.utcDate ?? '');
+                const legBTs = Date.parse(legB.utcDate ?? '');
+                if (Number.isFinite(legATs) && Number.isFinite(legBTs) && legATs > legBTs) {
+                    ties.push({ leg1: legB, leg2: legA });
+                } else {
+                    ties.push({ leg1: legA, leg2: legB });
+                }
+            }
+            return ties;
+        };
+
+        for (const [stage, slots] of bracketSlotsByStage.entries()) {
+            slots.sort((a, b) => (Number(a.position ?? 0) - Number(b.position ?? 0)));
+            const stageMatches = relevantExternalMatches.filter((ext) => (stageMap[ext.stage] ?? 'group') === stage);
+            if (stageMatches.length === 0) continue;
+
+            const stageTies = buildStageTies(stage, stageMatches, slots.length);
+            for (let index = 0; index < Math.min(slots.length, stageTies.length); index++) {
+                const slot = slots[index];
+                const tie = stageTies[index];
+                const slotPatch: Record<string, any> = {};
+                const leg1ExtId = Number(tie.leg1?.id);
+                const leg2ExtId = tie.leg2 ? Number(tie.leg2.id) : null;
+
+                if (Number.isFinite(leg1ExtId) && slot.leg1ExternalId == null) {
+                    slotPatch.leg1ExternalId = leg1ExtId;
+                    bracketSlotByLegExternalId.set(leg1ExtId, { slotId: slot.ID, leg: 1 });
+                }
+
+                if (leg2ExtId != null && Number.isFinite(leg2ExtId) && slot.leg2ExternalId == null) {
+                    slotPatch.leg2ExternalId = leg2ExtId;
+                    bracketSlotByLegExternalId.set(leg2ExtId, { slotId: slot.ID, leg: 2 });
+                }
+
+                if (Object.keys(slotPatch).length > 0) {
+                    await UPDATE(BracketSlot).where({ ID: slot.ID }).set(slotPatch);
+                    Object.assign(slot, slotPatch);
+                }
+            }
+        }
+
         let synced = 0;
         let scored = 0;
         let recreated = 0;
         const nowTs = Date.now();
         const liveKickoffGraceMs = 5 * 60 * 1000; // tolerate minor clock drift between systems
 
-        for (const ext of externalMatches) {
+        for (const ext of relevantExternalMatches) {
             const extId = Number(ext.id);
             if (!Number.isFinite(extId)) continue;
 
             let newStatus = statusMap[ext.status] ?? 'upcoming';
             let ourMatch = matchByExternalId.get(extId);
             const newStage = stageMap[ext.stage] ?? ourMatch?.stage ?? 'group';
+            const normalizedKickoff =
+                this._normalizeExternalKickoff(ext.utcDate, ext.stage, ext.homeTeam, ext.awayTeam)
+                ?? ext.utcDate
+                ?? null;
             const homeScore = ext.score?.fullTime?.home ?? null;
             const awayScore = ext.score?.fullTime?.away ?? null;
             const extOutcome = ext.score?.winner ? (outcomeMap[ext.score.winner] ?? null) : null;
@@ -828,10 +1028,29 @@ export class AdminHandler {
                 }
             }
 
+            if (!ourMatch && bracketLink) {
+                ourMatch = matchByBracketSlotLeg.get(toBracketLegKey(bracketLink.slotId, bracketLink.leg));
+            }
+
+            if (
+                !ourMatch &&
+                typeof resolvedHomeFromApi === 'string' &&
+                typeof resolvedAwayFromApi === 'string'
+            ) {
+                ourMatch = matchByFingerprint.get(
+                    toMatchFingerprint(
+                        newStage,
+                        ext.matchday ?? null,
+                        resolvedHomeFromApi,
+                        resolvedAwayFromApi,
+                    ),
+                );
+            }
+
             // Safety: if kickoff is still in the future, keep match in "upcoming"
             // even when an incorrect/stale "live" status is received.
-            if (newStatus === 'live' && ext.utcDate) {
-                const kickoffTs = Date.parse(ext.utcDate);
+            if (newStatus === 'live' && normalizedKickoff) {
+                const kickoffTs = Date.parse(normalizedKickoff);
                 if (Number.isFinite(kickoffTs) && kickoffTs > nowTs + liveKickoffGraceMs) {
                     newStatus = 'upcoming';
                 }
@@ -849,7 +1068,7 @@ export class AdminHandler {
                     leg: bracketLink?.leg ?? null,
                     status: newStatus,
                     stage: newStage,
-                    kickoff: ext.utcDate ?? new Date(nowTs).toISOString(),
+                    kickoff: normalizedKickoff ?? new Date(nowTs).toISOString(),
                     venue: ext.venue ?? null,
                     matchday: ext.matchday ?? null,
                     homeTeam_ID: resolvedHomeFromApi ?? null,
@@ -919,8 +1138,16 @@ export class AdminHandler {
                 stage: newStage,
             };
 
+            if (ourMatch.externalId == null) {
+                updateData.externalId = extId;
+                matchByExternalId.set(extId, {
+                    ...ourMatch,
+                    externalId: extId,
+                });
+            }
+
             // Sync additional match info: kickoff, venue, matchday
-            if (ext.utcDate) updateData.kickoff = ext.utcDate;
+            if (normalizedKickoff) updateData.kickoff = normalizedKickoff;
             if (ext.venue) updateData.venue = ext.venue;
             if (ext.matchday != null) updateData.matchday = ext.matchday;
 
@@ -947,6 +1174,21 @@ export class AdminHandler {
 
             await UPDATE(Match).where({ ID: ourMatch.ID }).set(updateData);
             synced++;
+
+            ourMatch = {
+                ...ourMatch,
+                ...updateData,
+            };
+            matchById.set(ourMatch.ID, ourMatch);
+            if (ourMatch.bracketSlot_ID && (ourMatch.leg === 1 || ourMatch.leg === 2)) {
+                matchByBracketSlotLeg.set(toBracketLegKey(ourMatch.bracketSlot_ID, ourMatch.leg), ourMatch);
+            }
+            if (ourMatch.homeTeam_ID && ourMatch.awayTeam_ID) {
+                matchByFingerprint.set(
+                    toMatchFingerprint(ourMatch.stage ?? 'group', ourMatch.matchday, ourMatch.homeTeam_ID, ourMatch.awayTeam_ID),
+                    ourMatch,
+                );
+            }
 
             const homeTeamAfterSync = Object.prototype.hasOwnProperty.call(updateData, 'homeTeam_ID')
                 ? updateData.homeTeam_ID
@@ -1059,6 +1301,27 @@ export class AdminHandler {
 
         if (!raw && !extTeam?.id && !extTeam?.crest) return true;
         return /\b(tbd|to be determined|winner|loser|qualifier)\b/.test(raw);
+    }
+
+    /**
+     * football-data sometimes ships unresolved knockout fixtures at 00:00:00Z.
+     * Those are placeholder timestamps, not real kickoff times.
+     *
+     * Previously this tried to fabricate a "reasonable" UTC time (e.g. 19:00Z
+     * for semi-finals) but that approach back-fired: converting the fake time
+     * to the user's local timezone still produced wrong results (e.g. 02:00
+     * next day in UTC+7).
+     *
+     * Now we simply pass the raw UTC date through as-is. The frontend detects
+     * midnight-UTC placeholders and shows "TBD" instead of a misleading time.
+     */
+    private _normalizeExternalKickoff(
+        utcDate: string | null | undefined,
+        _rawStage: string | null | undefined,
+        _homeTeam: any,
+        _awayTeam: any,
+    ): string | null | undefined {
+        return utcDate;
     }
 
     /**
@@ -1447,6 +1710,13 @@ export class AdminHandler {
                 const homeTeamId = apiMatch.homeTeam?.id ? teamIdMap.get(apiMatch.homeTeam.id) ?? null : null;
                 const awayTeamId = apiMatch.awayTeam?.id ? teamIdMap.get(apiMatch.awayTeam.id) ?? null : null;
                 const stage = stageMap[apiMatch.stage] ?? 'group';
+                const kickoff =
+                    this._normalizeExternalKickoff(
+                        apiMatch.utcDate,
+                        apiMatch.stage,
+                        apiMatch.homeTeam,
+                        apiMatch.awayTeam,
+                    ) ?? apiMatch.utcDate ?? startDate;
 
                 const matchStatus = statusMap[apiMatch.status] ?? 'upcoming';
                 const homeScore = apiMatch.score?.fullTime?.home ?? null;
@@ -1460,7 +1730,7 @@ export class AdminHandler {
                     tournament_ID: tournamentId,
                     homeTeam_ID: homeTeamId,
                     awayTeam_ID: awayTeamId,
-                    kickoff: apiMatch.utcDate ?? startDate,
+                    kickoff,
                     venue: apiMatch.venue ?? null,
                     stage,
                     status: matchStatus,

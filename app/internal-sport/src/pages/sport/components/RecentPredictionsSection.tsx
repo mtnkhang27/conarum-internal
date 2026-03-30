@@ -11,6 +11,7 @@ import {
 import { LoadingOverlay } from "@/components/shared/LoadingOverlay";
 import { playerTournamentQueryApi } from "@/services/playerApi";
 import type { RecentPredictionItem, ScoreBetDetail } from "@/types";
+import { formatLocalDateTime } from "@/utils/localTime";
 
 const ITEMS_PER_PAGE = 3;
 type PaginationItem = number | "dots-left" | "dots-right";
@@ -91,16 +92,15 @@ function scoreBetBadge(bet: ScoreBetDetail, t: (key: string) => string) {
 }
 
 function formatDate(iso: string): string {
-  const d = new Date(iso);
-  return (
-    d.toLocaleDateString("en-US", {
+  return formatLocalDateTime(iso, {
+    locale: "en-US",
+    dateOptions: {
       month: "short",
       day: "numeric",
       year: "numeric",
-    }) +
-    " " +
-    d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-  );
+    },
+    timeOptions: { hour: "numeric", minute: "2-digit", hour12: false },
+  });
 }
 
 // ─── Score Bets sub-section ───────────────────────────────────

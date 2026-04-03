@@ -1,0 +1,36 @@
+{
+  "welcomeFile": "/index.html",
+  "authenticationMethod": "route",
+  "sessionTimeout": 60,
+  "logout": {
+    "logoutEndpoint": "/do/logout"
+  },
+  "routes": [
+    {
+      "source": "^/odata/v4/(.*)$",
+      "authenticationType": "xsuaa",
+      "target": "/odata/v4/$1",
+      "destination": "cnma_clair2_document_destination",
+      "csrfProtection": false
+    },
+    {
+      "source": "^/api/cnma/(.*)$",
+      "authenticationType": "xsuaa",
+      "target": "/api/cnma/$1",
+      "destination": "cnma_clair2_document_destination",
+      "csrfProtection": false
+    },
+    {
+      "source": "^(.*)$",
+      "target": "$1",
+      "service": "html5-apps-repo-rt",
+      "authenticationType": "xsuaa"
+    }
+  ],
+  "responseHeaders": [
+    {
+      "name": "X-Frame-Options",
+      "value": "SAMEORIGIN"
+    }
+  ]
+}

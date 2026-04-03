@@ -1,0 +1,77 @@
+{
+  "_version": "1.21.0",
+  "sap.app": {
+    "id": "cnma.clair2doc",
+    "type": "application",
+    "i18n": "i18n/i18n.properties",
+    "applicationVersion": {
+      "version": "1.1.0"
+    },
+    "title": "CLAIR2 Document Processing",
+    "description": "AI Agent for Document Extraction and Processing",
+    "crossNavigation": {
+      "inbounds": {
+        "clair2_document_inbound": {
+          "signature": {
+            "parameters": {},
+            "additionalParameters": "allowed"
+          },
+          "semanticObject": "clair2_document",
+          "action": "manage"
+        },
+        "clair2_asn_inbound": {
+          "signature": {
+            "parameters": {
+              "worklist": { "defaultValue": { "value": "asn" } }
+            },
+            "additionalParameters": "allowed"
+          },
+          "semanticObject": "clair2_document",
+          "action": "manageASN",
+          "title": "CLAIR2 ASN Processing",
+          "icon": "sap-icon://shipping-status"
+        },
+        "clair2_inv_inbound": {
+          "signature": {
+            "parameters": {
+              "worklist": { "defaultValue": { "value": "inv" } }
+            },
+            "additionalParameters": "allowed"
+          },
+          "semanticObject": "clair2_document",
+          "action": "manageINV",
+          "title": "CLAIR2 Invoice Processing",
+          "icon": "sap-icon://money-bills"
+        },
+        "clair2_poc_inbound": {
+          "signature": {
+            "parameters": {
+              "worklist": { "defaultValue": { "value": "poc" } }
+            },
+            "additionalParameters": "allowed"
+          },
+          "semanticObject": "clair2_document",
+          "action": "managePOC",
+          "title": "CLAIR2 PO Confirmation Processing",
+          "icon": "sap-icon://manager-insight"
+        }
+      }
+    }
+  },
+  "sap.cloud": {
+    "public": true,
+    "service": "cnma.clair2doc"
+  },
+  "sap.ui": {
+    "technology": "UI5",
+    "fullWidth": true,
+    "icons": {
+      "icon": "sap-icon://document"
+    },
+    "deviceTypes": {
+      "desktop": true,
+      "tablet": true,
+      "phone": true
+    }
+  }
+}

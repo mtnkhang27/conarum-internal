@@ -1,0 +1,625 @@
+@custom-variant dark (&:is(.dark *));
+/* =================================================================
+   SIMPLIFIED THEME - Clean, Practical, Used Variables Only
+   =================================================================
+   
+   HOW TO USE THIS THEME:
+   ──────────────────────
+   1. Tailwind Classes (preferred):
+      - Backgrounds: bg-background, bg-card, bg-muted, bg-primary
+      - Text: text-foreground, text-muted-foreground, text-primary
+      - Borders: border-border, border-input
+   
+   2. Status Badges (semantic):
+      - bg-status-new, text-status-new, border-status-new
+      - bg-status-progress, text-status-progress, border-status-progress
+      - bg-status-released, text-status-released, border-status-released
+      - bg-status-sent, text-status-sent, border-status-sent
+      - bg-status-completed, text-status-completed, border-status-completed
+      - bg-status-obsoleted, text-status-obsoleted, border-status-obsoleted
+   
+   3. Button Variants:
+      - Use Button component with variant="create" | "filter" | "action" | "success"
+   
+   ================================================================= */
+
+:root {
+   /* ─────────────────────────────────────────
+     TYPOGRAPHY (SAP UI5 Font Stack)
+     ───────────────────────────────────────── */
+   --font-sans: '72', -apple-system, BlinkMacSystemFont, "Segoe UI",
+      Roboto, "Helvetica Neue", Arial, sans-serif;
+   --font-mono: '72Mono', "72Monofull", "Lucida Console", monospace;
+   --font-semibold: -apple-system, BlinkMacSystemFont, "Segoe UI",
+      Roboto, "Helvetica Neue", Arial, sans-serif;
+   ;
+   --font-weight-normal: 400;
+   --font-weight-medium: 500;
+   --font-semibold: 600;
+   --font-weight-bold: 700;
+   /* ─────────────────────────────────────────
+     BRAND COLORS (SAP UI5 Launchpad)
+     ───────────────────────────────────────── */
+   --color-brand: #b10e10;
+   /* SAP Interactive/Selected Color */
+   --color-brand-hover: #990c0e;
+   /* SAP Hover state */
+   --color-link: #820a0c;
+   /* SAP Link Color */
+
+   /* ─────────────────────────────────────────
+     CORE PALETTE (Light Mode - SAP UI5)
+     ───────────────────────────────────────── */
+   --background: #f3f4f7;
+   /* Shell Canvas Background */
+   --foreground: #32363a;
+   /* Base Text Color */
+   --card: #ffffff;
+   /* Tiles/Cards Background */
+   --card-foreground: #32363a;
+   /* Tiles Title Color */
+   --popover: #ffffff;
+   --popover-foreground: #32363a;
+   --primary: var(--color-brand);
+   --primary-hover: var(--color-brand-hover);
+   --primary-foreground: #ffffff;
+   --secondary: #f1f1f1;
+   /* Shell Navigation Background */
+   --secondary-foreground: #32363a;
+   --muted: #f2f2f2;
+   /* List Column Header Background */
+   --muted-foreground: #6a6d70;
+   /* Label/Icon Color */
+   --accent: #dfdfdf;
+   /* Shell Navigation Hover Background */
+   --accent-foreground: #32363a;
+   --destructive: #aa0808;
+   /* Semantic Negative Color */
+   --destructive-foreground: #ffffff;
+   --border: #d9d9d9;
+   /* Page Header/Footer Border */
+   --input: var(--input-border);
+   --input-background: #ffffff;
+   /* Field Background */
+   --input-border: #e2e8f0;
+   /* Field Border Color */
+   --input-border-hover: #990c0e;
+   /* Field Hover Border Color */
+   --switch-background: #788fa6;
+   /* Switch OFF Track */
+   --ring: #000;
+   /* Focus Border Color */
+   --radius: 0.5rem;
+
+   /* ─────────────────────────────────────────
+     BUTTON VARIANTS (SAP UI5)
+     ───────────────────────────────────────── */
+   --btn-create: var(--color-brand);
+   --btn-create-hover: var(--color-brand-hover);
+   --btn-create-foreground: #ffffff;
+   --btn-filter: #374151;
+   --btn-filter-hover: #1f2937;
+   --btn-filter-foreground: #ffffff;
+   --btn-action: #0070f2;
+   /* SAP Informative Color */
+   --btn-action-hover: #0064d9;
+   --btn-action-foreground: #ffffff;
+   --btn-success: #30914c;
+   /* SAP Positive Color */
+   --btn-success-hover: #1e592f;
+   --btn-success-foreground: #ffffff;
+
+   /* Accept Button (SAP) */
+   --btn-accept-border: #107e3e;
+   --btn-accept-bg: #ffffff;
+   --btn-accept-hover: #f1fdf6;
+   --btn-accept-active: #0d6733;
+
+   /* Reject Button (SAP) */
+   --btn-reject-border: #bb0000;
+   --btn-reject-bg: #ffffff;
+   --btn-reject-hover: #ffebeb;
+   --btn-reject-active: #a20000;
+
+   /* Attention Button (SAP) */
+   --btn-attention-border: #df6e0c;
+   --btn-attention-bg: #ffffff;
+   --btn-attention-hover: #fef7f1;
+   --btn-attention-active: #f3801c;
+
+   /* ─────────────────────────────────────────
+     STATUS COLORS (Semantic - SAP UI5)
+     Use: bg-status-*, text-status-*, border-status-*
+     ───────────────────────────────────────── */
+   --status-new-bg: #fff8d6;
+   /* Warning Background */
+   --status-new-text: #b44f00;
+   /* Critical Text */
+   --status-new-border: #f0b380;
+   /* Warning Border (lighter) */
+
+   --status-progress-bg: #ffedd5;
+   --status-progress-text: #e76500;
+   /* Critical Color */
+   --status-progress-border: #f3b280;
+
+   --status-released-bg: #e1f4ff;
+   /* Information Background */
+   --status-released-text: #0070f2;
+   /* SAP Information Color */
+   --status-released-border: #80b8f9;
+
+   --status-sent-bg: #f3e8ff;
+   --status-sent-text: #7800a4;
+   /* Legend Color 10 */
+   --status-sent-border: #d080e1;
+
+   --status-completed-bg: #f5fae5;
+   /* Success Background */
+   --status-completed-text: #256f3a;
+   /* Positive Color */
+   --status-completed-border: #98c8a6;
+   /* Success Border (lighter) */
+
+   --status-obsoleted-bg: #eff1f2;
+   /* Neutral Background */
+   --status-obsoleted-text: #32363a;
+   --status-obsoleted-border: #bcc7d3;
+   /* Neutral Border (lighter) */
+
+   /* ─────────────────────────────────────────
+     SEMANTIC FEEDBACK COLORS (SAP UI5)
+     ───────────────────────────────────────── */
+   --success: #30914c;
+   /* SAP Success */
+   --success-bg: #f5fae5;
+   --error: #e90b0b;
+   /* SAP Error Border */
+   --error-bg: #ffeaf4;
+   /* SAP Invalid Background */
+   --warning: #e76500;
+   /* SAP Critical */
+   --warning-bg: #fff8d6;
+   --edited: oklch(85.2% .199 91.936);
+   /* Yellow border for manually edited fields */
+   --edited-bg: #fef9e7;
+   /* Yellow background for manually edited fields */
+   --info: #0070f2;
+   /* SAP Informative */
+   --info-bg: #e1f4ff;
+
+   /* ─────────────────────────────────────────
+     CONFIDENCE LEVEL COLORS
+     Use: bg-confidence-*, text-confidence-*, border-confidence-*
+     ───────────────────────────────────────── */
+   --confidence-low: #e11d48;
+   /* Low confidence (0-51%) */
+   --confidence-low-bg: #fff1f2;
+   /* Low confidence background */
+   --confidence-medium: #d97706;
+   /* Medium confidence (51-80%) */
+   --confidence-medium-bg: #fffbeb;
+   /* Medium confidence background */
+   --confidence-high: #059669;
+   /* High confidence (80-100%) */
+   --confidence-high-bg: #ecfdf5;
+   /* High confidence background */
+
+   /* ─────────────────────────────────────────
+     SIDEBAR (SAP Shell Navigation)
+     ───────────────────────────────────────── */
+   --sidebar: #ffffff;
+   /* Navigation Background */
+   --sidebar-foreground: #32363a;
+   /* Navigation Text */
+   --sidebar-primary: var(--color-brand);
+   /* Selected Color */
+   --sidebar-primary-foreground: #ffffff;
+   --sidebar-accent: #d8d8d8;
+   /* Active Background */
+   --sidebar-accent-foreground: #32363a;
+   /* Active Text */
+   --sidebar-border: #d9d9d9;
+   --sidebar-ring: #000;
+}
+
+:root[data-sap-theme="sap_fiori_3_dark"] {
+   --color-brand: #f0ab00;
+   --background: #1d2d3e;
+   --foreground: #ffffff;
+   --input-border: #556b81;
+   /* SAP Link Color */
+}
+
+:root[data-sap-theme="proconarumv2@"] {
+   /* ─────────────────────────────────────────
+     TYPOGRAPHY (SAP UI5 Font Stack)
+     ───────────────────────────────────────── */
+   --font-sans: '72', -apple-system, BlinkMacSystemFont, "Segoe UI",
+      Roboto, "Helvetica Neue", Arial, sans-serif;
+   --font-sans-bold: '72Bold', -apple-system, BlinkMacSystemFont, "Segoe UI",
+      Roboto, "Helvetica Neue", Arial, sans-serif;
+   --font-mono: '72Mono', "72Monofull", "Lucida Console", monospace;
+   --font-weight-normal: 400;
+   --font-weight-medium: 500;
+   --font-weight-semibold: 600;
+   --font-weight-bold: 700;
+   /* ─────────────────────────────────────────
+     BRAND COLORS (SAP UI5 Launchpad)
+     ───────────────────────────────────────── */
+   --color-brand: #b10e10;
+   /* SAP Interactive/Selected Color */
+   --color-brand-hover: #990c0e;
+   /* SAP Hover state */
+   --color-link: #820a0c;
+   /* SAP Link Color */
+
+   /* ─────────────────────────────────────────
+     CORE PALETTE (Light Mode - SAP UI5)
+     ───────────────────────────────────────── */
+   --background: #ffffff;
+   /* Shell Canvas Background */
+   --foreground: #32363a;
+   /* Base Text Color */
+   --card: #ffffff;
+   /* Tiles/Cards Background */
+   --card-foreground: #32363a;
+   /* Tiles Title Color */
+   --popover: #ffffff;
+   --popover-foreground: #32363a;
+   --primary: var(--color-brand);
+   --primary-hover: var(--color-brand-hover);
+   --primary-foreground: #ffffff;
+   --secondary: #f1f1f1;
+   /* Shell Navigation Background */
+   --secondary-foreground: #32363a;
+   --muted: #f2f2f2;
+   /* List Column Header Background */
+   --muted-foreground: #6a6d70;
+   /* Label/Icon Color */
+   --accent: #dfdfdf;
+   /* Shell Navigation Hover Background */
+   --accent-foreground: #32363a;
+   --destructive: #aa0808;
+   /* Semantic Negative Color */
+   --destructive-foreground: #ffffff;
+   --border: #d9d9d9;
+   /* Page Header/Footer Border */
+   --input: transparent;
+   --input-background: #ffffff;
+   /* Field Background */
+   --input-border: #e2e8f0;
+   /* Field Border Color */
+   --input-border-hover: #990c0e;
+   /* Field Hover Border Color */
+   --switch-background: #788fa6;
+   /* Switch OFF Track */
+   --ring: #000;
+   /* Focus Border Color */
+   --radius: 0.5rem;
+
+   /* ─────────────────────────────────────────
+     BUTTON VARIANTS (SAP UI5)
+     ───────────────────────────────────────── */
+   --btn-create: var(--color-brand);
+   --btn-create-hover: var(--color-brand-hover);
+   --btn-create-foreground: #ffffff;
+   --btn-filter: #374151;
+   --btn-filter-hover: #1f2937;
+   --btn-filter-foreground: #ffffff;
+   --btn-action: #0070f2;
+   /* SAP Informative Color */
+   --btn-action-hover: #0064d9;
+   --btn-action-foreground: #ffffff;
+   --btn-success: #256f3a;
+   /* SAP Positive Color */
+   --btn-success-hover: #1e592f;
+   --btn-success-foreground: #ffffff;
+
+   /* Accept Button (SAP) */
+   --btn-accept-border: #107e3e;
+   --btn-accept-bg: #ffffff;
+   --btn-accept-hover: #f1fdf6;
+   --btn-accept-active: #0d6733;
+
+   /* Reject Button (SAP) */
+   --btn-reject-border: #bb0000;
+   --btn-reject-bg: #ffffff;
+   --btn-reject-hover: #ffebeb;
+   --btn-reject-active: #a20000;
+
+   /* Attention Button (SAP) */
+   --btn-attention-border: #df6e0c;
+   --btn-attention-bg: #ffffff;
+   --btn-attention-hover: #fef7f1;
+   --btn-attention-active: #f3801c;
+
+   /* ─────────────────────────────────────────
+     STATUS COLORS (Semantic - SAP UI5)
+     Use: bg-status-*, text-status-*, border-status-*
+     ───────────────────────────────────────── */
+   --status-new-bg: #fff8d6;
+   /* Warning Background */
+   --status-new-text: #b44f00;
+   /* Critical Text */
+   --status-new-border: #f0b380;
+   /* Warning Border (lighter) */
+
+   --status-progress-bg: #ffedd5;
+   --status-progress-text: #e76500;
+   /* Critical Color */
+   --status-progress-border: #f3b280;
+
+   --status-released-bg: #e1f4ff;
+   /* Information Background */
+   --status-released-text: #0070f2;
+   /* SAP Information Color */
+   --status-released-border: #80b8f9;
+
+   --status-sent-bg: #f3e8ff;
+   --status-sent-text: #7800a4;
+   /* Legend Color 10 */
+   --status-sent-border: #d080e1;
+
+   --status-completed-bg: #f5fae5;
+   /* Success Background */
+   --status-completed-text: #256f3a;
+   /* Positive Color */
+   --status-completed-border: #98c8a6;
+   /* Success Border (lighter) */
+
+   --status-obsoleted-bg: #eff1f2;
+   /* Neutral Background */
+   --status-obsoleted-text: #32363a;
+   --status-obsoleted-border: #bcc7d3;
+   /* Neutral Border (lighter) */
+
+   /* ─────────────────────────────────────────
+     SEMANTIC FEEDBACK COLORS (SAP UI5)
+     ───────────────────────────────────────── */
+   --success: #30914c;
+   /* SAP Success */
+   --success-bg: #f5fae5;
+   --error: #e90b0b;
+   /* SAP Error Border */
+   --error-bg: #ffeaf4;
+   /* SAP Invalid Background */
+   --warning: #e76500;
+   /* SAP Critical */
+   --warning-bg: #fff8d6;
+   --edited: #c99700;
+   --edited-bg: #fef9e7;
+   --info: #0070f2;
+   /* SAP Informative */
+   --info-bg: #e1f4ff;
+
+   /* ─────────────────────────────────────────
+     CONFIDENCE LEVEL COLORS
+     ───────────────────────────────────────── */
+   --confidence-low: #e11d48;
+   --confidence-low-bg: #fff1f2;
+   --confidence-medium: #d97706;
+   --confidence-medium-bg: #fffbeb;
+   --confidence-high: #059669;
+   --confidence-high-bg: #ecfdf5;
+
+   /* ─────────────────────────────────────────
+     SIDEBAR (SAP Shell Navigation)
+     ───────────────────────────────────────── */
+   --sidebar: #f1f1f1;
+   /* Navigation Background */
+   --sidebar-foreground: #32363a;
+   /* Navigation Text */
+   --sidebar-primary: var(--color-brand);
+   /* Selected Color */
+   --sidebar-primary-foreground: #ffffff;
+   --sidebar-accent: #d8d8d8;
+   /* Active Background */
+   --sidebar-accent-foreground: #32363a;
+   /* Active Text */
+   --sidebar-border: #d9d9d9;
+   --sidebar-ring: #000;
+}
+
+@theme inline {
+   /* Font family */
+   --font-sans: '72', -apple-system, BlinkMacSystemFont, "Segoe UI",
+      Roboto, "Helvetica Neue", Arial, sans-serif;
+   --font-mono: '72Mono', "72Monofull", "Lucida Console", monospace;
+
+   /* Core */
+   --color-background: var(--background);
+   --color-foreground: var(--foreground);
+   --color-card: var(--card);
+   --color-card-foreground: var(--card-foreground);
+   --color-popover: var(--popover);
+   --color-popover-foreground: var(--popover-foreground);
+   --color-primary: var(--primary);
+   --color-primary-hover: var(--primary-hover);
+   --color-primary-foreground: var(--primary-foreground);
+   --color-secondary: var(--secondary);
+   --color-secondary-foreground: var(--secondary-foreground);
+   --color-muted: var(--muted);
+   --color-muted-foreground: var(--muted-foreground);
+   --color-accent: var(--accent);
+   --color-accent-foreground: var(--accent-foreground);
+   --color-destructive: var(--destructive);
+   --color-destructive-foreground: var(--destructive-foreground);
+   --color-border: var(--border);
+   --color-input: var(--input);
+   --color-input-background: var(--input-background);
+   --color-switch-background: var(--switch-background);
+   --color-ring: var(--ring);
+
+   /* Button variants */
+   --color-btn-create: var(--btn-create);
+   --color-btn-create-hover: var(--btn-create-hover);
+   --color-btn-create-foreground: var(--btn-create-foreground);
+   --color-btn-filter: var(--btn-filter);
+   --color-btn-filter-hover: var(--btn-filter-hover);
+   --color-btn-filter-foreground: var(--btn-filter-foreground);
+   --color-btn-action: var(--btn-action);
+   --color-btn-action-hover: var(--btn-action-hover);
+   --color-btn-action-foreground: var(--btn-action-foreground);
+   --color-btn-success: var(--btn-success);
+   --color-btn-success-hover: var(--btn-success-hover);
+   --color-btn-success-foreground: var(--btn-success-foreground);
+
+   /* Status colors - use as: bg-status-new, text-status-new, border-status-new */
+   --color-status-new: var(--status-new-bg);
+   --color-status-new-text: var(--status-new-text);
+   --color-status-new-border: var(--status-new-border);
+   --color-status-progress: var(--status-progress-bg);
+   --color-status-progress-text: var(--status-progress-text);
+   --color-status-progress-border: var(--status-progress-border);
+   --color-status-released: var(--status-released-bg);
+   --color-status-released-text: var(--status-released-text);
+   --color-status-released-border: var(--status-released-border);
+   --color-status-sent: var(--status-sent-bg);
+   --color-status-sent-text: var(--status-sent-text);
+   --color-status-sent-border: var(--status-sent-border);
+   --color-status-completed: var(--status-completed-bg);
+   --color-status-completed-text: var(--status-completed-text);
+   --color-status-completed-border: var(--status-completed-border);
+   --color-status-obsoleted: var(--status-obsoleted-bg);
+   --color-status-obsoleted-text: var(--status-obsoleted-text);
+   --color-status-obsoleted-border: var(--status-obsoleted-border);
+
+   /* Semantic feedback */
+   --color-success: var(--success);
+   --color-success-bg: var(--success-bg);
+   --color-error: var(--error);
+   --color-error-bg: var(--error-bg);
+   --color-warning: var(--warning);
+   --color-warning-bg: var(--warning-bg);
+   --color-edited: var(--edited);
+   --color-edited-bg: var(--edited-bg);
+   --color-info: var(--info);
+   --color-info-bg: var(--info-bg);
+
+   /* Confidence levels */
+   --color-confidence-low: var(--confidence-low);
+   --color-confidence-low-bg: var(--confidence-low-bg);
+   --color-confidence-medium: var(--confidence-medium);
+   --color-confidence-medium-bg: var(--confidence-medium-bg);
+   --color-confidence-high: var(--confidence-high);
+   --color-confidence-high-bg: var(--confidence-high-bg);
+
+   /* Radius */
+   --radius-sm: calc(var(--radius) - 4px);
+   --radius-md: calc(var(--radius) - 2px);
+   --radius-lg: var(--radius);
+   --radius-xl: calc(var(--radius) + 4px);
+
+   /* Sidebar */
+   --color-sidebar: var(--sidebar);
+   --color-sidebar-foreground: var(--sidebar-foreground);
+   --color-sidebar-primary: var(--sidebar-primary);
+   --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+   --color-sidebar-accent: var(--sidebar-accent);
+   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+   --color-sidebar-border: var(--sidebar-border);
+   --color-sidebar-ring: var(--sidebar-ring);
+}
+
+/* ─────────────────────────────────────────
+   BASE LAYER STYLES
+   ───────────────────────────────────────── */
+@layer base {
+
+   html,
+   body,
+   #root {
+      height: 100%;
+      margin: 0;
+   }
+
+   * {
+      @apply border-border outline-ring/50;
+   }
+
+   body {
+      @apply bg-background text-foreground;
+      font-family: var(--font-sans);
+      font-weight: 400;
+      line-height: 1.5;
+      min-height: 100vh;
+   }
+
+   h1,
+   h2,
+   h3,
+   h4,
+   h5,
+   h6 {
+      font-family: var(--font-sans);
+      font-weight: 600;
+   }
+
+   input,
+   select,
+   textarea {
+      font-family: var(--font-sans);
+   }
+
+   code,
+   pre {
+      font-family: var(--font-mono);
+   }
+
+   /* ─────────────────────────────────────────
+     CUSTOM SCROLLBAR STYLES
+     ───────────────────────────────────────── */
+   /* Webkit browsers (Chrome, Safari, Edge) */
+   ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+   }
+
+   ::-webkit-scrollbar-track {
+      background: transparent;
+   }
+
+   ::-webkit-scrollbar-thumb {
+      background-color: #9ca3af;
+      border-radius: 4px;
+      border: 2px solid transparent;
+      background-clip: content-box;
+   }
+
+   ::-webkit-scrollbar-thumb:hover {
+      background-color: #6b7280;
+   }
+
+   /* Firefox */
+   * {
+      scrollbar-width: thin;
+      scrollbar-color: #9ca3af transparent;
+   }
+}
+
+/* ─────────────────────────────────────────
+   UTILITY: Hide native scrollbar (for synced scrollbar)
+   ───────────────────────────────────────── */
+.scrollbar-hidden {
+   scrollbar-width: none;
+   /* Firefox */
+}
+
+.scrollbar-hidden::-webkit-scrollbar {
+   display: none;
+   /* Chrome, Safari, Edge */
+}
+
+/* ─────────────────────────────────────────
+   CUSTOM ANIMATIONS
+   ───────────────────────────────────────── */
+@keyframes shimmer {
+   0% {
+      background-position: 200% center;
+   }
+
+   100% {
+      background-position: -200% center;
+   }
+}

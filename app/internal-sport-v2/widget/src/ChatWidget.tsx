@@ -147,33 +147,33 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({ documentId, onClose, pos
     }, [sendMessage]);
 
     const windowClasses = [
-        'clair2-window',
-        position === 'bottom-left' ? 'clair2-window-left' : '',
-        isFullscreen ? 'clair2-window-fullscreen' : '',
+        'internalsportv2-window',
+        position === 'bottom-left' ? 'internalsportv2-window-left' : '',
+        isFullscreen ? 'internalsportv2-window-fullscreen' : '',
     ].filter(Boolean).join(' ');
 
     return (
         <div className={windowClasses}>
             {/* Sidebar */}
             {(showSidebar || isFullscreen) && (
-                <div className="clair2-sidebar">
-                    <div className="clair2-sidebar-header">
-                        <button className="clair2-new-btn" onClick={() => { startNewSession(); if (!isFullscreen) setShowSidebar(false); }}>
+                <div className="internalsportv2-sidebar">
+                    <div className="internalsportv2-sidebar-header">
+                        <button className="internalsportv2-new-btn" onClick={() => { startNewSession(); if (!isFullscreen) setShowSidebar(false); }}>
                             <IconPlus /> New Conversation
                         </button>
                     </div>
-                    <div className="clair2-session-list">
+                    <div className="internalsportv2-session-list">
                         {isHistoryLoading && (
-                            <div className="clair2-history-loading">Loading history...</div>
+                            <div className="internalsportv2-history-loading">Loading history...</div>
                         )}
                         {sessions.map(s => (
                             <div
                                 key={s.sessionId}
-                                className={`clair2-session-item ${s.sessionId === activeSessionId ? 'active' : ''}`}
+                                className={`internalsportv2-session-item ${s.sessionId === activeSessionId ? 'active' : ''}`}
                                 onClick={() => { switchSession(s.sessionId); if (!isFullscreen) setShowSidebar(false); }}
                             >
-                                <div className="clair2-session-title">{s.firstMessage}</div>
-                                <div className="clair2-session-meta">
+                                <div className="internalsportv2-session-title">{s.firstMessage}</div>
+                                <div className="internalsportv2-session-meta">
                                     {s.messageCount} messages · {formatTimeAgo(s.lastActivity)}
                                 </div>
                             </div>
@@ -183,28 +183,28 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({ documentId, onClose, pos
             )}
 
             {/* Main Area */}
-            <div className="clair2-main">
+            <div className="internalsportv2-main">
                 {/* Header */}
-                <div className="clair2-header">
+                <div className="internalsportv2-header">
                     <button
-                        className="clair2-icon-btn"
+                        className="internalsportv2-icon-btn"
                         onClick={() => setShowSidebar(v => !v)}
                         title="Toggle history"
                     >
                         <IconSidebar />
                     </button>
-                    <div className="clair2-header-title">
+                    <div className="internalsportv2-header-title">
                         <h3>Document Analyst</h3>
                         <p>AI-powered document consulting</p>
                     </div>
                     <button
-                        className="clair2-icon-btn"
+                        className="internalsportv2-icon-btn"
                         onClick={() => setIsFullscreen(v => !v)}
                         title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
                     >
                         {isFullscreen ? <IconMinimize /> : <IconMaximize />}
                     </button>
-                    <button className="clair2-icon-btn" onClick={onClose} title="Close">
+                    <button className="internalsportv2-icon-btn" onClick={onClose} title="Close">
                         <IconX />
                     </button>
                 </div>
@@ -212,13 +212,13 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({ documentId, onClose, pos
                 {/* Quick actions (show when no messages) */}
                 {messages.length === 0 && !isLoading && (
                     <>
-                        <div className="clair2-empty">
+                        <div className="internalsportv2-empty">
                             <IconSparkle />
                             <p>Ask me anything about this document — risks, clauses, deadlines, or get a full summary.</p>
                         </div>
-                        <div className="clair2-quick-actions">
+                        <div className="internalsportv2-quick-actions">
                             {QUICK_ACTIONS.map(a => (
-                                <button key={a.label} className="clair2-chip" onClick={() => handleChip(a.prompt)}>
+                                <button key={a.label} className="internalsportv2-chip" onClick={() => handleChip(a.prompt)}>
                                     {a.label}
                                 </button>
                             ))}
@@ -228,41 +228,41 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({ documentId, onClose, pos
 
                 {/* Messages */}
                 {messages.length > 0 && (
-                    <div className="clair2-messages">
+                    <div className="internalsportv2-messages">
                         {messages.map(msg => (
                             <div
                                 key={msg.id}
-                                className={`clair2-msg clair2-msg-${msg.role}`}
+                                className={`internalsportv2-msg internalsportv2-msg-${msg.role}`}
                             >
                                 {msg.role === 'assistant' ? (
                                     <div>
                                         {/* Thinking section */}
                                         {msg.thinking && (
-                                            <details className="clair2-thinking">
+                                            <details className="internalsportv2-thinking">
                                                 <summary>🧠 Reasoning</summary>
                                                 <pre>{msg.thinking}</pre>
                                             </details>
                                         )}
                                         {/* Agent trace */}
                                         {msg.agentTrace && msg.agentTrace.filter(s => s.type === 'tool_call').length > 0 && (
-                                            <div className="clair2-trace">
+                                            <div className="internalsportv2-trace">
                                                 {msg.agentTrace.filter(s => s.type === 'tool_call').map((step, i) => {
                                                     const result = msg.agentTrace?.find(
                                                         s => s.type === 'tool_result' && s.tool === step.tool
                                                     );
                                                     return (
-                                                        <details key={i} className="clair2-trace-step">
+                                                        <details key={i} className="internalsportv2-trace-step">
                                                             <summary>
                                                                 🔧 {result?.displayLabel || step.displayLabel || step.tool}
                                                             </summary>
                                                             {step.args && (
-                                                                <div className="clair2-trace-detail">
+                                                                <div className="internalsportv2-trace-detail">
                                                                     <strong>Input:</strong>
                                                                     <pre>{JSON.stringify(step.args, null, 2)}</pre>
                                                                 </div>
                                                             )}
                                                             {result?.result && (
-                                                                <div className="clair2-trace-detail">
+                                                                <div className="internalsportv2-trace-detail">
                                                                     <strong>Result:</strong>
                                                                     <pre>{JSON.stringify(result.result, null, 2)}</pre>
                                                                 </div>
@@ -281,10 +281,10 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({ documentId, onClose, pos
                             </div>
                         ))}
                         {isLoading && (
-                            <div className="clair2-loading">
-                                <div className="clair2-loading-dot" />
-                                <div className="clair2-loading-dot" />
-                                <div className="clair2-loading-dot" />
+                            <div className="internalsportv2-loading">
+                                <div className="internalsportv2-loading-dot" />
+                                <div className="internalsportv2-loading-dot" />
+                                <div className="internalsportv2-loading-dot" />
                             </div>
                         )}
                         <div ref={messagesEndRef} />
@@ -292,13 +292,13 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({ documentId, onClose, pos
                 )}
 
                 {/* Error */}
-                {error && <div className="clair2-error">{error}</div>}
+                {error && <div className="internalsportv2-error">{error}</div>}
 
                 {/* Input */}
-                <div className="clair2-input-area">
+                <div className="internalsportv2-input-area">
                     <textarea
                         ref={inputRef}
-                        className="clair2-input"
+                        className="internalsportv2-input"
                         value={input}
                         onChange={e => setInput(e.target.value)}
                         onKeyDown={handleKeyDown}
@@ -307,7 +307,7 @@ export const ChatWidget: React.FC<ChatWidgetProps> = ({ documentId, onClose, pos
                         disabled={isLoading}
                     />
                     <button
-                        className="clair2-send-btn"
+                        className="internalsportv2-send-btn"
                         onClick={handleSend}
                         disabled={!input.trim() || isLoading}
                     >
@@ -340,7 +340,7 @@ export const TriggerButton: React.FC<{
     position: 'bottom-right' | 'bottom-left';
 }> = ({ onClick, position }) => (
     <button
-        className={`clair2-trigger ${position === 'bottom-left' ? 'clair2-trigger-left' : ''}`}
+        className={`internalsportv2-trigger ${position === 'bottom-left' ? 'internalsportv2-trigger-left' : ''}`}
         onClick={onClick}
         aria-label="Open Document Chat"
     >

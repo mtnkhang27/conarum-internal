@@ -1,7 +1,7 @@
 /**
- * Vite config for building the CLAIR2 Chat Widget.
+ * Vite config for building the Internal Sport V2 Chat Widget.
  *
- * Produces a single IIFE bundle (clair2-chat.js) with:
+ * Produces a single IIFE bundle (sport-chat.js) with:
  * - React + ReactDOM bundled
  * - CSS inlined (via ?inline import)
  * - No external dependencies
@@ -17,9 +17,9 @@ export default defineConfig({
     build: {
         lib: {
             entry: resolve(__dirname, 'src/index.ts'),
-            name: 'CLAIR2Chat',
+            name: 'SportChat',
             formats: ['iife'],
-            fileName: () => 'clair2-chat.js',
+            fileName: () => 'sport-chat.js',
         },
         outDir: resolve(__dirname, 'dist'),
         emptyOutDir: true,

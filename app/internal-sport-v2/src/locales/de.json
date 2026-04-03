@@ -1,7 +1,7 @@
 {
     "app": {
-        "name": "CLAIR2 Dokumentenintelligenz",
-        "title": "CLAIR2"
+        "name": "Interne Sportvorhersage V2",
+        "title": "Internal Sport V2"
     },
     "auth": {
         "accessDenied": "Zugriff verweigert",
@@ -1140,7 +1140,7 @@
         "globalDefaultLabel": "Globaler Standard"
     },
     "globalChat": {
-        "title": "CLAIR2 Assistent",
+        "title": "Sportvorhersage Assistent",
         "subtitleDocument": "Dokumentenanalyse · KI-gestützte Erkenntnisse",
         "subtitleGlobal": "Dokumentübergreifende Abfragen & Erkenntnisse",
         "newConversation": "Neues Gespräch",
@@ -1151,7 +1151,7 @@
         "exitFullscreen": "Vollbild beenden",
         "dragToResize": "Ziehen zum Ändern der Größe",
         "emptyStateTitle": "Dokumentenanalyst",
-        "emptyStateTitleGlobal": "CLAIR2 Assistent",
+        "emptyStateTitleGlobal": "Sportvorhersage Assistent",
         "emptyStateDescDocument": "Ich habe vollen Zugriff auf dieses Dokument. Fragen Sie mich zu Inhalten, Risiken, Schlüsselbegriffen oder vergleichen Sie mit ähnlichen Dokumenten.",
         "emptyStateDescGlobal": "Durchsuchen Sie Dokumente im gesamten System. Ich kann Rechnungen finden, Status prüfen, Trends analysieren und Ihr Dokumentenportfolio verwalten.",
         "queryingDocuments": "Dokumente werden abgefragt...",
@@ -1161,5 +1161,38 @@
         "result": "Ergebnis",
         "globalContext": "Globaler Kontext",
         "openDocument": "Dokument öffnen"
+    },
+    "predictionDashboard": {
+        "title": "Vorhersage-Dashboard",
+        "subtitle": "Verwalten Sie Ihre Spielvorhersagen, verfolgen Sie Ihr Ranking und sehen Sie aktuelle Ergebnisse.",
+        "myPredictions": "Meine Vorhersagen",
+        "myPredictionsSubtitle": "Überprüfen und aktualisieren Sie Ihre Vorhersagen für bevorstehende Spiele.",
+        "searchByTeam": "Nach Team suchen...",
+        "noMatchesFound": "Keine Spiele gefunden, die Ihren Kriterien entsprechen.",
+        "loadError": "Vorhersagedaten konnten nicht geladen werden. Stellen Sie sicher, dass das Backend läuft und authentifiziert ist.",
+        "showing": "Zeige {{from}}–{{to}} von {{total}}",
+        "prev": "Zurück",
+        "next": "Weiter",
+        "columns": {
+            "matchId": "Spiel-ID",
+            "dateStage": "Datum / Phase",
+            "teams": "Teams",
+            "scorePick": "Ergebnis-Tipp",
+            "wdlPick": "Sieg/Unentschieden/Niederlage",
+            "status": "Status",
+            "result": "Ergebnis",
+            "points": "Punkte"
+        },
+        "addPick": "Tipp hinzufügen ({{current}}/{{max}})",
+        "statusUpcoming": "Bevorstehend",
+        "statusInProcess": "Laufend",
+        "statusClosed": "Abgeschlossen",
+        "leaderboard": {
+            "title": "Globale Bestenliste",
+            "subtitle": "Top 10 Spieler weltweit.",
+            "loadError": "Bestenliste konnte nicht geladen werden.",
+            "pts": "Pkt",
+            "streak": "{{count}} S"
+        }
     }
 }

@@ -4,7 +4,7 @@ sap.ui.define([
 ], function (UIComponent, HTML) {
     "use strict";
 
-    return UIComponent.extend("cnma.internalsportv2.Component", {
+    return UIComponent.extend("cnma.clair2doc.Component", {
         metadata: {
             manifest: "json"
         },
@@ -15,7 +15,7 @@ sap.ui.define([
         },
 
         createContent: function () {
-            var sAppPath = sap.ui.require.toUrl("cnma/internalsportv2");
+            var sAppPath = sap.ui.require.toUrl("cnma/clair2doc");
             var sIndexUrl = sAppPath + "/index.html";
 
             // Store iframe reference for later messaging

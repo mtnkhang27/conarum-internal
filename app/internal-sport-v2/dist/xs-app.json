@@ -10,14 +10,14 @@
       "source": "^/odata/v4/(.*)$",
       "authenticationType": "xsuaa",
       "target": "/odata/v4/$1",
-      "destination": "cnma_internal_prediction_destination",
+      "destination": "cnma_clair2_document_destination",
       "csrfProtection": false
     },
     {
       "source": "^/api/cnma/(.*)$",
       "authenticationType": "xsuaa",
       "target": "/api/cnma/$1",
-      "destination": "cnma_internal_prediction_destination",
+      "destination": "cnma_clair2_document_destination",
       "csrfProtection": false
     },
     {

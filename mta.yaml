@@ -66,11 +66,27 @@ modules:
           artifacts:
             - ./*
           target-path: resources
+        - name: cnma_internal_prediction_v2_ui
+          artifacts:
+            - ./*
+          target-path: resources
 
   # ──────────────── React Frontend Build ────────────────
   - name: cnma_internal_prediction_ui
     type: html5
     path: app/internal-sport
+    build-parameters:
+      builder: custom
+      commands:
+        - npm install
+        - npm run build
+      supported-platforms: []
+      build-result: dist
+
+  # ──────────────── React Frontend Build V2 ────────────────
+  - name: cnma_internal_prediction_v2_ui
+    type: html5
+    path: app/internal-sport-v2
     build-parameters:
       builder: custom
       commands:
@@ -95,6 +111,10 @@ modules:
         - name: cnma_internal_prediction_ui
           artifacts:
             - cnma_internal_prediction_ui.zip
+          target-path: ui_resources/
+        - name: cnma_internal_prediction_v2_ui
+          artifacts:
+            - cnma_internal_prediction_v2_ui.zip
           target-path: ui_resources/
 
   # ──────────────── Destination Content ────────────────

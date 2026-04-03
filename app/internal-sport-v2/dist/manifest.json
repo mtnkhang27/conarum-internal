@@ -11,48 +11,48 @@
     "description": "Internal Prediction Application V2",
     "crossNavigation": {
       "inbounds": {
-        "internalsportv2_inbound": {
+        "clair2_document_inbound": {
           "signature": {
             "parameters": {},
             "additionalParameters": "allowed"
           },
-          "semanticObject": "internalsportv2",
+          "semanticObject": "clair2_document",
           "action": "manage"
         },
-        "internalsportv2_2_inbound": {
+        "clair2_asn_inbound": {
           "signature": {
             "parameters": {
               "worklist": { "defaultValue": { "value": "asn" } }
             },
             "additionalParameters": "allowed"
           },
-          "semanticObject": "internalsportv2",
+          "semanticObject": "clair2_document",
           "action": "manageASN",
-          "title": "Internal Sport App V2",
+          "title": "CLAIR2 ASN Processing",
           "icon": "sap-icon://shipping-status"
         },
-        "internalsportv2_3_inbound": {
+        "clair2_inv_inbound": {
           "signature": {
             "parameters": {
               "worklist": { "defaultValue": { "value": "inv" } }
             },
             "additionalParameters": "allowed"
           },
-          "semanticObject": "internalsportv2",
+          "semanticObject": "clair2_document",
           "action": "manageINV",
-          "title": "Internal Sport App V2",
+          "title": "CLAIR2 Invoice Processing",
           "icon": "sap-icon://money-bills"
         },
-        "internalsportv2_4_inbound": {
+        "clair2_poc_inbound": {
           "signature": {
             "parameters": {
               "worklist": { "defaultValue": { "value": "poc" } }
             },
             "additionalParameters": "allowed"
           },
-          "semanticObject": "internalsportv2",
+          "semanticObject": "clair2_document",
           "action": "managePOC",
-          "title": "Internal Sport App V2",
+          "title": "CLAIR2 PO Confirmation Processing",
           "icon": "sap-icon://manager-insight"
         }
       }

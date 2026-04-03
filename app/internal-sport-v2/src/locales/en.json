@@ -1,7 +1,7 @@
 {
     "app": {
-        "name": "CLAIR2 Document Intelligence",
-        "title": "CLAIR2"
+        "name": "Internal Sport Prediction V2",
+        "title": "Internal Sport V2"
     },
     "auth": {
         "accessDenied": "Access Denied",
@@ -1214,7 +1214,7 @@
         "globalDefaultLabel": "Global Default"
     },
     "globalChat": {
-        "title": "CLAIR2 Assistant",
+        "title": "Sport Prediction Assistant",
         "subtitleDocument": "Document analysis · AI-powered insights",
         "subtitleGlobal": "Cross-document queries & insights",
         "newConversation": "New Conversation",
@@ -1225,7 +1225,7 @@
         "exitFullscreen": "Exit Fullscreen",
         "dragToResize": "Drag to resize",
         "emptyStateTitle": "Document Analyst",
-        "emptyStateTitleGlobal": "CLAIR2 Assistant",
+        "emptyStateTitleGlobal": "Sport Prediction Assistant",
         "emptyStateDescDocument": "I have full access to this document. Ask me about contents, risks, key terms, or compare with similar documents.",
         "emptyStateDescGlobal": "Query documents across the system. I can find invoices, check statuses, analyze trends, and help manage your document portfolio.",
         "queryingDocuments": "Querying documents...",
@@ -1235,5 +1235,38 @@
         "result": "Result",
         "globalContext": "Global Context",
         "openDocument": "Open Document"
+    },
+    "predictionDashboard": {
+        "title": "Predictions Dashboard",
+        "subtitle": "Manage your match predictions, track your ranking, and view latest results.",
+        "myPredictions": "My Predictions",
+        "myPredictionsSubtitle": "Review and update your predictions for upcoming matches.",
+        "searchByTeam": "Search by team...",
+        "noMatchesFound": "No matches found matching your criteria.",
+        "loadError": "Failed to load prediction data. Please ensure the backend is running and authenticated.",
+        "showing": "Showing {{from}}–{{to}} of {{total}}",
+        "prev": "Prev",
+        "next": "Next",
+        "columns": {
+            "matchId": "Match ID",
+            "dateStage": "Date / Stage",
+            "teams": "Teams",
+            "scorePick": "Score Pick",
+            "wdlPick": "WDL Pick",
+            "status": "Status",
+            "result": "Result",
+            "points": "Points"
+        },
+        "addPick": "Add Pick ({{current}}/{{max}})",
+        "statusUpcoming": "Upcoming",
+        "statusInProcess": "In Process",
+        "statusClosed": "Closed",
+        "leaderboard": {
+            "title": "Global Leaderboard",
+            "subtitle": "Top 10 players worldwide.",
+            "loadError": "Could not load leaderboard.",
+            "pts": "pts",
+            "streak": "{{count}} W"
+        }
     }
 }

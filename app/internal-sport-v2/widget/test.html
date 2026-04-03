@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>CLAIR2 Chat Widget — Test Page</title>
+    <title>Internal Sport V2 Chat Widget — Test Page</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -68,7 +68,7 @@
 <body>
     <div class="container">
         <h1>🏢 Sample Application</h1>
-        <p>This simulates a 3rd party app embedding the CLAIR2 Document Analyst widget.</p>
+        <p>This simulates a 3rd party app embedding the Internal Sport V2 Document Analyst widget.</p>
 
         <div class="config-card">
             <h2>Widget Configuration</h2>
@@ -86,23 +86,23 @@
             </div>
             <div style="margin-top: 16px;">
                 <button class="btn" onclick="initWidget()">Initialize Widget</button>
-                <button class="btn btn-outline" onclick="CLAIR2Chat.open()">Open</button>
-                <button class="btn btn-outline" onclick="CLAIR2Chat.close()">Close</button>
-                <button class="btn btn-outline" onclick="CLAIR2Chat.destroy()">Destroy</button>
+                <button class="btn btn-outline" onclick="SportChat.open()">Open</button>
+                <button class="btn btn-outline" onclick="SportChat.close()">Close</button>
+                <button class="btn btn-outline" onclick="SportChat.destroy()">Destroy</button>
             </div>
             <div id="status" class="status" style="display:none;"></div>
         </div>
 
         <div class="placeholder-content">
             <h3>📄 Your Application Content</h3>
-            <p>This represents the main content of your application. The CLAIR2 chat widget floats above your content and doesn't interfere with your app's layout. It uses Shadow DOM for complete style isolation.</p>
+            <p>This represents the main content of your application. The Internal Sport V2 chat widget floats above your content and doesn't interfere with your app's layout. It uses Shadow DOM for complete style isolation.</p>
             <br/>
             <p>Click "Initialize Widget" above (or check "defaultOpen" in config) to see the chat widget appear in the bottom-right corner.</p>
         </div>
     </div>
 
     <!-- Load the widget -->
-    <script src="./dist/clair2-chat.js"></script>
+    <script src="./dist/sport-chat.js"></script>
     <script>
         function initWidget() {
             const apiUrl = document.getElementById('apiUrl').value;
@@ -114,7 +114,7 @@
                 return;
             }
 
-            CLAIR2Chat.init({
+            SportChat.init({
                 apiUrl,
                 token,
                 documentId,
@@ -126,9 +126,9 @@
             });
 
             // Listen for events
-            CLAIR2Chat.on('open', () => log('Widget opened'));
-            CLAIR2Chat.on('close', () => log('Widget closed'));
-            CLAIR2Chat.on('destroy', () => log('Widget destroyed'));
+            SportChat.on('open', () => log('Widget opened'));
+            SportChat.on('close', () => log('Widget closed'));
+            SportChat.on('destroy', () => log('Widget destroyed'));
 
             log(`Widget initialized — documentId: ${documentId}`);
         }

@@ -42,19 +42,17 @@ export default function App() {
             <HashRouter>
                 <ShellSync />
                 <InitialRouteNavigator />
-                <SessionTimeoutProvider>
-                    <div className="min-h-screen bg-background">
-                        <ErrorBoundary>
-                            <Routes>
-                                {/* Main application routes with layout */}
-                                <Route element={<MainLayout />}>
-                                    <Route path="/" element={<Dashboard />} />
-                                </Route>
-                            </Routes>
-                        </ErrorBoundary>
-                        <Toaster />
-                    </div>
-                </SessionTimeoutProvider>
+                <div className="min-h-screen bg-background">
+                    <ErrorBoundary>
+                        <Routes>
+                            {/* Main application routes with layout */}
+                            <Route element={<MainLayout />}>
+                                <Route path="/" element={<Dashboard />} />
+                            </Route>
+                        </Routes>
+                    </ErrorBoundary>
+                    <Toaster />
+                </div>
             </HashRouter>
         </QueryClientProvider>
     );

@@ -1,73 +1,90 @@
 import axios, { type AxiosInstance, type InternalAxiosRequestConfig } from 'axios';
 import { triggerSessionExpiredGlobal } from '@/components/providers/SessionTimeoutProvider';
 
-// Determine if we're running locally
-// const isLocal = typeof window !== 'undefined' &&
-//   (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
 const isLocal = false;
 
-// Create axios instance
 const axiosInstance: AxiosInstance = axios.create({
-  // Use relative path for Vite proxy in development, or absolute path in production
-  baseURL: isLocal ? 'http://localhost:5000' : '', // Relative path for WorkZone + approuter compatibility
+  baseURL: isLocal ? 'http://localhost:5000' : '',
   headers: {
     'Content-Type': 'application/json',
   },
   timeout: 30000,
 });
 
-// CSRF Token cache
-let csrfToken: string | null = null;
-let tokenFetchPromise: Promise<string | null> | null = null;
+const csrfTokens = new Map<string, string | null>();
+const tokenFetchPromises = new Map<string, Promise<string | null>>();
 
-/**
- * Fetch CSRF token from the server
- * Uses GET request with X-CSRF-Token: Fetch header
- */
-const fetchCsrfToken = async (): Promise<string | null> => {
-  // If already fetching, wait for it
-  if (tokenFetchPromise) {
-    return tokenFetchPromise;
+function normalizeRequestPath(url?: string) {
+  if (!url) return '/api/player';
+
+  try {
+    const pathname = url.startsWith('http')
+      ? new URL(url, typeof window !== 'undefined' ? window.location.origin : 'http://localhost').pathname
+      : url;
+
+    return pathname.startsWith('/') ? pathname : `/${pathname}`;
+  } catch {
+    return url.startsWith('/') ? url : `/${url}`;
+  }
+}
+
+function resolveCsrfRoot(url?: string) {
+  const normalizedPath = normalizeRequestPath(url);
+  const segments = normalizedPath.split('/').filter(Boolean);
+
+  if (segments[0] === 'api' && segments[1]) {
+    return `/${segments[0]}/${segments[1]}`;
   }
 
-  tokenFetchPromise = (async () => {
+  if (segments[0] === 'odata' && segments[1]) {
+    return `/${segments[0]}/${segments[1]}`;
+  }
+
+  return '/api/player';
+}
+
+async function fetchCsrfToken(serviceRoot: string): Promise<string | null> {
+  const inFlight = tokenFetchPromises.get(serviceRoot);
+  if (inFlight) {
+    return inFlight;
+  }
+
+  const request = (async () => {
     try {
-      // Use GET to fetch token - OData endpoints don't always support HEAD
-      const response = await axios.get('odata/v4/extraction/$metadata', {
+      const response = await axios.get(`${serviceRoot}/$metadata`, {
         headers: {
           'X-CSRF-Token': 'Fetch',
         },
       });
-      csrfToken = response.headers['x-csrf-token'];
-      return csrfToken;
+
+      const token = response.headers['x-csrf-token'] || null;
+      csrfTokens.set(serviceRoot, token);
+      return token;
     } catch (error) {
       console.warn('CSRF token fetch failed (may indicate authorization issue):', (error as any)?.response?.status);
-      // Don't throw — return null so GET requests can still proceed
-      // and surface the 403 through the response interceptor
-      csrfToken = null;
+      csrfTokens.set(serviceRoot, null);
       return null;
     } finally {
-      tokenFetchPromise = null;
+      tokenFetchPromises.delete(serviceRoot);
     }
   })();
 
-  return tokenFetchPromise;
-};
+  tokenFetchPromises.set(serviceRoot, request);
+  return request;
+}
 
-/**
- * Request interceptor - adds CSRF token to non-GET requests
- */
 axiosInstance.interceptors.request.use(
   async (config: InternalAxiosRequestConfig) => {
     const method = config.method?.toLowerCase();
 
-    // Only add CSRF token for write operations
     if (method && ['post', 'put', 'patch', 'delete'].includes(method)) {
-      // Fetch token if not cached
-      if (!csrfToken) {
-        await fetchCsrfToken();
+      const serviceRoot = resolveCsrfRoot(config.url);
+
+      if (!csrfTokens.has(serviceRoot) || !csrfTokens.get(serviceRoot)) {
+        await fetchCsrfToken(serviceRoot);
       }
 
+      const csrfToken = csrfTokens.get(serviceRoot);
       if (csrfToken && config.headers) {
         config.headers['X-CSRF-Token'] = csrfToken;
       }
@@ -78,9 +95,6 @@ axiosInstance.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-/**
- * Response interceptor - handles CSRF token expiration (403) and session expiration (401)
- */
 let isRedirectingToLogin = false;
 
 axiosInstance.interceptors.response.use(
@@ -88,28 +102,25 @@ axiosInstance.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
 
-    // ── 401 Unauthorized → session expired, show dialog ──
     if (error.response?.status === 401 && !isRedirectingToLogin) {
       isRedirectingToLogin = true;
-      console.warn('[Session] Token expired — showing session expired dialog.');
-      // Show a proper "Session Expired" dialog instead of silently reloading
+      console.warn('[Session] Token expired - showing session expired dialog.');
       triggerSessionExpiredGlobal();
-      // Return a never-resolving promise so pending calls don't trigger UI errors
       return new Promise(() => { });
     }
 
-    // ── 403 on write operation → likely CSRF token issue, retry once ──
     if (error.response?.status === 403 && !originalRequest._retry) {
       const method = originalRequest.method?.toLowerCase();
       const isWriteOp = method && ['post', 'put', 'patch', 'delete'].includes(method);
 
       if (isWriteOp) {
         originalRequest._retry = true;
+        const serviceRoot = resolveCsrfRoot(originalRequest.url);
 
-        // Clear cached token and refetch
-        csrfToken = null;
-        await fetchCsrfToken();
+        csrfTokens.delete(serviceRoot);
+        await fetchCsrfToken(serviceRoot);
 
+        const csrfToken = csrfTokens.get(serviceRoot);
         if (csrfToken) {
           originalRequest.headers['X-CSRF-Token'] = csrfToken;
           return axiosInstance(originalRequest);
@@ -117,7 +128,6 @@ axiosInstance.interceptors.response.use(
       }
     }
 
-    // Tag 403 for UI components to detect authorization denial
     if (error.response?.status === 403) {
       error.isForbidden = true;
     }

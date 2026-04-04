@@ -11,62 +11,28 @@
     "description": "Internal Prediction Application V2",
     "crossNavigation": {
       "inbounds": {
-        "clair2_document_inbound": {
+        "internal_prediction_v2_inbound": {
           "signature": {
             "parameters": {},
             "additionalParameters": "allowed"
           },
-          "semanticObject": "clair2_document",
-          "action": "manage"
-        },
-        "clair2_asn_inbound": {
-          "signature": {
-            "parameters": {
-              "worklist": { "defaultValue": { "value": "asn" } }
-            },
-            "additionalParameters": "allowed"
-          },
-          "semanticObject": "clair2_document",
-          "action": "manageASN",
-          "title": "CLAIR2 ASN Processing",
-          "icon": "sap-icon://shipping-status"
-        },
-        "clair2_inv_inbound": {
-          "signature": {
-            "parameters": {
-              "worklist": { "defaultValue": { "value": "inv" } }
-            },
-            "additionalParameters": "allowed"
-          },
-          "semanticObject": "clair2_document",
-          "action": "manageINV",
-          "title": "CLAIR2 Invoice Processing",
-          "icon": "sap-icon://money-bills"
-        },
-        "clair2_poc_inbound": {
-          "signature": {
-            "parameters": {
-              "worklist": { "defaultValue": { "value": "poc" } }
-            },
-            "additionalParameters": "allowed"
-          },
-          "semanticObject": "clair2_document",
-          "action": "managePOC",
-          "title": "CLAIR2 PO Confirmation Processing",
-          "icon": "sap-icon://manager-insight"
+          "semanticObject": "internal_prediction_v2",
+          "action": "manage",
+          "title": "Internal Prediction V2",
+          "icon": "sap-icon://competitor"
         }
       }
     }
   },
   "sap.cloud": {
     "public": true,
-    "service": "cnma.internalprediction.v2"
+    "service": "cnma.internalprediction"
   },
   "sap.ui": {
     "technology": "UI5",
     "fullWidth": true,
     "icons": {
-      "icon": "sap-icon://document"
+      "icon": "sap-icon://competitor"
     },
     "deviceTypes": {
       "desktop": true,

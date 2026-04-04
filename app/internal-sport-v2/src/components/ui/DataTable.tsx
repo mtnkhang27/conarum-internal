@@ -407,6 +407,21 @@ export function DataTable<T = any>({
         [onRowClick]
     );
 
+    const getRowKey = useCallback(
+        (row: T, index: number) => {
+            if (selection) {
+                const selectedId = selection.getRowId(row);
+                if (selectedId) {
+                    return selectedId;
+                }
+            }
+
+            const candidate = (row as any)?.ID ?? (row as any)?.id ?? index;
+            return String(candidate);
+        },
+        [selection]
+    );
+
     const showLoading = isLoading && !isPlaceholderData && data.length === 0;
     const showCheckboxColumn = selection?.enabled !== false && selection;
 
@@ -463,8 +478,8 @@ export function DataTable<T = any>({
                         </div>
                     ) : (
                         <div className="divide-y divide-border">
-                            {data.map((row) => {
-                                const rowId = selection?.getRowId(row) || '';
+                            {data.map((row, rowIndex) => {
+                                const rowId = getRowKey(row, rowIndex);
                                 const isSelected = selection?.selectedIds.has(rowId);
                                 const clickable = !onRowClick || !isRowClickable || isRowClickable(row);
                                 // First column = title, rest = detail fields
@@ -668,10 +683,10 @@ export function DataTable<T = any>({
                                     </TableCell>
                                 </TableRow>
                             ) : (
-                                data.map((row) => {
-                                    const rowId = selection?.getRowId(row) || '';
-                                    const isSelected = selection?.selectedIds.has(rowId);
-                                    const clickable = !onRowClick || !isRowClickable || isRowClickable(row);
+                            data.map((row, rowIndex) => {
+                                const rowId = getRowKey(row, rowIndex);
+                                const isSelected = selection?.selectedIds.has(rowId);
+                                const clickable = !onRowClick || !isRowClickable || isRowClickable(row);
 
                                     return (
                                         <TableRow
@@ -854,9 +869,9 @@ export function DataTable<T = any>({
                                 </TableCell>
                             </TableRow>
                         ) : (
-                            data.map((row) => {
-                                const rowId = selection?.getRowId(row) || '';
-                                const isSelected = selection?.selectedIds.has(rowId);
+                                data.map((row, rowIndex) => {
+                                    const rowId = getRowKey(row, rowIndex);
+                                    const isSelected = selection?.selectedIds.has(rowId);
 
                                 return (
                                     <TableRow

@@ -104,6 +104,7 @@
         "eslint-plugin-unused-imports": "^4.4.1",
         "globals": "^16.5.0",
         "i18next-scanner": "^4.6.0",
+        "bestzip": "^2.2.1",
         "tailwindcss": "4.1.12",
         "typescript": "~5.9.3",
         "typescript-eslint": "^8.46.4",

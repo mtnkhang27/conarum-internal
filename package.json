@@ -54,10 +54,10 @@
     "cf:dev": "cf target -o proconarum-development-system",
     "cf:qas": "cf target -o proconarum-quality-system",
     "cf:logs": "cf logs cnma_internal_prediction_srv",
-    "start:hybrid": "concurrently \"cds bind --exec --profile hybrid -- cds watch --profile hybrid --exclude app/internal-sport,app/router,ui_resources,mta_archives,gen\" \"npm run dev --prefix app/internal-sport\"",
-    "start:hybrid:backend": "cds bind --exec --profile hybrid -- cds watch --profile hybrid --exclude app/internal-sport,app/router,ui_resources,mta_archives,gen",
-    "start:hybrid:stable": "concurrently \"cds bind --exec --profile hybrid -- cds serve --profile hybrid\" \"npm run dev --prefix app/internal-sport\"",
-    "start:hybrid:frontend": "npm run dev --prefix app/internal-sport"
+    "start:hybrid": "concurrently \"cds bind --exec --profile hybrid -- cds watch --profile hybrid --exclude app/internal-sport-v2,app/router,ui_resources,mta_archives,gen\" \"npm run dev --prefix app/internal-sport-v2\"",
+    "start:hybrid:backend": "cds bind --exec --profile hybrid -- cds watch --profile hybrid --exclude app/internal-sport-v2,app/router,ui_resources,mta_archives,gen",
+    "start:hybrid:stable": "concurrently \"cds bind --exec --profile hybrid -- cds serve --profile hybrid\" \"npm run dev --prefix app/internal-sport-v2\"",
+    "start:hybrid:frontend": "npm run dev --prefix app/internal-sport-v2"
   },
   "private": true,
   "cds": {

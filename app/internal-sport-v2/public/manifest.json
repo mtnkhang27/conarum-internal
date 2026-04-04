@@ -11,62 +11,28 @@
     "description": "Internal Prediction Application V2",
     "crossNavigation": {
       "inbounds": {
-        "internalsportv2_inbound": {
+        "internal_prediction_v2_inbound": {
           "signature": {
             "parameters": {},
             "additionalParameters": "allowed"
           },
-          "semanticObject": "internalsportv2",
-          "action": "manage"
-        },
-        "internalsportv2_2_inbound": {
-          "signature": {
-            "parameters": {
-              "worklist": { "defaultValue": { "value": "asn" } }
-            },
-            "additionalParameters": "allowed"
-          },
-          "semanticObject": "internalsportv2",
-          "action": "manageASN",
-          "title": "Internal Sport App V2",
-          "icon": "sap-icon://shipping-status"
-        },
-        "internalsportv2_3_inbound": {
-          "signature": {
-            "parameters": {
-              "worklist": { "defaultValue": { "value": "inv" } }
-            },
-            "additionalParameters": "allowed"
-          },
-          "semanticObject": "internalsportv2",
-          "action": "manageINV",
-          "title": "Internal Sport App V2",
-          "icon": "sap-icon://money-bills"
-        },
-        "internalsportv2_4_inbound": {
-          "signature": {
-            "parameters": {
-              "worklist": { "defaultValue": { "value": "poc" } }
-            },
-            "additionalParameters": "allowed"
-          },
-          "semanticObject": "internalsportv2",
-          "action": "managePOC",
-          "title": "Internal Sport App V2",
-          "icon": "sap-icon://manager-insight"
+          "semanticObject": "internal_prediction_v2",
+          "action": "manage",
+          "title": "Internal Prediction V2",
+          "icon": "sap-icon://competitor"
         }
       }
     }
   },
   "sap.cloud": {
     "public": true,
-    "service": "cnma.internalprediction.v2"
+    "service": "cnma.internalprediction"
   },
   "sap.ui": {
     "technology": "UI5",
     "fullWidth": true,
     "icons": {
-      "icon": "sap-icon://document"
+      "icon": "sap-icon://competitor"
     },
     "deviceTypes": {
       "desktop": true,

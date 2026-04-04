@@ -1,29 +1,36 @@
 {
-    "welcomeFile": "/index.html",
-    "authenticationMethod": "route",
-    "sessionTimeout": 60,
-    "logout": {
-        "logoutEndpoint": "/do/logout"
+  "welcomeFile": "/index.html",
+  "authenticationMethod": "route",
+  "sessionTimeout": 60,
+  "logout": {
+    "logoutEndpoint": "/do/logout"
+  },
+  "routes": [
+    {
+      "source": "^/api/(.*)$",
+      "authenticationType": "xsuaa",
+      "target": "/api/$1",
+      "destination": "cnma_internal_prediction_destination",
+      "csrfProtection": false
     },
-    "routes": [
-        {
-            "source": "^/api/(.*)$",
-            "target": "/api/$1",
-            "destination": "cnma_internal_prediction_destination",
-            "authenticationType": "xsuaa",
-            "csrfProtection": false
-        },
-        {
-            "source": "^(.*)$",
-            "target": "$1",
-            "service": "html5-apps-repo-rt",
-            "authenticationType": "xsuaa"
-        }
-    ],
-    "responseHeaders": [
-        {
-            "name": "X-Frame-Options",
-            "value": "SAMEORIGIN"
-        }
-    ]
+    {
+      "source": "^/odata/(.*)$",
+      "authenticationType": "xsuaa",
+      "target": "/odata/$1",
+      "destination": "cnma_internal_prediction_destination",
+      "csrfProtection": false
+    },
+    {
+      "source": "^(.*)$",
+      "target": "$1",
+      "service": "html5-apps-repo-rt",
+      "authenticationType": "xsuaa"
+    }
+  ],
+  "responseHeaders": [
+    {
+      "name": "X-Frame-Options",
+      "value": "SAMEORIGIN"
+    }
+  ]
 }

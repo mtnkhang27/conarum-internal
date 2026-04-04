@@ -3,61 +3,41 @@ import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import path from 'path';
 
-export default defineConfig({
-    base: './',
-    plugins: [
-        react(),
-        tailwindcss(),
-    ],
-    resolve: {
-        alias: {
-            '@': path.resolve(__dirname, 'src'),
-            // Resolve cap-valuehelp from local sibling workspace for live dev changes
-            // '@cnma/cap-valuehelp/react/valuehelp.css': path.resolve(__dirname, '../../../cap-valuehelp/react/valuehelp.css'),
-            // '@cnma/cap-valuehelp/react': path.resolve(__dirname, '../../../cap-valuehelp/dist/react/index.js'),
-            // '@cnma/cap-identity/react/identity.css': path.resolve(__dirname, '../../../cap-identity/react/identity.css'),
-            // '@cnma/cap-identity/react': path.resolve(__dirname, '../../../cap-identity/dist/react/index.js'),
+export default defineConfig(() => {
+    const proxyTarget = process.env.VITE_PROXY_TARGET || 'http://localhost:4004';
+    const isRemote = proxyTarget.startsWith('https');
+    const localAuthHeader = !isRemote
+        ? { Authorization: 'Basic ' + Buffer.from('admin:admin').toString('base64') }
+        : {};
+
+    return {
+        base: './',
+        plugins: [
+            react(),
+            tailwindcss(),
+        ],
+        resolve: {
+            alias: {
+                '@': path.resolve(__dirname, 'src'),
+            },
+            dedupe: ['react', 'react-dom'],
         },
-        // Prevent duplicate React when external packages resolve from root node_modules
-        dedupe: ['react', 'react-dom'],
-    },
-    // Copy docs to public folder during build
-    publicDir: 'public',
-    server: {
-        proxy: {
-            // Proxy API calls to CAP backend
-            // Authorization header auto-authenticates as 'admin' against mocked CAP auth
-            '/api': {
-                target: 'http://localhost:4004',
-                changeOrigin: true,
-                headers: { Authorization: 'Basic YWRtaW46YWRtaW4=' },
+        publicDir: 'public',
+        server: {
+            proxy: {
+                '/api': {
+                    target: proxyTarget,
+                    changeOrigin: true,
+                    secure: isRemote,
+                    headers: localAuthHeader,
+                },
+                '/odata': {
+                    target: proxyTarget,
+                    changeOrigin: true,
+                    secure: isRemote,
+                    headers: localAuthHeader,
+                },
             },
-            '/browse': {
-                target: 'http://localhost:4004',
-                changeOrigin: true,
-                headers: { Authorization: 'Basic YWRtaW46YWRtaW4=' },
-            },
-            '/admin': {
-                target: 'http://localhost:4004',
-                changeOrigin: true,
-                headers: { Authorization: 'Basic YWRtaW46YWRtaW4=' },
-            },
-            '/odata': {
-                target: 'http://localhost:4004',
-                changeOrigin: true,
-                secure: false,
-                headers: { Authorization: 'Basic YWRtaW46YWRtaW4=' },
-            },
-            '/identity-admin': {
-                target: 'http://localhost:4004',
-                changeOrigin: true,
-                headers: { Authorization: 'Basic YWRtaW46YWRtaW4=' },
-            },
-            '/identity': {
-                target: 'http://localhost:4004',
-                changeOrigin: true,
-                headers: { Authorization: 'Basic YWRtaW46YWRtaW4=' },
-            }
-        }
-    }
+        },
+    };
 })

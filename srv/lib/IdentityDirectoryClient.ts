@@ -18,6 +18,7 @@ type ProvisionUserInput = {
     givenName?: string | null;
     familyName?: string | null;
     displayName?: string | null;
+    password?: string | null;
     active?: boolean;
 };
 
@@ -94,8 +95,9 @@ export class IdentityDirectoryClient {
         const givenName = trimToNull(input.givenName) ?? normalizedEmail.split('@')[0];
         const familyName = trimToNull(input.familyName) ?? 'User';
         const displayName = trimToNull(input.displayName) ?? `${givenName} ${familyName}`.trim();
+        const password = trimToNull(input.password);
 
-        const payload = {
+        const payload: Record<string, unknown> = {
             schemas: ['urn:ietf:params:scim:schemas:core:2.0:User'],
             userName: normalizedEmail,
             displayName,
@@ -111,6 +113,10 @@ export class IdentityDirectoryClient {
                 },
             ],
         };
+
+        if (password) {
+            payload.password = password;
+        }
 
         return this.request<ScimUser>(this.config.usersPath, {
             method: 'POST',

@@ -8,10 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- Initial project setup
+- Sandbox user provisioning now supports explicit app-role mapping and optional initial password assignment for newly created IDP users.
 
 ### Changed
-- (none)
+- Admin sandbox-user results now show assigned groups, assigned app roles, and whether the initial password was applied.
 
 ### Fixed
 - (none)

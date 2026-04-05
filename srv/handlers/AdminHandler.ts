@@ -4,11 +4,48 @@ import { materializeSlotBetsForMatch } from '../lib/SlotBetMaterializer';
 import { STAGE_MAP, STATUS_MAP, OUTCOME_MAP } from '../lib/constants';
 import { BracketBuilder } from '../lib/BracketBuilder';
 import { IdentityDirectoryClient } from '../lib/IdentityDirectoryClient';
+import {
+    CAP_ROLE_ADMIN,
+    CAP_ROLE_USER,
+    DEFAULT_SANDBOX_ADMIN_GROUP,
+    DEFAULT_SANDBOX_USER_GROUP,
+    ProvisionableAppRole,
+    expandStoredRolesFromAppRoles,
+    getAssignedAppRolesForAppRole,
+    getAssignedGroupsForAppRole,
+    normalizeProvisionableAppRole,
+} from '../lib/AuthRoleConfig';
 
 /** football-data.org API token — read from env, falls back to empty string. */
 const FOOTBALL_DATA_API_TOKEN = 'f96dc87cc7b54da08321475e744a52f2';
-const DEFAULT_SANDBOX_USER_GROUP = process.env.IDP_DEFAULT_USER_GROUP?.trim() || 'CNMA_CONARUM_INTERNAL_USER';
-const DEFAULT_SANDBOX_ADMIN_GROUP = process.env.IDP_ADMIN_GROUP?.trim() || 'CNMA_CONARUM_INTERNAL_ADMIN';
+const DEFAULT_SCIM_PASSWORD = process.env.IDP_DEFAULT_PASSWORD?.trim() || null;
+const PASSWORD_SOURCE_REQUEST = 'request';
+const PASSWORD_SOURCE_ENVIRONMENT = 'environment';
+
+type SandboxProvisionPasswordSource = typeof PASSWORD_SOURCE_REQUEST | typeof PASSWORD_SOURCE_ENVIRONMENT;
+
+type ProvisionPasswordResolution = {
+    value: string | null;
+    source: SandboxProvisionPasswordSource | null;
+};
+
+type ProvisioningAccessResolution = {
+    appRole: ProvisionableAppRole;
+    assignedGroups: string[];
+    assignedAppRoles: ProvisionableAppRole[];
+};
+
+type SandboxProvisionResultRow = {
+    email: string;
+    success: boolean;
+    status: string;
+    message: string;
+    idpUserId: string | null;
+    assignedGroups: string[];
+    assignedAppRoles: string[];
+    passwordApplied: boolean;
+    passwordSource: SandboxProvisionPasswordSource | null;
+};
 
 /**
  * AdminHandler — Handles admin operations.
@@ -51,46 +88,52 @@ export class AdminHandler {
         }
 
         const adminGroupId = groupByName.get(DEFAULT_SANDBOX_ADMIN_GROUP.trim().toUpperCase()) ?? null;
-        const results: Array<Record<string, unknown>> = [];
+        const results: SandboxProvisionResultRow[] = [];
 
         const { Player } = cds.entities('cnma.prediction');
 
         for (const rawItem of inputUsers) {
-            const email = this.normalizeEmail(rawItem?.email);
+            const item = rawItem && typeof rawItem === 'object' ? rawItem as Record<string, unknown> : {};
+            const email = this.normalizeEmail(item.email);
+            const access = this.resolveProvisioningAccess(item);
+            const password = this.resolveProvisioningPassword(item);
             if (!email) {
                 results.push({
-                    email: rawItem?.email ?? '',
+                    email: typeof item.email === 'string' ? item.email : '',
                     success: false,
                     status: 'skipped',
                     message: 'Invalid email',
                     idpUserId: null,
                     assignedGroups: [],
+                    assignedAppRoles: [],
+                    passwordApplied: false,
+                    passwordSource: null,
                 });
                 continue;
             }
 
-            const makeAdmin = rawItem?.makeAdmin === true;
-            const desiredGroups = [DEFAULT_SANDBOX_USER_GROUP, ...(makeAdmin ? [DEFAULT_SANDBOX_ADMIN_GROUP] : [])];
-
             try {
                 let idpUser = await idpClient.findUserByEmail(email);
                 let status = 'existing';
+                let passwordApplied = false;
                 if (!idpUser) {
                     idpUser = await idpClient.createUser({
                         email,
-                        givenName: this.safeText(rawItem?.givenName, 100),
-                        familyName: this.safeText(rawItem?.familyName, 100),
-                        displayName: this.safeText(rawItem?.displayName, 120),
+                        givenName: this.safeText(item.givenName, 100),
+                        familyName: this.safeText(item.familyName, 100),
+                        displayName: this.safeText(item.displayName, 120),
+                        password: password.value,
                         active: true,
                     });
                     status = 'created';
+                    passwordApplied = Boolean(password.value);
                 }
 
                 const assignedGroups: string[] = [];
                 await idpClient.addUserToGroup(userGroupId, idpUser.id);
                 assignedGroups.push(DEFAULT_SANDBOX_USER_GROUP);
 
-                if (makeAdmin) {
+                if (access.appRole === CAP_ROLE_ADMIN) {
                     if (!adminGroupId) {
                         throw new Error(`Admin group '${DEFAULT_SANDBOX_ADMIN_GROUP}' not found in IDP`);
                     }
@@ -101,28 +144,35 @@ export class AdminHandler {
                 await this.upsertPlayerIdentity(Player, {
                     idpUserId: idpUser.id,
                     email,
-                    displayName: this.safeText(rawItem?.displayName, 100),
-                    givenName: this.safeText(rawItem?.givenName, 100),
-                    familyName: this.safeText(rawItem?.familyName, 100),
+                    displayName: this.safeText(item.displayName, 100),
+                    givenName: this.safeText(item.givenName, 100),
+                    familyName: this.safeText(item.familyName, 100),
                     assignedGroups,
+                    assignedAppRoles: access.assignedAppRoles,
                 });
 
                 results.push({
                     email,
                     success: true,
                     status,
-                    message: status === 'created' ? 'User created and grouped' : 'User already existed, group assignment ensured',
+                    message: this.buildProvisionSuccessMessage(status, access.assignedAppRoles, password, passwordApplied),
                     idpUserId: idpUser.id,
                     assignedGroups,
+                    assignedAppRoles: access.assignedAppRoles,
+                    passwordApplied,
+                    passwordSource: passwordApplied ? password.source : null,
                 });
-            } catch (error: any) {
+            } catch (error: unknown) {
                 results.push({
                     email,
                     success: false,
                     status: 'failed',
-                    message: error?.message || 'Provisioning failed',
+                    message: error instanceof Error ? error.message : 'Provisioning failed',
                     idpUserId: null,
-                    assignedGroups: desiredGroups,
+                    assignedGroups: access.assignedGroups,
+                    assignedAppRoles: access.assignedAppRoles,
+                    passwordApplied: false,
+                    passwordSource: null,
                 });
             }
         }
@@ -1538,21 +1588,60 @@ export class AdminHandler {
         return trimmed.slice(0, maxLen);
     }
 
-    private rolesFromGroups(groups: string[]): string[] {
-        const normalized = new Set(groups.map((group) => group.trim().toUpperCase()));
-        const roles = new Set<string>(['authenticated-user']);
+    private resolveProvisioningAccess(rawItem: Record<string, unknown>): ProvisioningAccessResolution {
+        const appRole = normalizeProvisionableAppRole(rawItem.appRole)
+            ?? (rawItem.makeAdmin === true ? CAP_ROLE_ADMIN : CAP_ROLE_USER);
 
-        if (normalized.has(DEFAULT_SANDBOX_USER_GROUP.trim().toUpperCase())) {
-            roles.add('PredictionUser');
+        return {
+            appRole,
+            assignedGroups: getAssignedGroupsForAppRole(appRole),
+            assignedAppRoles: getAssignedAppRolesForAppRole(appRole),
+        };
+    }
+
+    private resolveProvisioningPassword(rawItem: Record<string, unknown>): ProvisionPasswordResolution {
+        const requestPassword = this.safeText(rawItem.password, 255);
+        if (requestPassword) {
+            return {
+                value: requestPassword,
+                source: PASSWORD_SOURCE_REQUEST,
+            };
         }
 
-        if (normalized.has(DEFAULT_SANDBOX_ADMIN_GROUP.trim().toUpperCase())) {
-            roles.add('PredictionAdmin');
-            roles.add('PredictionUser');
-            roles.add('admin');
+        if (DEFAULT_SCIM_PASSWORD) {
+            return {
+                value: DEFAULT_SCIM_PASSWORD,
+                source: PASSWORD_SOURCE_ENVIRONMENT,
+            };
         }
 
-        return [...roles];
+        return {
+            value: null,
+            source: null,
+        };
+    }
+
+    private buildProvisionSuccessMessage(
+        status: string,
+        assignedAppRoles: ProvisionableAppRole[],
+        password: ProvisionPasswordResolution,
+        passwordApplied: boolean
+    ): string {
+        const accessLabel = assignedAppRoles.join(' + ');
+
+        if (status === 'created') {
+            if (passwordApplied) {
+                return `User created, initial password applied, and access '${accessLabel}' assigned.`;
+            }
+
+            return `User created and access '${accessLabel}' assigned. No initial password was configured.`;
+        }
+
+        if (password.value) {
+            return `User already existed, access '${accessLabel}' ensured. Existing password was not changed.`;
+        }
+
+        return `User already existed and access '${accessLabel}' was ensured.`;
     }
 
     private async upsertPlayerIdentity(
@@ -1564,9 +1653,10 @@ export class AdminHandler {
             givenName: string | null;
             familyName: string | null;
             assignedGroups: string[];
+            assignedAppRoles: ProvisionableAppRole[];
         }
     ): Promise<void> {
-        const roles = this.rolesFromGroups(input.assignedGroups);
+        const roles = expandStoredRolesFromAppRoles(input.assignedAppRoles);
         const scopes = [...input.assignedGroups];
 
         let existingPlayer = await SELECT.one.from(Player).where({ userUUID: input.idpUserId });

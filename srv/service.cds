@@ -1006,16 +1006,21 @@ service AdminService {
         givenName   : String(100);
         familyName  : String(100);
         displayName : String(100);
+        appRole     : String(40);
+        password    : String(255);
         makeAdmin   : Boolean;
     }
 
     type SandboxUserProvisionResult {
-        email          : String(255);
-        success        : Boolean;
-        status         : String(20);
-        message        : String(500);
-        idpUserId      : String(120);
-        assignedGroups : array of String;
+        email            : String(255);
+        success          : Boolean;
+        status           : String(20);
+        message          : String(500);
+        idpUserId        : String(120);
+        assignedGroups   : array of String;
+        assignedAppRoles : array of String;
+        passwordApplied  : Boolean;
+        passwordSource   : String(20);
     }
 
     action provisionSandboxUsers(users: many SandboxUserProvisionInput) returns many SandboxUserProvisionResult;

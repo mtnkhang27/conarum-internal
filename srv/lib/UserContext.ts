@@ -1,6 +1,15 @@
 import cds, { Request } from '@sap/cds';
 import fs from 'node:fs';
 import path from 'node:path';
+import {
+    CAP_ROLE_ADMIN,
+    CAP_ROLE_USER,
+    DEFAULT_SANDBOX_ADMIN_GROUP,
+    DEFAULT_SANDBOX_USER_GROUP,
+    ROLE_ALIAS_ADMIN,
+    ROLE_ALIAS_AUTHENTICATED_USER,
+    expandStoredRolesFromAppRoles,
+} from './AuthRoleConfig';
 
 type Claims = Record<string, unknown>;
 type LocalLoginConfig = {
@@ -21,11 +30,7 @@ export type ResolvedUserContext = {
     identityOrigin: string | null;
 };
 
-const CAP_ROLE_USER = 'PredictionUser';
-const CAP_ROLE_ADMIN = 'PredictionAdmin';
-const BTP_GROUP_USER = 'CNMA_CONARUM_INTERNAL_USER';
-const BTP_GROUP_ADMIN = 'CNMA_CONARUM_INTERNAL_ADMIN';
-const APP_ROLES = [CAP_ROLE_USER, CAP_ROLE_ADMIN, 'authenticated-user', 'admin'];
+const APP_ROLES = [CAP_ROLE_USER, CAP_ROLE_ADMIN, ROLE_ALIAS_AUTHENTICATED_USER, ROLE_ALIAS_ADMIN];
 const STATIC_ADMIN_EMAILS = new Set([
     'nam.vu@conarum.com',
     'trung.tranthanh@conarum.com',
@@ -147,31 +152,29 @@ const isCloudRuntime = (): boolean => {
 };
 
 const rolesFromEmail = (email: string): string[] => {
-    return uniqueSorted([
-        CAP_ROLE_USER,
-        'authenticated-user',
-        ...(STATIC_ADMIN_EMAILS.has(email) ? [CAP_ROLE_ADMIN, 'admin'] : []),
-    ]);
+    return uniqueSorted(expandStoredRolesFromAppRoles(
+        STATIC_ADMIN_EMAILS.has(email) ? [CAP_ROLE_ADMIN] : [CAP_ROLE_USER]
+    ));
 };
 
 const expandRoleAliases = (roles: string[]): string[] => {
     const expanded = [...roles];
     if (roles.includes(CAP_ROLE_USER)) {
-        expanded.push('authenticated-user');
+        expanded.push(ROLE_ALIAS_AUTHENTICATED_USER);
     }
     if (roles.includes(CAP_ROLE_ADMIN)) {
-        expanded.push('admin', CAP_ROLE_USER, 'authenticated-user');
+        expanded.push(ROLE_ALIAS_ADMIN, CAP_ROLE_USER, ROLE_ALIAS_AUTHENTICATED_USER);
     }
     return expanded;
 };
 
 const rolesFromGroupMembership = (groups: string[]): string[] => {
     const normalized = new Set(groups.map(normalizeGroupName));
-    if (normalized.has(BTP_GROUP_ADMIN)) {
-        return [CAP_ROLE_ADMIN, CAP_ROLE_USER, 'admin', 'authenticated-user'];
+    if (normalized.has(DEFAULT_SANDBOX_ADMIN_GROUP.trim().toUpperCase())) {
+        return expandStoredRolesFromAppRoles([CAP_ROLE_ADMIN]);
     }
-    if (normalized.has(BTP_GROUP_USER)) {
-        return [CAP_ROLE_USER, 'authenticated-user'];
+    if (normalized.has(DEFAULT_SANDBOX_USER_GROUP.trim().toUpperCase())) {
+        return expandStoredRolesFromAppRoles([CAP_ROLE_USER]);
     }
     return [];
 };

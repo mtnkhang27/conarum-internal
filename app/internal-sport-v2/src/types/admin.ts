@@ -221,6 +221,8 @@ export interface SandboxUserProvisionInput {
   givenName?: string;
   familyName?: string;
   displayName?: string;
+  appRole?: string;
+  password?: string;
   makeAdmin?: boolean;
 }
 
@@ -231,4 +233,7 @@ export interface SandboxUserProvisionResult {
   message: string;
   idpUserId: string | null;
   assignedGroups: string[];
+  assignedAppRoles: string[];
+  passwordApplied: boolean;
+  passwordSource: string | null;
 }

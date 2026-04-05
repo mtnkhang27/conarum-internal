@@ -1,6 +1,6 @@
 # Admin Guide — Conarum Prediction
 
-> **Version:** 1.0 | **Last Updated:** 2026-02-25
+> **Version:** 1.0 | **Last Updated:** 2026-04-05
 
 ---
 
@@ -15,6 +15,7 @@ The Admin Panel provides complete control over the prediction platform. Only use
 | **Match Management** | Create, edit, delete matches. Enter final scores. |
 | **Team Management** | Manage team roster (name, flag, confederation) |
 | **Player Management** | View/manage registered players, track activity |
+| **Sandbox Users** | Create IAS application users, assign role collections, and set initial passwords |
 | **Tournament Management** | Create tournaments, set dates, manage status |
 | **UC Config Dashboard** | Toggle use cases on/off, overview of all configs |
 | **UC1: Score Prediction Config** | Set pricing, rewards, multipliers for exact score |
@@ -251,7 +252,44 @@ The Player Management page shows:
 
 ---
 
-## 8. Troubleshooting
+## 8. Sandbox User Provisioning
+
+Use **Admin -> Sandbox Users** when you need to pre-create a sandbox account before the user signs in for the first time.
+
+### Provisioning Behavior
+
+- Every provisioned account is added to role collection `CNMA_CONARUM_INTERNAL_USER`.
+- Every provisioned account is mirrored into the app with role `PredictionUser`.
+- Emails listed in the admin textarea also receive role collection `CNMA_CONARUM_INTERNAL_ADMIN`.
+- Admin emails are mirrored into the app with role `PredictionAdmin` in addition to `PredictionUser`.
+- If an initial password is entered in the form, it is sent only for newly created users.
+- If the form password is empty, the backend falls back to env var `IDP_DEFAULT_PASSWORD`.
+- Existing users keep their current password. The result card shows whether a password was actually applied.
+
+### Required Backend Configuration
+
+Provisioning needs these backend environment variables:
+
+- `IDP_SCIM_BASE_URL`
+- `IDP_SCIM_BASIC_USERNAME`
+- `IDP_SCIM_BASIC_PASSWORD`
+- `IDP_DEFAULT_USER_GROUP` (optional, default: `CNMA_CONARUM_INTERNAL_USER`)
+- `IDP_ADMIN_GROUP` (optional, default: `CNMA_CONARUM_INTERNAL_ADMIN`)
+- `IDP_DEFAULT_PASSWORD` (optional fallback if the admin UI leaves the password blank)
+
+### Recommended Admin Test Flow
+
+1. Open **Admin -> Sandbox Users**.
+2. Enter one or more user emails in the user list.
+3. Optionally enter matching emails in the admin list if they need admin access.
+4. Optionally set an initial password for this provisioning run.
+5. Click **Provision Users to Sandbox**.
+6. Confirm the result card shows `created` or `existing`, the assigned groups, the assigned app roles, whether the password was applied, and the SCIM user ID.
+7. Ask the created user to sign in through the sandbox route and verify the account lands in the expected player or admin experience.
+
+---
+
+## 9. Troubleshooting
 
 | Issue | Cause | Solution |
 |-------|-------|----------|
@@ -261,3 +299,5 @@ The Player Management page shows:
 | Duplicate prediction slip entries | User submitted multiple times | System deduplicates. Check DB for unique constraint. |
 | UC3 still "Open" during tournament | Admin forgot to lock | Go to UC3 Config → Change status to "Locked". |
 | Prize split calculation wrong | Max winners exceeded | Check `maxWinnersForSplit` setting. |
+| Sandbox provisioning fails immediately | Missing SCIM env vars on backend | Set `IDP_SCIM_BASE_URL`, `IDP_SCIM_BASIC_USERNAME`, and `IDP_SCIM_BASIC_PASSWORD`, then restart or restage the backend |
+| User was created but cannot use the expected password | Account already existed before provisioning | Existing users keep their password. Reset it outside the app or provision a fresh test account |

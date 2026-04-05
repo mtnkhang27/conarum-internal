@@ -25,8 +25,11 @@ The following table summarizes the permissions available to each role:
 
 ## 3. Account Access
 - Access to the platform is granted through **SAP BTP XSUAA** (internal SSO).
-- Users are automatically assigned the **PredictionUser** role upon their first login.
-- **PredictionAdmin** roles are manually assigned by the IT or system administrator.
+- Sandbox users can be pre-provisioned from the admin page through the SAP Cloud Identity SCIM API.
+- Provisioning always assigns role collection `CNMA_CONARUM_INTERNAL_USER` and mirrors app role `PredictionUser`.
+- Admin provisioning also assigns role collection `CNMA_CONARUM_INTERNAL_ADMIN` and mirrors app role `PredictionAdmin`.
+- Newly created users can receive an initial password from the admin request or backend env var `IDP_DEFAULT_PASSWORD`.
+- Existing users keep their current password unless it is reset outside this application.
 
 ## 4. Data Privacy
 - Your personal information (e.g., email address, display name) is stored securely and only used for platform purposes (e.g., leaderboard, prize distribution).

@@ -5,11 +5,15 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { sandboxUsersApi } from '@/services/adminApi';
 import type { SandboxUserProvisionInput, SandboxUserProvisionResult } from '@/types/admin';
 
 const DEFAULT_USER_GROUP = 'CNMA_CONARUM_INTERNAL_USER';
 const DEFAULT_ADMIN_GROUP = 'CNMA_CONARUM_INTERNAL_ADMIN';
+const DEFAULT_USER_APP_ROLE = 'PredictionUser';
+const DEFAULT_ADMIN_APP_ROLE = 'PredictionAdmin';
 
 const normalizeEmail = (value: string): string | null => {
   const email = value.trim().toLowerCase();
@@ -29,6 +33,7 @@ const parseEmails = (value: string): string[] => {
 export function UserProvisionPage() {
   const [userEmailsText, setUserEmailsText] = useState('');
   const [adminEmailsText, setAdminEmailsText] = useState('');
+  const [defaultPassword, setDefaultPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<SandboxUserProvisionResult[]>([]);
 
@@ -36,9 +41,12 @@ export function UserProvisionPage() {
     const users = parseEmails(userEmailsText);
     const admins = parseEmails(adminEmailsText);
     const adminSet = new Set(admins);
+    const trimmedPassword = defaultPassword.trim();
 
     const payload: SandboxUserProvisionInput[] = users.map((email) => ({
       email,
+      appRole: adminSet.has(email) ? DEFAULT_ADMIN_APP_ROLE : DEFAULT_USER_APP_ROLE,
+      password: trimmedPassword || undefined,
       makeAdmin: adminSet.has(email),
     }));
 
@@ -46,8 +54,9 @@ export function UserProvisionPage() {
       users,
       admins,
       payload,
+      defaultPasswordConfigured: trimmedPassword.length > 0,
     };
-  }, [userEmailsText, adminEmailsText]);
+  }, [userEmailsText, adminEmailsText, defaultPassword]);
 
   const handleProvision = async () => {
     if (parsedSummary.payload.length === 0) {
@@ -83,7 +92,9 @@ export function UserProvisionPage() {
             Sandbox User Provisioning
           </CardTitle>
           <CardDescription>
-            Mass create users in sandbox IDP and assign group {DEFAULT_USER_GROUP}. Add {DEFAULT_ADMIN_GROUP} for selected admin emails.
+            Create users in the sandbox application IDP, always assign group {DEFAULT_USER_GROUP}, and mirror app role{' '}
+            {DEFAULT_USER_APP_ROLE}. Emails listed as admin also receive group {DEFAULT_ADMIN_GROUP} and app role{' '}
+            {DEFAULT_ADMIN_APP_ROLE}.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-5">
@@ -109,11 +120,31 @@ export function UserProvisionPage() {
             <p className="text-xs text-muted-foreground">Emails listed here also receive group {DEFAULT_ADMIN_GROUP}.</p>
           </div>
 
+          <div className="space-y-2">
+            <Label htmlFor="sandbox-default-password">Initial Password (optional)</Label>
+            <Input
+              id="sandbox-default-password"
+              type="password"
+              value={defaultPassword}
+              onChange={(event) => setDefaultPassword(event.target.value)}
+              placeholder="Leave blank to use backend env IDP_DEFAULT_PASSWORD or no password"
+            />
+            <p className="text-xs text-muted-foreground">
+              If you enter a password here, newly created users will receive it as the initial password. Existing users keep their
+              current password.
+            </p>
+          </div>
+
           <div className="flex flex-wrap items-center gap-3 rounded-lg border border-border/80 bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
             <span>Total users: {parsedSummary.users.length}</span>
             <span>Admin users: {parsedSummary.admins.length}</span>
             <Badge variant="outline">Default Group: {DEFAULT_USER_GROUP}</Badge>
             <Badge variant="outline">Admin Group: {DEFAULT_ADMIN_GROUP}</Badge>
+            <Badge variant="outline">User Role: {DEFAULT_USER_APP_ROLE}</Badge>
+            <Badge variant="outline">Admin Role: {DEFAULT_ADMIN_APP_ROLE}</Badge>
+            <Badge variant={parsedSummary.defaultPasswordConfigured ? 'default' : 'outline'}>
+              Password: {parsedSummary.defaultPasswordConfigured ? 'From form' : 'Backend env / none'}
+            </Badge>
           </div>
 
           <div>
@@ -145,8 +176,18 @@ export function UserProvisionPage() {
                         {group}
                       </Badge>
                     ))}
+                    {item.assignedAppRoles.map((role) => (
+                      <Badge key={`${item.email}-${role}`} variant="secondary">
+                        {role}
+                      </Badge>
+                    ))}
                   </div>
                   <p className="mt-2 text-sm text-muted-foreground">{item.message}</p>
+                  {item.passwordApplied ? (
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Initial password applied via {item.passwordSource === 'request' ? 'request payload' : 'backend environment'}.
+                    </p>
+                  ) : null}
                   {item.idpUserId ? (
                     <p className="mt-1 text-xs text-muted-foreground">IDP User ID: {item.idpUserId}</p>
                   ) : null}

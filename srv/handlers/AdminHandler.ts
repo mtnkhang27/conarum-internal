@@ -3,9 +3,12 @@ import { ScoringEngine } from '../lib/ScoringEngine';
 import { materializeSlotBetsForMatch } from '../lib/SlotBetMaterializer';
 import { STAGE_MAP, STATUS_MAP, OUTCOME_MAP } from '../lib/constants';
 import { BracketBuilder } from '../lib/BracketBuilder';
+import { IdentityDirectoryClient } from '../lib/IdentityDirectoryClient';
 
 /** football-data.org API token — read from env, falls back to empty string. */
 const FOOTBALL_DATA_API_TOKEN = 'f96dc87cc7b54da08321475e744a52f2';
+const DEFAULT_SANDBOX_USER_GROUP = process.env.IDP_DEFAULT_USER_GROUP?.trim() || 'CNMA_CONARUM_INTERNAL_USER';
+const DEFAULT_SANDBOX_ADMIN_GROUP = process.env.IDP_ADMIN_GROUP?.trim() || 'CNMA_CONARUM_INTERNAL_ADMIN';
 
 /**
  * AdminHandler — Handles admin operations.
@@ -20,6 +23,111 @@ export class AdminHandler {
         this.srv = srv;
         this.scoringEngine = new ScoringEngine();
         this.bracketBuilder = new BracketBuilder();
+    }
+
+    /**
+     * Provision one or many users in sandbox IDP (SCIM) and mirror role metadata to Player.
+     */
+    async provisionSandboxUsers(req: Request) {
+        const inputUsers = Array.isArray(req.data?.users) ? req.data.users : [];
+        if (inputUsers.length === 0) {
+            return req.error(400, 'At least one user is required');
+        }
+
+        const idpClient = new IdentityDirectoryClient();
+        const groups = await idpClient.listGroups();
+        const groupByName = new Map<string, string>();
+        for (const group of groups) {
+            if (!group.displayName || !group.id) continue;
+            groupByName.set(group.displayName.trim().toUpperCase(), group.id);
+        }
+
+        const userGroupId = groupByName.get(DEFAULT_SANDBOX_USER_GROUP.trim().toUpperCase());
+        if (!userGroupId) {
+            return req.error(
+                412,
+                `Default group '${DEFAULT_SANDBOX_USER_GROUP}' not found in IDP. Maintain the group first.`
+            );
+        }
+
+        const adminGroupId = groupByName.get(DEFAULT_SANDBOX_ADMIN_GROUP.trim().toUpperCase()) ?? null;
+        const results: Array<Record<string, unknown>> = [];
+
+        const { Player } = cds.entities('cnma.prediction');
+
+        for (const rawItem of inputUsers) {
+            const email = this.normalizeEmail(rawItem?.email);
+            if (!email) {
+                results.push({
+                    email: rawItem?.email ?? '',
+                    success: false,
+                    status: 'skipped',
+                    message: 'Invalid email',
+                    idpUserId: null,
+                    assignedGroups: [],
+                });
+                continue;
+            }
+
+            const makeAdmin = rawItem?.makeAdmin === true;
+            const desiredGroups = [DEFAULT_SANDBOX_USER_GROUP, ...(makeAdmin ? [DEFAULT_SANDBOX_ADMIN_GROUP] : [])];
+
+            try {
+                let idpUser = await idpClient.findUserByEmail(email);
+                let status = 'existing';
+                if (!idpUser) {
+                    idpUser = await idpClient.createUser({
+                        email,
+                        givenName: this.safeText(rawItem?.givenName, 100),
+                        familyName: this.safeText(rawItem?.familyName, 100),
+                        displayName: this.safeText(rawItem?.displayName, 120),
+                        active: true,
+                    });
+                    status = 'created';
+                }
+
+                const assignedGroups: string[] = [];
+                await idpClient.addUserToGroup(userGroupId, idpUser.id);
+                assignedGroups.push(DEFAULT_SANDBOX_USER_GROUP);
+
+                if (makeAdmin) {
+                    if (!adminGroupId) {
+                        throw new Error(`Admin group '${DEFAULT_SANDBOX_ADMIN_GROUP}' not found in IDP`);
+                    }
+                    await idpClient.addUserToGroup(adminGroupId, idpUser.id);
+                    assignedGroups.push(DEFAULT_SANDBOX_ADMIN_GROUP);
+                }
+
+                await this.upsertPlayerIdentity(Player, {
+                    idpUserId: idpUser.id,
+                    email,
+                    displayName: this.safeText(rawItem?.displayName, 100),
+                    givenName: this.safeText(rawItem?.givenName, 100),
+                    familyName: this.safeText(rawItem?.familyName, 100),
+                    assignedGroups,
+                });
+
+                results.push({
+                    email,
+                    success: true,
+                    status,
+                    message: status === 'created' ? 'User created and grouped' : 'User already existed, group assignment ensured',
+                    idpUserId: idpUser.id,
+                    assignedGroups,
+                });
+            } catch (error: any) {
+                results.push({
+                    email,
+                    success: false,
+                    status: 'failed',
+                    message: error?.message || 'Provisioning failed',
+                    idpUserId: null,
+                    assignedGroups: desiredGroups,
+                });
+            }
+        }
+
+        return results;
     }
 
     /**
@@ -1414,6 +1522,77 @@ export class AdminHandler {
             success: true,
             message: locked ? 'All betting locked for this tournament' : 'Betting unlocked for this tournament',
         };
+    }
+
+    private normalizeEmail(value: unknown): string | null {
+        if (typeof value !== 'string') return null;
+        const normalized = value.trim().toLowerCase();
+        if (!normalized || !normalized.includes('@')) return null;
+        return normalized;
+    }
+
+    private safeText(value: unknown, maxLen: number): string | null {
+        if (typeof value !== 'string') return null;
+        const trimmed = value.trim();
+        if (!trimmed) return null;
+        return trimmed.slice(0, maxLen);
+    }
+
+    private rolesFromGroups(groups: string[]): string[] {
+        const normalized = new Set(groups.map((group) => group.trim().toUpperCase()));
+        const roles = new Set<string>(['authenticated-user']);
+
+        if (normalized.has(DEFAULT_SANDBOX_USER_GROUP.trim().toUpperCase())) {
+            roles.add('PredictionUser');
+        }
+
+        if (normalized.has(DEFAULT_SANDBOX_ADMIN_GROUP.trim().toUpperCase())) {
+            roles.add('PredictionAdmin');
+            roles.add('PredictionUser');
+            roles.add('admin');
+        }
+
+        return [...roles];
+    }
+
+    private async upsertPlayerIdentity(
+        Player: any,
+        input: {
+            idpUserId: string;
+            email: string;
+            displayName: string | null;
+            givenName: string | null;
+            familyName: string | null;
+            assignedGroups: string[];
+        }
+    ): Promise<void> {
+        const roles = this.rolesFromGroups(input.assignedGroups);
+        const scopes = [...input.assignedGroups];
+
+        let existingPlayer = await SELECT.one.from(Player).where({ userUUID: input.idpUserId });
+        if (!existingPlayer) {
+            existingPlayer = await SELECT.one.from(Player).where({ email: input.email });
+        }
+
+        const updatePayload = {
+            userUUID: input.idpUserId,
+            loginName: input.email,
+            email: input.email,
+            displayName: input.displayName || `${input.givenName || ''} ${input.familyName || ''}`.trim() || input.email,
+            givenName: input.givenName,
+            familyName: input.familyName,
+            roles: JSON.stringify(roles),
+            scopes: JSON.stringify(scopes),
+            identityOrigin: 'sandbox-idp',
+            lastLoginAt: new Date().toISOString(),
+        };
+
+        if (existingPlayer) {
+            await UPDATE(Player).where({ ID: existingPlayer.ID }).set(updatePayload);
+            return;
+        }
+
+        await INSERT.into(Player).entries(updatePayload);
     }
 
     // ── Competition Import ────────────────────────────────────

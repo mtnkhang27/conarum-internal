@@ -215,3 +215,20 @@ export interface MatchResultResponse extends ActionResult {
   predictionsScored: number;
   scoreBetsScored: number;
 }
+
+export interface SandboxUserProvisionInput {
+  email: string;
+  givenName?: string;
+  familyName?: string;
+  displayName?: string;
+  makeAdmin?: boolean;
+}
+
+export interface SandboxUserProvisionResult {
+  email: string;
+  success: boolean;
+  status: string;
+  message: string;
+  idpUserId: string | null;
+  assignedGroups: string[];
+}

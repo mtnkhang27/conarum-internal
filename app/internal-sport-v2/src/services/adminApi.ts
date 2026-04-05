@@ -13,6 +13,8 @@ import type {
   AdminTournamentTeamView,
   MatchResultResponse,
   MatchScoreBetConfig,
+  SandboxUserProvisionInput,
+  SandboxUserProvisionResult,
 } from '@/types/admin';
 import axiosInstance from '@/services/core/axiosInstance';
 import { mapExternalAssetUrls } from '@/utils/externalAssetProxy';
@@ -245,4 +247,15 @@ export const tournamentTeamsApi = {
 
 export const bracketSlotsApi = {
   get: (id: string) => odata<AdminBracketSlot>(`/BracketSlots('${id}')`),
+};
+
+export const sandboxUsersApi = {
+  provision: (users: SandboxUserProvisionInput[]) =>
+    odata<{ value: SandboxUserProvisionResult[] } | SandboxUserProvisionResult[]>('/provisionSandboxUsers', {
+      method: 'POST',
+      body: JSON.stringify({ users }),
+    }).then((result) => {
+      if (Array.isArray(result)) return result;
+      return result.value ?? [];
+    }),
 };

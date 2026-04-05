@@ -78,7 +78,8 @@ export function useUserInfo() {
   const isAdmin =
     data?.isAdmin === true ||
     normalizedRoles.has('admin') ||
-    normalizedRoles.has('predictionadmin');
+    normalizedRoles.has('predictionadmin') ||
+    normalizedRoles.has('cnma_conarum_internal_admin');
 
   return {
     user: data,

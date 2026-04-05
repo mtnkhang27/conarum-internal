@@ -998,4 +998,25 @@ service AdminService {
     }
 
     action importTournament(externalCode: String, apiKey: String default '')        returns ImportTournamentResult;
+
+    // ── Sandbox User Provisioning ───────────────────────────
+
+    type SandboxUserProvisionInput {
+        email       : String(255);
+        givenName   : String(100);
+        familyName  : String(100);
+        displayName : String(100);
+        makeAdmin   : Boolean;
+    }
+
+    type SandboxUserProvisionResult {
+        email          : String(255);
+        success        : Boolean;
+        status         : String(20);
+        message        : String(500);
+        idpUserId      : String(120);
+        assignedGroups : array of String;
+    }
+
+    action provisionSandboxUsers(users: many SandboxUserProvisionInput) returns many SandboxUserProvisionResult;
 }

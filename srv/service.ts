@@ -80,7 +80,11 @@ export class AdminService extends cds.ApplicationService {
         this.adminHandler = new AdminHandler(this);
         this.before('*', async (req) => {
             const context = resolveUserContext(req);
-            const isAdmin = context.roles.includes('PredictionAdmin') || context.roles.includes('admin');
+            const normalizedRoles = new Set(context.roles.map((role) => role.trim().toLowerCase()));
+            const isAdmin =
+                normalizedRoles.has('predictionadmin')
+                || normalizedRoles.has('admin')
+                || normalizedRoles.has('cnma_conarum_internal_admin');
             if (AUTH_TRACE_ENABLED) {
                 console.log('[AdminService TRACE]', JSON.stringify({
                     email: context.email,
@@ -111,6 +115,7 @@ export class AdminService extends cds.ApplicationService {
         this.on('lockTournamentBetting', this.adminHandler.lockTournamentBetting.bind(this.adminHandler));
         this.on('getAvailableCompetitions', this.adminHandler.getAvailableCompetitions.bind(this.adminHandler));
         this.on('importTournament', this.adminHandler.importTournament.bind(this.adminHandler));
+        this.on('provisionSandboxUsers', this.adminHandler.provisionSandboxUsers.bind(this.adminHandler));
 
         // Keep the "default tournament" invariant server-side so the admin UI
         // only needs a single PATCH request when switching the default.

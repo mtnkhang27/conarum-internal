@@ -1,5 +1,5 @@
 import { NavLink, Outlet } from 'react-router-dom';
-import { ShieldCheck, Table2, Trophy, LayoutPanelLeft } from 'lucide-react';
+import { ShieldCheck, Table2, Trophy, LayoutPanelLeft, UserPlus } from 'lucide-react';
 import { AccessDenied } from '@/components/common/AccessDenied';
 import { Card, CardContent } from '@/components/ui/card';
 import { cn } from '@/utils/cn';
@@ -17,6 +17,12 @@ const adminNavItems = [
     label: 'Tournaments',
     description: 'Outcome rewards, champion config, and tournament locks.',
     icon: Trophy,
+  },
+  {
+    to: '/admin/users',
+    label: 'Sandbox Users',
+    description: 'Mass create IDP users and assign player/admin groups.',
+    icon: UserPlus,
   },
 ];
 

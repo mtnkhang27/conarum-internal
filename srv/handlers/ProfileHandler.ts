@@ -224,7 +224,11 @@ export class ProfileHandler {
         }
 
         const roles = context.roles.length > 0 ? context.roles : this.parseStoredRoles(player.roles);
-        const isAdmin = roles.includes('admin') || roles.includes('PredictionAdmin');
+        const normalizedRoles = new Set(roles.map((role) => role.trim().toLowerCase()));
+        const isAdmin =
+            normalizedRoles.has('admin')
+            || normalizedRoles.has('predictionadmin')
+            || normalizedRoles.has('cnma_conarum_internal_admin');
         if (AUTH_TRACE_ENABLED) {
             console.log('[ProfileHandler TRACE] getMyProfile isAdmin check', JSON.stringify({
                 email: player.email,

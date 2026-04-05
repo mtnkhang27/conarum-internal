@@ -9,6 +9,7 @@ import { useRef, useEffect } from 'react';
 import { AdminLayout } from './pages/Admin/AdminLayout';
 import { MatchManagementPage } from './pages/Admin/MatchManagementPage';
 import { TournamentManagementPage } from './pages/Admin/TournamentManagementPage';
+import { UserProvisionPage } from './pages/Admin/UserProvisionPage';
 
 // Component to sync React Router with FLP shell URL
 function ShellSync() {
@@ -54,6 +55,7 @@ export default function App() {
                                 <Route path="/admin/matches/:matchId" element={<MatchManagementPage />} />
                                 <Route path="/admin/tournaments" element={<TournamentManagementPage />} />
                                 <Route path="/admin/tournaments/:tournamentId" element={<TournamentManagementPage />} />
+                                <Route path="/admin/users" element={<UserProvisionPage />} />
                                 <Route path="/admin" element={<Navigate to="/admin/matches" replace />} />
                             </Route>
                             <Route path="*" element={<Navigate to="/" replace />} />

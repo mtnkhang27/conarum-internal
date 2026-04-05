@@ -23,6 +23,8 @@ export type ResolvedUserContext = {
 
 const CAP_ROLE_USER = 'PredictionUser';
 const CAP_ROLE_ADMIN = 'PredictionAdmin';
+const BTP_GROUP_USER = 'CNMA_CONARUM_INTERNAL_USER';
+const BTP_GROUP_ADMIN = 'CNMA_CONARUM_INTERNAL_ADMIN';
 const APP_ROLES = [CAP_ROLE_USER, CAP_ROLE_ADMIN, 'authenticated-user', 'admin'];
 const STATIC_ADMIN_EMAILS = new Set([
     'nam.vu@conarum.com',
@@ -119,6 +121,8 @@ const toStringArray = (value: unknown): string[] => {
     return [];
 };
 
+const normalizeGroupName = (value: string): string => value.trim().toUpperCase();
+
 const uniqueSorted = (values: string[]): string[] => {
     return [...new Set(values.filter((value) => value.length > 0))].sort((a, b) => a.localeCompare(b));
 };
@@ -159,6 +163,17 @@ const expandRoleAliases = (roles: string[]): string[] => {
         expanded.push('admin', CAP_ROLE_USER, 'authenticated-user');
     }
     return expanded;
+};
+
+const rolesFromGroupMembership = (groups: string[]): string[] => {
+    const normalized = new Set(groups.map(normalizeGroupName));
+    if (normalized.has(BTP_GROUP_ADMIN)) {
+        return [CAP_ROLE_ADMIN, CAP_ROLE_USER, 'admin', 'authenticated-user'];
+    }
+    if (normalized.has(BTP_GROUP_USER)) {
+        return [CAP_ROLE_USER, 'authenticated-user'];
+    }
+    return [];
 };
 
 const loadLocalLoginConfig = (): LocalLoginConfig | null => {
@@ -213,6 +228,33 @@ const getAttr = (req: Request, key: string): string | null => {
         return asTrimmedString(raw[0]);
     }
     return asTrimmedString(raw);
+};
+
+const getAttrArray = (req: Request, key: string): string[] => {
+    const attrs = (req.user as any)?.attr;
+    if (!attrs || typeof attrs !== 'object') {
+        return [];
+    }
+
+    return toStringArray((attrs as Record<string, unknown>)[key]);
+};
+
+const collectGroupsFromClaims = (claims: Claims, req: Request): string[] => {
+    const xsUserAttributes = claims['xs.user.attributes'];
+    const xsAttrGroups = xsUserAttributes && typeof xsUserAttributes === 'object'
+        ? toStringArray((xsUserAttributes as Record<string, unknown>).groups)
+        : [];
+
+    return uniqueSorted([
+        ...toStringArray(claims.groups),
+        ...toStringArray(claims.group),
+        ...toStringArray(claims.user_groups),
+        ...toStringArray(claims.userGroups),
+        ...xsAttrGroups,
+        ...getAttrArray(req, 'groups'),
+        ...getAttrArray(req, 'userGroups'),
+        ...getAttrArray(req, 'user_groups'),
+    ]);
 };
 
 const collectRolesFromUser = (req: Request): string[] => {
@@ -377,12 +419,19 @@ export const resolveUserContext = (req: Request): ResolvedUserContext => {
         ...toStringArray((req.user as any)?.scopes),
     ]);
 
+    const groups = collectGroupsFromClaims(claims, req);
+    const groupDerivedRoles = rolesFromGroupMembership(groups);
+
     const roles = uniqueSorted(expandRoleAliases([
         ...collectRolesFromUser(req),
         ...toStringArray(getAttr(req, 'roles')).map(normalizeScopeToRole),
         ...scopes.map(normalizeScopeToRole),
+        ...groups,
+        ...groupDerivedRoles,
         ...(normalizedEmail && STATIC_ADMIN_EMAILS.has(normalizedEmail) ? [CAP_ROLE_ADMIN, 'admin'] : []),
     ]));
+
+    const finalScopes = uniqueSorted([...scopes, ...groups]);
 
     const identityOrigin = pickFirst(
         getClaimValue(claims, 'origin'),
@@ -401,7 +450,7 @@ export const resolveUserContext = (req: Request): ResolvedUserContext => {
         givenName,
         familyName,
         roles,
-        scopes,
+        scopes: finalScopes,
         identityOrigin,
     };
 
@@ -417,11 +466,14 @@ export const resolveUserContext = (req: Request): ResolvedUserContext => {
             userUUID,
             identityOrigin,
             finalRoles: roles,
-            finalScopes: scopes,
+            finalScopes,
+            groups,
             breakdown: {
                 fromReqUser: userRolesFromReq,
                 fromAttrRoles: attrRoles,
                 fromScopeNormalized: scopeRoles,
+                fromGroups: groups,
+                groupDerivedRoles,
                 isStaticAdmin,
                 isCloud: isCloudRuntime(),
                 isDev: isDevelopmentRuntime(),

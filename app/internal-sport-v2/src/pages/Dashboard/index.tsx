@@ -14,7 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { History, ListChecks, Trophy } from 'lucide-react';
+import { History, ListChecks, Trophy, UsersRound } from 'lucide-react';
 
 const ALL_TOURNAMENTS_VALUE = '__all__';
 
@@ -96,6 +96,10 @@ export function Dashboard() {
             <ListChecks className="h-4 w-4" />
             {t('predictionDashboard.tabs.matches', 'Matches')}
           </TabsTrigger>
+          <TabsTrigger value="leaderboard" className="min-w-[150px]">
+            <UsersRound className="h-4 w-4" />
+            {t('predictionDashboard.tabs.leaderboard', 'Leaderboard')}
+          </TabsTrigger>
           <TabsTrigger value="history" className="min-w-[140px]">
             <History className="h-4 w-4" />
             {t('predictionDashboard.tabs.history', 'History')}
@@ -106,31 +110,39 @@ export function Dashboard() {
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="matches" className="flex min-h-0 flex-1 flex-col overflow-hidden">
-          <div className="grid h-full min-h-0 grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_310px]">
-            <div className="min-h-0 h-full">
-              <UserPredictionTable
-                className="h-full"
-                tournamentId={selectedTournamentId}
-                tournaments={tournaments}
-              />
-            </div>
-
-            <div className="hidden min-h-0 h-full xl:block">
-              <LeaderboardCard
-                tournamentId={selectedTournamentId}
-                maxRows={10}
-                className="h-full"
-              />
-            </div>
-          </div>
+        <TabsContent
+          value="matches"
+          className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-muted/60 bg-card p-3"
+        >
+          <UserPredictionTable
+            className="h-full"
+            tournamentId={selectedTournamentId}
+            tournaments={tournaments}
+          />
         </TabsContent>
 
-        <TabsContent value="history" className="flex min-h-0 flex-1 flex-col overflow-hidden">
+        <TabsContent
+          value="leaderboard"
+          className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-muted/60 bg-card p-3"
+        >
+          <LeaderboardCard
+            tournamentId={selectedTournamentId}
+            maxRows={20}
+            className="h-full"
+          />
+        </TabsContent>
+
+        <TabsContent
+          value="history"
+          className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-muted/60 bg-card p-3"
+        >
           <RecentPredictionsCard tournamentId={selectedTournamentId} className="h-full" />
         </TabsContent>
 
-        <TabsContent value="champion" className="flex min-h-0 flex-1 flex-col overflow-hidden">
+        <TabsContent
+          value="champion"
+          className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-muted/60 bg-card p-3"
+        >
           <TournamentChampionCard
             className="h-full"
             tournamentId={selectedTournamentId}

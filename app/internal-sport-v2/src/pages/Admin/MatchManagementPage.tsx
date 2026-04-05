@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import {
   ListChecks,
+  Loader2,
   Lock,
   Plus,
   RefreshCcw,
@@ -15,7 +16,7 @@ import {
 import type { DataTableColumn } from '@/components/ui/DataTable';
 import { DataTable } from '@/components/ui/DataTable';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import {
   Dialog,
@@ -74,7 +75,7 @@ import {
 } from './shared';
 import { formatLocalDateTimeInputValue, localDateTimeInputToIso } from '@/utils/localTime';
 
-const PAGE_SIZE = 8;
+const INFINITE_STEP = 8;
 const FIELD_CLASSNAME =
   'h-9 rounded-md border border-border bg-background px-3 text-sm text-foreground shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/20';
 
@@ -186,7 +187,7 @@ export function MatchManagementPage() {
   const [teams, setTeams] = useState<AdminTeam[]>([]);
   const [tournaments, setTournaments] = useState<AdminTournament[]>([]);
   const [loading, setLoading] = useState(true);
-  const [page, setPage] = useState(1);
+  const [visibleCount, setVisibleCount] = useState(INFINITE_STEP);
   const [selectedTournamentId, setSelectedTournamentId] = useState<string>(ALL_OPTION);
   const [selectedStatus, setSelectedStatus] = useState<string>(ALL_OPTION);
   const [selectedStage, setSelectedStage] = useState<string>(ALL_OPTION);
@@ -260,7 +261,7 @@ export function MatchManagementPage() {
   }, [loadMatches]);
 
   useEffect(() => {
-    setPage(1);
+    setVisibleCount(INFINITE_STEP);
   }, [searchTerm, selectedTournamentId, selectedStatus, selectedStage, selectedHotState, selectedDay]);
 
   const rows = useMemo<MatchRow[]>(() => {
@@ -288,8 +289,8 @@ export function MatchManagementPage() {
     });
   }, [rows, searchTerm, selectedStage, selectedHotState, selectedDay]);
 
-  const totalPages = Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE));
-  const visibleRows = filteredRows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const visibleRows = filteredRows.slice(0, visibleCount);
+  const hasMoreRows = visibleRows.length < filteredRows.length;
 
   const stats = useMemo(() => {
     const scoreEnabledCount = filteredRows.filter((row) => row.scoreBetConfig?.enabled).length;
@@ -468,14 +469,28 @@ export function MatchManagementPage() {
     }
   };
 
+  const requestMoreRows = () => {
+    if (!hasMoreRows || loading) return;
+    setVisibleCount((current) => Math.min(filteredRows.length, current + INFINITE_STEP));
+  };
+
+  const handleTableScroll = (event: React.UIEvent<HTMLDivElement>) => {
+    const target = event.currentTarget;
+    const distanceToBottom = target.scrollHeight - target.scrollTop - target.clientHeight;
+
+    if (distanceToBottom <= 140) {
+      requestMoreRows();
+    }
+  };
+
   return (
     <div className={cn('grid gap-6', matchId ? 'xl:grid-cols-[minmax(0,1.45fr)_minmax(420px,0.95fr)]' : 'grid-cols-1')}>
       <div className="min-w-0 space-y-6">
         <div className="grid gap-4 md:grid-cols-4">
-          <SummaryStatCard label="Visible matches" value={String(stats.total)} hint="Current worklist after filters" />
-          <SummaryStatCard label="Score pick enabled" value={String(stats.scoreEnabledCount)} hint="Matches with exact-score betting active" />
-          <SummaryStatCard label="Live matches" value={String(stats.liveCount)} hint="Useful when admins need fast result entry" />
-          <SummaryStatCard label="Hot matches" value={String(stats.hotCount)} hint="Highlighted in the player dashboard" />
+          <SummaryStatCard label="Visible matches" value={String(stats.total)} />
+          <SummaryStatCard label="Score pick enabled" value={String(stats.scoreEnabledCount)} />
+          <SummaryStatCard label="Live matches" value={String(stats.liveCount)} />
+          <SummaryStatCard label="Hot matches" value={String(stats.hotCount)} />
         </div>
 
         <Card className="border-border/80 shadow-sm">
@@ -483,7 +498,6 @@ export function MatchManagementPage() {
             <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
               <div className="space-y-2">
                 <CardTitle className="text-xl">Match Management</CardTitle>
-                <CardDescription>Worklist view for score-pick limits, WDL point rules, audits, and grouped winner drill-down.</CardDescription>
               </div>
 
               <div className="flex flex-wrap gap-2">
@@ -541,24 +555,25 @@ export function MatchManagementPage() {
           </CardHeader>
 
           <CardContent className="p-0">
-            <DataTable
-              data={visibleRows}
-              columns={columns}
-              isLoading={loading}
-              onRowClick={(row) => navigate(`/admin/matches/${row.ID}`)}
-              pagination={{
-                page,
-                pageSize: PAGE_SIZE,
-                totalCount: filteredRows.length,
-                hasNextPage: page < totalPages,
-                onPageChange: setPage,
-              }}
-              variant="borderless"
-              mobileRenderMode="card"
-              showFooter
-              emptyMessageKey="No matches found"
-              className="rounded-none border-0 shadow-none"
-            />
+            <div className="scrollbar-hidden max-h-[70vh] overflow-auto" onScroll={handleTableScroll}>
+              <DataTable
+                data={visibleRows}
+                columns={columns}
+                isLoading={loading}
+                onRowClick={(row) => navigate(`/admin/matches/${row.ID}`)}
+                variant="borderless"
+                mobileRenderMode="card"
+                showFooter={false}
+                emptyMessageKey="No matches found"
+                className="rounded-none border-0 shadow-none"
+              />
+
+              {hasMoreRows && !loading ? (
+                <div className="flex items-center justify-center py-3">
+                  <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                </div>
+              ) : null}
+            </div>
           </CardContent>
         </Card>
       </div>
@@ -579,8 +594,8 @@ export function MatchManagementPage() {
           />
         ) : (
           <EmptySelectionPanel
-            title="Open a flexible detail pane"
-            description="Select a match row to configure WDL points, exact-score rewards, audit timestamps, and grouped winner data per player."
+            title="Select a match"
+            description="Pick a row to edit."
           />
         )}
       </div>
@@ -1015,9 +1030,9 @@ function MatchDetailPanel({
 
         <CardContent className="space-y-6 p-6">
           <div className="grid gap-4 md:grid-cols-3">
-            <SummaryStatCard label="Outcome winners" value={String(correctOutcomeCount)} hint={`${homeWins}/${drawWins}/${awayWins} submitted across 1-X-2`} />
-            <SummaryStatCard label="Correct score bets" value={String(correctScoreCount)} hint={`${groupedWinners.length} unique winning players`} />
-            <SummaryStatCard label="Current score bet reward" value={formatCurrencyValue(safePrize)} hint={`${Math.max(1, normalizeIntegerInput(maxBets, 3))} picks per player`} />
+            <SummaryStatCard label="Outcome winners" value={String(correctOutcomeCount)} />
+            <SummaryStatCard label="Correct score bets" value={String(correctScoreCount)} />
+            <SummaryStatCard label="Score bet reward" value={formatCurrencyValue(safePrize)} />
           </div>
 
           <Tabs defaultValue="configuration" className="space-y-4">
@@ -1032,7 +1047,6 @@ function MatchDetailPanel({
                 <Card className="border-border/80 shadow-none">
                   <CardHeader>
                     <CardTitle className="text-lg">Match Settings</CardTitle>
-                    <CardDescription>Keep the match worklist and betting rules aligned with the live event setup.</CardDescription>
                   </CardHeader>
                   <CardContent className="grid gap-4">
                     <div className="grid gap-4 sm:grid-cols-2">
@@ -1107,13 +1121,11 @@ function MatchDetailPanel({
                 <Card className="border-border/80 shadow-none">
                   <CardHeader>
                     <CardTitle className="text-lg">Betting Rules</CardTitle>
-                    <CardDescription>Configure the scoring model visible to players in the prediction dashboard.</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4">
                     <label className="space-y-2 text-sm">
                       <span className="font-medium text-foreground">WDL points</span>
                       <Input type="number" min="1" value={outcomePoints} onChange={(event) => setOutcomePoints(event.target.value)} />
-                      <p className="text-xs text-muted-foreground">Points awarded when the outcome pick is correct.</p>
                     </label>
 
                     <label className="inline-flex items-center gap-3 rounded-xl border border-border/80 bg-muted/20 px-3 py-2 text-sm text-foreground">
@@ -1131,13 +1143,11 @@ function MatchDetailPanel({
                         <label className="space-y-2 text-sm">
                           <span className="font-medium text-foreground">Score pick limit</span>
                           <Input type="number" min="1" value={maxBets} onChange={(event) => setMaxBets(event.target.value)} />
-                          <p className="text-xs text-muted-foreground">How many exact-score picks a player can submit.</p>
                         </label>
 
                         <label className="space-y-2 text-sm">
                           <span className="font-medium text-foreground">Reward per correct score</span>
                           <Input value={prizeInput} onChange={(event) => setPrizeInput(sanitizeCurrencyInput(event.target.value))} placeholder="200,000" />
-                          <p className="text-xs text-muted-foreground">Shown as the payout for each correct exact score bet.</p>
                         </label>
                       </div>
                     ) : (
@@ -1199,7 +1209,6 @@ function MatchDetailPanel({
                 <Card className="border-border/80 shadow-none">
                   <CardHeader>
                     <CardTitle className="text-lg">Lifecycle</CardTitle>
-                    <CardDescription>Managed timestamps and operational markers exposed by the CAP service.</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-3 text-sm">
                     <div className="rounded-xl border border-border/80 bg-muted/20 p-3">
@@ -1224,7 +1233,6 @@ function MatchDetailPanel({
                 <Card className="border-border/80 shadow-none">
                   <CardHeader>
                     <CardTitle className="text-lg">Submission spread</CardTitle>
-                    <CardDescription>Quick audit of pick volume before and after scoring.</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-3 text-sm">
                     <div className="rounded-xl border border-border/80 bg-muted/20 p-3">

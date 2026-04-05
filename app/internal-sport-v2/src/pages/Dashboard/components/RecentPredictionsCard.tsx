@@ -73,13 +73,13 @@ function determineOutcome(homeScore?: number | null, awayScore?: number | null) 
 
 function getPickToneClasses(tone: 'neutral' | 'correct' | 'incorrect') {
   if (tone === 'correct') return 'border-emerald-300 bg-emerald-50 text-emerald-700';
-  if (tone === 'incorrect') return 'border-red-300 bg-red-50 text-red-700';
+  if (tone === 'incorrect') return 'border-amber-300 bg-amber-50 text-amber-700';
   return 'border-border bg-background text-foreground';
 }
 
 function getScoreCellToneClasses(tone: 'neutral' | 'correct' | 'incorrect') {
   if (tone === 'correct') return 'border-emerald-300 bg-emerald-50 text-emerald-700';
-  if (tone === 'incorrect') return 'border-red-300 bg-red-50 text-red-700';
+  if (tone === 'incorrect') return 'border-amber-300 bg-amber-50 text-amber-700';
   return 'border-border bg-white text-foreground';
 }
 
@@ -91,7 +91,7 @@ function TeamIcon({ crest, flag, name }: { crest?: string | null; flag?: string 
     <img
       src={defaultSrc}
       alt={name}
-      className="h-7 w-11 rounded-sm border bg-muted object-cover shadow-sm"
+      className="h-10 w-16 rounded-sm border bg-background object-contain p-0.5 shadow-sm"
       onError={(event) => {
         const target = event.target as HTMLImageElement;
         if (target.src !== fallbackSrc) {
@@ -179,24 +179,16 @@ export function RecentPredictionsCard({ tournamentId, className }: RecentPredict
             <p>{t("predictionDashboard.noPredictionsYet", "No predictions available.")}</p>
           </div>
         ) : (
-          <div className="min-h-0 flex-1 overflow-auto">
-            <Table className="table-fixed">
-              <colgroup>
-                <col className="w-[15%]" />
-                <col className="w-[15%]" />
-                <col className="w-[24%]" />
-                <col className="w-[22%]" />
-                <col className="w-[12%]" />
-                <col className="w-[12%]" />
-              </colgroup>
+          <div className="scrollbar-hidden min-h-0 flex-1 overflow-auto">
+            <Table className="w-full min-w-[980px] table-auto">
               <TableHeader>
                 <TableRow className="hover:bg-transparent">
-                  <TableHead className="px-4 py-3">{t('predictionDashboard.columns.dateStage', 'Date')}</TableHead>
-                  <TableHead className="px-4 py-3">{t('predictionDashboard.columns.tournament', 'Tournament')}</TableHead>
-                  <TableHead className="px-4 py-3">{t('predictionDashboard.columns.teams')}</TableHead>
-                  <TableHead className="px-4 py-3 text-center">{t('predictionDashboard.columns.scorePick')}</TableHead>
-                  <TableHead className="px-4 py-3 text-center">{t('predictionDashboard.columns.wdlPick')}</TableHead>
-                  <TableHead className="px-4 py-3 text-center">{t('predictionDashboard.points', 'Points')}</TableHead>
+                  <TableHead className="sticky top-0 z-10 min-w-[150px] bg-card px-4 py-3">{t('predictionDashboard.columns.dateStage', 'Date')}</TableHead>
+                  <TableHead className="sticky top-0 z-10 min-w-[170px] bg-card px-4 py-3">{t('predictionDashboard.columns.tournament', 'Tournament')}</TableHead>
+                  <TableHead className="sticky top-0 z-10 min-w-[260px] bg-card px-4 py-3">{t('predictionDashboard.columns.teams')}</TableHead>
+                  <TableHead className="sticky top-0 z-10 min-w-[200px] bg-card px-4 py-3 text-center">{t('predictionDashboard.columns.scorePick')}</TableHead>
+                  <TableHead className="sticky top-0 z-10 min-w-[150px] bg-card px-4 py-3 text-center">{t('predictionDashboard.columns.wdlPick')}</TableHead>
+                  <TableHead className="sticky top-0 z-10 min-w-[150px] bg-card px-4 py-3 text-center">{t('predictionDashboard.points', 'Points')}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -250,7 +242,7 @@ export function RecentPredictionsCard({ tournamentId, className }: RecentPredict
 
                       <TableCell className="px-4 py-4 align-top whitespace-normal text-center">
                         {visibleScoreBets.length > 0 ? (
-                          <div className="flex justify-center overflow-x-auto overflow-y-hidden pb-1">
+                          <div className="scrollbar-hidden flex justify-center overflow-x-auto overflow-y-hidden pb-1">
                             <div className="inline-flex min-w-[132px] flex-col items-center gap-1.5">
                               {visibleScoreBets.map((scoreBet) => renderScorePick(scoreBet, hasResult))}
                             </div>
@@ -281,7 +273,7 @@ export function RecentPredictionsCard({ tournamentId, className }: RecentPredict
                               item.isCorrect === true
                                 ? 'bg-emerald-600'
                                 : item.isCorrect === false
-                                  ? 'bg-destructive'
+                                  ? 'border border-amber-300 bg-amber-50 text-amber-700'
                                   : 'bg-muted text-foreground'
                             )}
                           >

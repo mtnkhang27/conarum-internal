@@ -55,11 +55,22 @@ type ClientConfig = {
 const DEFAULT_TIMEOUT_MS = 20000;
 const DEFAULT_SCIM_DESTINATION_NAME = 'EXTERNAL_IDP_TANENT_DEST_CFG';
 const DEFAULT_SCIM_USER_TYPE = 'partner';
+const DEFAULT_USER_SEARCH_COUNT = 25;
 
 const trimToNull = (value: unknown): string | null => {
     if (typeof value !== 'string') return null;
     const trimmed = value.trim();
     return trimmed.length > 0 ? trimmed : null;
+};
+
+const normalizeValue = (value: unknown): string | null => {
+    const trimmed = trimToNull(value);
+    return trimmed ? trimmed.toLowerCase() : null;
+};
+
+const normalizeEmail = (value: unknown): string | null => {
+    const normalized = normalizeValue(value);
+    return normalized && normalized.includes('@') ? normalized : null;
 };
 
 const isRecord = (value: unknown): value is Record<string, unknown> => {
@@ -73,6 +84,107 @@ const ensureLeadingSlash = (value: string): string => {
 const escapeFilterString = (value: string): string => value.replace(/"/g, '\\"');
 const encodePathSegment = (value: string): string => encodeURIComponent(value);
 const getListResources = <T>(response: ScimListResponse<T>): T[] => response.Resources ?? response.resources ?? [];
+
+const getScimUserEmails = (user: ScimUser): string[] => {
+    const emails = new Set<string>();
+    const normalizedUserName = normalizeEmail(user.userName);
+    if (normalizedUserName) {
+        emails.add(normalizedUserName);
+    }
+
+    for (const emailEntry of user.emails ?? []) {
+        const normalizedEmailValue = normalizeEmail(emailEntry?.value);
+        if (normalizedEmailValue) {
+            emails.add(normalizedEmailValue);
+        }
+    }
+
+    return [...emails];
+};
+
+const matchesScimUserEmail = (user: ScimUser, normalizedEmail: string): boolean => {
+    return getScimUserEmails(user).includes(normalizedEmail);
+};
+
+const getScimUserKey = (user: ScimUser): string => {
+    return trimToNull(user.id) ?? trimToNull(user.userName) ?? getScimUserEmails(user)[0] ?? JSON.stringify(user);
+};
+
+const dedupeScimUsers = (users: ScimUser[]): ScimUser[] => {
+    const seen = new Set<string>();
+    const deduped: ScimUser[] = [];
+
+    for (const user of users) {
+        const key = getScimUserKey(user);
+        if (seen.has(key)) continue;
+        seen.add(key);
+        deduped.push(user);
+    }
+
+    return deduped;
+};
+
+const matchesExpectedValue = (actual: unknown, expected: unknown): boolean => {
+    const normalizedExpected = normalizeValue(expected);
+    if (!normalizedExpected) return false;
+    return normalizeValue(actual) === normalizedExpected;
+};
+
+export const selectManagedScimUserCandidate = (
+    candidates: ScimUser[],
+    config: Pick<ClientConfig, 'memberOrigin' | 'defaultUserType'>
+): ScimUser | null => {
+    if (candidates.length === 0) return null;
+
+    const desiredOrigin = trimToNull(config.memberOrigin);
+    if (desiredOrigin) {
+        return candidates.find((candidate) => matchesExpectedValue(candidate.origin, desiredOrigin)) ?? null;
+    }
+
+    const desiredUserType = trimToNull(config.defaultUserType);
+    if (desiredUserType) {
+        return candidates.find((candidate) => matchesExpectedValue(candidate.userType, desiredUserType)) ?? null;
+    }
+
+    return candidates[0] ?? null;
+};
+
+export const describeExpectedManagedIdentity = (config: Pick<ClientConfig, 'memberOrigin' | 'defaultUserType'>): string => {
+    const expectedOrigin = trimToNull(config.memberOrigin);
+    const expectedUserType = trimToNull(config.defaultUserType);
+    const parts: string[] = [];
+
+    if (expectedOrigin) {
+        parts.push(`origin='${expectedOrigin}'`);
+    }
+
+    if (expectedUserType) {
+        parts.push(`userType='${expectedUserType}'`);
+    }
+
+    return parts.length > 0 ? parts.join(', ') : 'the configured application-managed identity';
+};
+
+export const describeScimUserIdentity = (user: Pick<ScimUser, 'id' | 'origin' | 'userType' | 'userName'>): string => {
+    const parts = [`id='${user.id}'`];
+    const userName = trimToNull(user.userName);
+    const origin = trimToNull(user.origin);
+    const userType = trimToNull(user.userType);
+
+    if (userName) {
+        parts.push(`userName='${userName}'`);
+    }
+
+    if (origin) {
+        parts.push(`origin='${origin}'`);
+    }
+
+    if (userType) {
+        parts.push(`userType='${userType}'`);
+    }
+
+    return parts.join(', ');
+};
 
 const normalizeScimBaseUrl = (value: string): string => {
     const trimmed = value.trim().replace(/\/+$/, '');
@@ -241,45 +353,21 @@ export class IdentityDirectoryClient {
     }
 
     async findUserByEmail(email: string): Promise<ScimUser | null> {
-        const normalizedEmail = email.trim().toLowerCase();
-        const byUsernameFilter = encodeURIComponent(`userName eq "${escapeFilterString(normalizedEmail)}"`);
-        const byUsername = await this.request<ScimListResponse<ScimUser>>(
-            `${this.config.usersPath}?filter=${byUsernameFilter}&startIndex=1&count=2`,
-            { method: 'GET' }
-        );
-
-        const byUsernameCandidates = getListResources(byUsername);
-        if (byUsernameCandidates.length > 0) {
-            return byUsernameCandidates[0] ?? null;
+        const normalizedEmail = normalizeEmail(email);
+        if (!normalizedEmail) {
+            return null;
         }
 
-        try {
-            const filter = encodeURIComponent(`emails.value eq "${escapeFilterString(normalizedEmail)}"`);
-            const byEmail = await this.request<ScimListResponse<ScimUser>>(
-                `${this.config.usersPath}?filter=${filter}&startIndex=1&count=2`,
-                { method: 'GET' }
-            );
-            return getListResources(byEmail)[0] ?? null;
-        } catch (error: unknown) {
-            const message = error instanceof Error ? error.message : '';
-            if (/invalid\s+filter|parsing\s+error/i.test(message)) {
-                try {
-                    const legacyFilter = encodeURIComponent(`emails eq "${escapeFilterString(normalizedEmail)}"`);
-                    const byLegacyEmail = await this.request<ScimListResponse<ScimUser>>(
-                        `${this.config.usersPath}?filter=${legacyFilter}&startIndex=1&count=2`,
-                        { method: 'GET' }
-                    );
-                    return getListResources(byLegacyEmail)[0] ?? null;
-                } catch {
-                    return null;
-                }
-            }
-            throw error;
-        }
+        const candidates = await this.listUsersByEmail(normalizedEmail);
+        return selectManagedScimUserCandidate(candidates, this.config);
     }
 
     async createUser(input: ProvisionUserInput): Promise<ScimUser> {
-        const normalizedEmail = input.email.trim().toLowerCase();
+        const normalizedEmail = normalizeEmail(input.email);
+        if (!normalizedEmail) {
+            throw new Error('A valid email address is required to create a SCIM user.');
+        }
+
         const givenName = trimToNull(input.givenName) ?? normalizedEmail.split('@')[0];
         const familyName = trimToNull(input.familyName) ?? 'User';
         const displayName = trimToNull(input.displayName) ?? `${givenName} ${familyName}`.trim();
@@ -325,11 +413,29 @@ export class IdentityDirectoryClient {
             payload.password = password;
         }
 
-        const createdUser = await this.request<ScimUser>(this.config.usersPath, {
-            method: 'POST',
-            body: payload,
-            acceptStatus: [200, 201, 204],
-        });
+        let createdUser: ScimUser | null = null;
+        try {
+            createdUser = await this.request<ScimUser>(this.config.usersPath, {
+                method: 'POST',
+                body: payload,
+                acceptStatus: [200, 201, 204],
+            });
+        } catch (error: unknown) {
+            if (this.isDuplicateUserConflict(error)) {
+                const duplicateCandidates = await this.listUsersByEmail(normalizedEmail);
+                const managedDuplicateUser = selectManagedScimUserCandidate(duplicateCandidates, this.config);
+                if (managedDuplicateUser) {
+                    return managedDuplicateUser;
+                }
+
+                const duplicateUser = duplicateCandidates[0] ?? null;
+                if (duplicateUser) {
+                    throw new Error(this.buildDuplicateUserConflictMessage(normalizedEmail, duplicateUser));
+                }
+            }
+
+            throw error;
+        }
 
         if (createdUser?.id) {
             return createdUser;
@@ -337,10 +443,25 @@ export class IdentityDirectoryClient {
 
         const lookupUser = await this.findUserByEmail(normalizedEmail);
         if (!lookupUser?.id) {
+            const duplicateCandidates = await this.listUsersByEmail(normalizedEmail);
+            const managedDuplicateUser = selectManagedScimUserCandidate(duplicateCandidates, this.config);
+            if (managedDuplicateUser?.id) {
+                return managedDuplicateUser;
+            }
+
+            const duplicateUser = duplicateCandidates[0] ?? null;
+            if (duplicateUser) {
+                throw new Error(this.buildDuplicateUserConflictMessage(normalizedEmail, duplicateUser));
+            }
+
             throw new Error(`SCIM POST ${this.config.usersPath} succeeded but the created user could not be looked up again for ${normalizedEmail}.`);
         }
 
         return lookupUser;
+    }
+
+    describeUserIdentity(user: ScimUser): string {
+        return describeScimUserIdentity(user);
     }
 
     async listGroups(): Promise<ScimGroup[]> {
@@ -523,6 +644,68 @@ export class IdentityDirectoryClient {
 
     private async getGroupById(groupId: string): Promise<ScimGroup> {
         return this.request<ScimGroup>(`${this.config.groupsPath}/${encodePathSegment(groupId)}`, { method: 'GET' });
+    }
+
+    private async listUsersByEmail(email: string): Promise<ScimUser[]> {
+        const normalizedEmail = normalizeEmail(email);
+        if (!normalizedEmail) {
+            return [];
+        }
+
+        const users: ScimUser[] = [];
+        const count = DEFAULT_USER_SEARCH_COUNT;
+        const byUsernameFilter = encodeURIComponent(`userName eq "${escapeFilterString(normalizedEmail)}"`);
+        const byUsername = await this.request<ScimListResponse<ScimUser>>(
+            `${this.config.usersPath}?filter=${byUsernameFilter}&startIndex=1&count=${count}`,
+            { method: 'GET' }
+        );
+        users.push(...getListResources(byUsername));
+
+        try {
+            const filter = encodeURIComponent(`emails.value eq "${escapeFilterString(normalizedEmail)}"`);
+            const byEmail = await this.request<ScimListResponse<ScimUser>>(
+                `${this.config.usersPath}?filter=${filter}&startIndex=1&count=${count}`,
+                { method: 'GET' }
+            );
+            users.push(...getListResources(byEmail));
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : '';
+            if (/invalid\s+filter|parsing\s+error/i.test(message)) {
+                try {
+                    const legacyFilter = encodeURIComponent(`emails eq "${escapeFilterString(normalizedEmail)}"`);
+                    const byLegacyEmail = await this.request<ScimListResponse<ScimUser>>(
+                        `${this.config.usersPath}?filter=${legacyFilter}&startIndex=1&count=${count}`,
+                        { method: 'GET' }
+                    );
+                    users.push(...getListResources(byLegacyEmail));
+                } catch {
+                    return dedupeScimUsers(users).filter((candidate) => matchesScimUserEmail(candidate, normalizedEmail));
+                }
+            } else {
+                throw error;
+            }
+        }
+
+        return dedupeScimUsers(users).filter((candidate) => matchesScimUserEmail(candidate, normalizedEmail));
+    }
+
+    private isDuplicateUserConflict(error: unknown): boolean {
+        const status = getScimErrorStatus(error);
+        if (status === 409) {
+            return true;
+        }
+
+        const message = error instanceof Error ? error.message : '';
+        return /already\s+exists|account\s+exists|duplicate|uniqueness|must\s+be\s+unique/i.test(message);
+    }
+
+    private buildDuplicateUserConflictMessage(email: string, conflictingUser: ScimUser): string {
+        return [
+            `Cannot create sandbox user '${email}'.`,
+            `Identity Authentication already has a different account with the same email/login (${describeScimUserIdentity(conflictingUser)}).`,
+            `Expected the application-managed identity ${describeExpectedManagedIdentity(this.config)}.`,
+            'Provisioning stopped to avoid assigning app access to the wrong identity.'
+        ].join(' ');
     }
 
     private async buildHeaders(hasBody: boolean): Promise<Record<string, string>> {

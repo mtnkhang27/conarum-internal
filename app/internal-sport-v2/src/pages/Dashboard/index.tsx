@@ -14,7 +14,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { History, ListChecks, Trophy, UsersRound } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { useUserInfo } from '@/hooks/useUserInfo';
+import { History, ListChecks, ShieldCheck, Trophy, UsersRound } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 const ALL_TOURNAMENTS_VALUE = '__all__';
 
@@ -27,6 +30,8 @@ interface TournamentItem {
 
 export function Dashboard() {
   const { t } = useTranslation();
+  const navigate = useNavigate();
+  const { isAdmin } = useUserInfo();
   const [activeTab, setActiveTab] = React.useState('matches');
   const [selectedTournamentValue, setSelectedTournamentValue] = React.useState('');
 
@@ -64,26 +69,41 @@ export function Dashboard() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3 py-3">
-      <div className="w-full max-w-[360px]">
-        <Select
-          value={currentTournamentValue}
-          onValueChange={setSelectedTournamentValue}
-          disabled={tournamentsQuery.isLoading && tournaments.length === 0}
-        >
-          <SelectTrigger className="bg-background">
-            <SelectValue placeholder={t('predictionDashboard.selectTournament', 'Select tournament')} />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL_TOURNAMENTS_VALUE}>
-              {t('predictionDashboard.allTournaments', 'All tournaments')}
-            </SelectItem>
-            {tournaments.map((item) => (
-              <SelectItem key={item.ID} value={item.ID}>
-                {item.name}
+      <div className="flex w-full items-center justify-between gap-3">
+        <div className="w-full max-w-[360px]">
+          <Select
+            value={currentTournamentValue}
+            onValueChange={setSelectedTournamentValue}
+            disabled={tournamentsQuery.isLoading && tournaments.length === 0}
+          >
+            <SelectTrigger className="bg-background">
+              <SelectValue placeholder={t('predictionDashboard.selectTournament', 'Select tournament')} />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL_TOURNAMENTS_VALUE}>
+                {t('predictionDashboard.allTournaments', 'All tournaments')}
               </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+              {tournaments.map((item) => (
+                <SelectItem key={item.ID} value={item.ID}>
+                  {item.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        {isAdmin ? (
+          <Button
+            type="button"
+            variant="subtle"
+            size="sm"
+            className="shrink-0"
+            onClick={() => navigate('/admin')}
+          >
+            <ShieldCheck className="h-4 w-4" />
+            Admin
+          </Button>
+        ) : null}
       </div>
 
       <Tabs

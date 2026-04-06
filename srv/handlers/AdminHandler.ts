@@ -137,7 +137,13 @@ export class AdminHandler {
                     email,
                     success: true,
                     status,
-                    message: this.buildProvisionSuccessMessage(status, access.assignedAppRoles, password, passwordApplied),
+                    message: this.buildProvisionSuccessMessage(
+                        status,
+                        access.assignedAppRoles,
+                        password,
+                        passwordApplied,
+                        idpClient.describeUserIdentity(idpUser)
+                    ),
                     idpUserId: idpUser.id,
                     assignedGroups,
                     assignedAppRoles: access.assignedAppRoles,
@@ -1607,23 +1613,25 @@ export class AdminHandler {
         status: string,
         assignedAppRoles: ProvisionableAppRole[],
         password: ProvisionPasswordResolution,
-        passwordApplied: boolean
+        passwordApplied: boolean,
+        userIdentitySummary: string
     ): string {
         const accessLabel = assignedAppRoles.join(' + ');
+        const identitySuffix = userIdentitySummary ? ` Matched ${userIdentitySummary}.` : '';
 
         if (status === 'created') {
             if (passwordApplied) {
-                return `User created, initial password applied, and access '${accessLabel}' assigned.`;
+                return `User created, initial password applied, and access '${accessLabel}' assigned.${identitySuffix}`;
             }
 
-            return `User created and access '${accessLabel}' assigned. No initial password was configured.`;
+            return `User created and access '${accessLabel}' assigned. No initial password was configured.${identitySuffix}`;
         }
 
         if (password.value) {
-            return `User already existed, access '${accessLabel}' ensured. Existing password was not changed.`;
+            return `User already existed, access '${accessLabel}' ensured. Existing password was not changed.${identitySuffix}`;
         }
 
-        return `User already existed and access '${accessLabel}' was ensured.`;
+        return `User already existed and access '${accessLabel}' was ensured.${identitySuffix}`;
     }
 
     private async upsertPlayerIdentity(

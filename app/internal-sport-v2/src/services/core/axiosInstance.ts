@@ -75,6 +75,11 @@ async function fetchCsrfToken(serviceRoot: string): Promise<string | null> {
 
 axiosInstance.interceptors.request.use(
   async (config: InternalAxiosRequestConfig) => {
+    // Work Zone serves apps under a sub-path; keep backend calls app-relative.
+    if (!isLocal && typeof config.url === 'string' && /^\/(api|odata)\//.test(config.url)) {
+      config.url = config.url.slice(1);
+    }
+
     const method = config.method?.toLowerCase();
 
     if (method && ['post', 'put', 'patch', 'delete'].includes(method)) {

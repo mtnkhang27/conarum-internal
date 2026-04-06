@@ -72,22 +72,6 @@ export class AdminHandler {
         }
 
         const idpClient = new IdentityDirectoryClient();
-        const groups = await idpClient.listGroups();
-        const groupByName = new Map<string, string>();
-        for (const group of groups) {
-            if (!group.displayName || !group.id) continue;
-            groupByName.set(group.displayName.trim().toUpperCase(), group.id);
-        }
-
-        const userGroupId = groupByName.get(DEFAULT_SANDBOX_USER_GROUP.trim().toUpperCase());
-        if (!userGroupId) {
-            return req.error(
-                412,
-                `Default group '${DEFAULT_SANDBOX_USER_GROUP}' not found in IDP. Maintain the group first.`
-            );
-        }
-
-        const adminGroupId = groupByName.get(DEFAULT_SANDBOX_ADMIN_GROUP.trim().toUpperCase()) ?? null;
         const results: SandboxProvisionResultRow[] = [];
 
         const { Player } = cds.entities('cnma.prediction');
@@ -123,22 +107,20 @@ export class AdminHandler {
                         familyName: this.safeText(item.familyName, 100),
                         displayName: this.safeText(item.displayName, 120),
                         password: password.value,
+                        groups: access.assignedGroups,
                         active: true,
                     });
                     status = 'created';
                     passwordApplied = Boolean(password.value);
                 }
 
-                const assignedGroups: string[] = [];
-                await idpClient.addUserToGroup(userGroupId, idpUser.id);
-                assignedGroups.push(DEFAULT_SANDBOX_USER_GROUP);
+                const assignedGroups = [...access.assignedGroups];
+                if (status === 'existing') {
+                    await idpClient.addUserToGroup(DEFAULT_SANDBOX_USER_GROUP, idpUser.id, DEFAULT_SANDBOX_USER_GROUP);
 
-                if (access.appRole === CAP_ROLE_ADMIN) {
-                    if (!adminGroupId) {
-                        throw new Error(`Admin group '${DEFAULT_SANDBOX_ADMIN_GROUP}' not found in IDP`);
+                    if (access.appRole === CAP_ROLE_ADMIN) {
+                        await idpClient.addUserToGroup(DEFAULT_SANDBOX_ADMIN_GROUP, idpUser.id, DEFAULT_SANDBOX_ADMIN_GROUP);
                     }
-                    await idpClient.addUserToGroup(adminGroupId, idpUser.id);
-                    assignedGroups.push(DEFAULT_SANDBOX_ADMIN_GROUP);
                 }
 
                 await this.upsertPlayerIdentity(Player, {

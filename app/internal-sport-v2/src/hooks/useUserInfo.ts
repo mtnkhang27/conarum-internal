@@ -14,7 +14,7 @@ interface UserInfo {
 }
 
 async function fetchUserInfo(): Promise<UserInfo> {
-  const response = await fetch('/api/player/getMyProfile()');
+  const response = await fetch('api/player/getMyProfile()');
 
   if (!response.ok) {
     throw new Error(`Failed to load user profile: ${response.status}`);

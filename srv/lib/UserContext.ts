@@ -78,18 +78,40 @@ const toFirstString = (value: unknown): string | null => {
     return asTrimmedString(value);
 };
 
-const getClaimValue = (claims: Claims, ...paths: string[]): string | null => {
-    for (const path of paths) {
-        const segments = path.split('.');
-        let cursor: unknown = claims;
-        for (const segment of segments) {
-            if (!cursor || typeof cursor !== 'object') {
-                cursor = null;
+const getClaimPathValue = (claims: Claims, path: string): unknown => {
+    const segments = path.split('.');
+    let cursor: unknown = claims;
+    let index = 0;
+
+    while (index < segments.length) {
+        if (!cursor || typeof cursor !== 'object') {
+            return null;
+        }
+
+        const record = cursor as Record<string, unknown>;
+        let matched = false;
+
+        for (let end = segments.length; end > index; end--) {
+            const candidateKey = segments.slice(index, end).join('.');
+            if (Object.prototype.hasOwnProperty.call(record, candidateKey)) {
+                cursor = record[candidateKey];
+                index = end;
+                matched = true;
                 break;
             }
-            cursor = (cursor as Record<string, unknown>)[segment];
         }
-        const candidate = toFirstString(cursor);
+
+        if (!matched) {
+            return null;
+        }
+    }
+
+    return cursor;
+};
+
+const getClaimValue = (claims: Claims, ...paths: string[]): string | null => {
+    for (const path of paths) {
+        const candidate = toFirstString(getClaimPathValue(claims, path));
         if (candidate) return candidate;
     }
     return null;
@@ -130,6 +152,16 @@ const normalizeGroupName = (value: string): string => value.trim().toUpperCase()
 
 const uniqueSorted = (values: string[]): string[] => {
     return [...new Set(values.filter((value) => value.length > 0))].sort((a, b) => a.localeCompare(b));
+};
+
+const getClaimArray = (claims: Claims, ...paths: string[]): string[] => {
+    const values: string[] = [];
+
+    for (const path of paths) {
+        values.push(...toStringArray(getClaimPathValue(claims, path)));
+    }
+
+    return uniqueSorted(values);
 };
 
 const isDevelopmentRuntime = (): boolean => {
@@ -253,10 +285,18 @@ const collectGroupsFromClaims = (claims: Claims, req: Request): string[] => {
         ...toStringArray(claims.group),
         ...toStringArray(claims.user_groups),
         ...toStringArray(claims.userGroups),
+        ...getClaimArray(claims, 'xs.system.attributes.xs.saml.groups'),
         ...xsAttrGroups,
         ...getAttrArray(req, 'groups'),
         ...getAttrArray(req, 'userGroups'),
         ...getAttrArray(req, 'user_groups'),
+    ]);
+};
+
+const collectRoleCollectionsFromClaims = (claims: Claims, req: Request): string[] => {
+    return uniqueSorted([
+        ...getClaimArray(claims, 'xs.rolecollections', 'xs.system.attributes.xs.rolecollections'),
+        ...getAttrArray(req, 'xs.rolecollections'),
     ]);
 };
 
@@ -423,12 +463,14 @@ export const resolveUserContext = (req: Request): ResolvedUserContext => {
     ]);
 
     const groups = collectGroupsFromClaims(claims, req);
+    const roleCollections = collectRoleCollectionsFromClaims(claims, req);
     const groupDerivedRoles = rolesFromGroupMembership(groups);
 
     const roles = uniqueSorted(expandRoleAliases([
         ...collectRolesFromUser(req),
         ...toStringArray(getAttr(req, 'roles')).map(normalizeScopeToRole),
         ...scopes.map(normalizeScopeToRole),
+        ...roleCollections.map(normalizeScopeToRole),
         ...groups,
         ...groupDerivedRoles,
         ...(normalizedEmail && STATIC_ADMIN_EMAILS.has(normalizedEmail) ? [CAP_ROLE_ADMIN, 'admin'] : []),
@@ -471,11 +513,13 @@ export const resolveUserContext = (req: Request): ResolvedUserContext => {
             finalRoles: roles,
             finalScopes,
             groups,
+            roleCollections,
             breakdown: {
                 fromReqUser: userRolesFromReq,
                 fromAttrRoles: attrRoles,
                 fromScopeNormalized: scopeRoles,
                 fromGroups: groups,
+                fromRoleCollections: roleCollections,
                 groupDerivedRoles,
                 isStaticAdmin,
                 isCloud: isCloudRuntime(),

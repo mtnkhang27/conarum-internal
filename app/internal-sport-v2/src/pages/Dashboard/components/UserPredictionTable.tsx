@@ -24,6 +24,8 @@ import { UserPredictionTableFilters } from './UserPredictionTableFilters';
 import {
   determineOutcome,
   OutcomeOption,
+  pickLabel,
+  pickTitle,
   ScorePickBox,
   TeamFlag,
   type WdlPick,
@@ -676,7 +678,7 @@ export function UserPredictionTable({ tournamentId, className }: UserPredictionT
 
     return (
       <div className="flex flex-col items-center gap-2">
-        <div className="flex flex-wrap gap-1.5">
+        <div className="inline-flex items-center gap-1 rounded-lg border border-border/70 bg-muted/20 p-1">
           {(['home', 'draw', 'away'] as const).map((option) => {
             const isSelected = match.predictedWdl === option;
             const locked = isRowLocked(match);
@@ -687,7 +689,8 @@ export function UserPredictionTable({ tournamentId, className }: UserPredictionT
                 selected={isSelected}
                 locked={locked && hasScoreResult(match)}
                 tone={outcomeTone}
-                label={option === 'home' ? '1' : option === 'draw' ? 'X' : '2'}
+                label={pickLabel(option)}
+                title={pickTitle(option)}
                 onClick={() => handleWdlChange(match.id, option)}
                 disabled={locked || Boolean(rowActionState[match.id])}
               />
@@ -734,16 +737,16 @@ export function UserPredictionTable({ tournamentId, className }: UserPredictionT
           </div>
         ) : (
           <div ref={scrollContainerRef} className="scrollbar-hidden min-h-0 h-full overflow-auto" onScroll={handleTableScroll}>
-            <Table className="w-full min-w-[860px] table-auto text-[12px]">
+            <Table className="w-full min-w-[780px] table-auto text-[12px]">
               <TableHeader>
                 <TableRow className="hover:bg-transparent">
-                  <TableHead className="sticky top-0 z-10 min-w-[150px] bg-card px-3 py-2.5">
+                  <TableHead className="sticky top-0 z-10 min-w-[126px] bg-card px-3 py-2.5">
                     {t('predictionDashboard.columns.dateStage', 'Date')}
                   </TableHead>
-                  <TableHead className="sticky top-0 z-10 min-w-[220px] bg-card px-3 py-2.5">
+                  <TableHead className="sticky top-0 z-10 min-w-[208px] bg-card px-3 py-2.5">
                     {t('predictionDashboard.columns.teams')}
                   </TableHead>
-                  <TableHead className="sticky top-0 z-10 min-w-[170px] bg-card px-3 py-2.5 text-center">
+                  <TableHead className="sticky top-0 z-10 min-w-[148px] bg-card px-3 py-2.5 text-center">
                     {t('predictionDashboard.columns.scorePick')}
                   </TableHead>
                   <TableHead className="sticky top-0 z-10 min-w-[120px] bg-card px-3 py-2.5 text-center">
@@ -789,8 +792,8 @@ export function UserPredictionTable({ tournamentId, className }: UserPredictionT
                       </TableCell>
 
                       <TableCell className="px-3 py-2.5 align-top whitespace-normal">
-                        <div className="flex flex-col gap-1.5">
-                          <div className="flex items-center gap-1.5">
+                        <div className="inline-grid grid-cols-[minmax(0,13rem)_max-content] items-center gap-x-[22px] gap-y-1.5">
+                          <div className="flex min-w-0 items-center gap-1.5">
                             <TeamFlag
                               code={match.homeTeam.countryCode}
                               crest={match.homeTeam.crest}
@@ -798,7 +801,8 @@ export function UserPredictionTable({ tournamentId, className }: UserPredictionT
                             />
                             <span className="text-[12px] font-medium text-foreground">{match.homeTeam.name}</span>
                           </div>
-                          <div className="flex items-center gap-1.5">
+                          <span className="text-[12px] font-medium text-foreground">(H)</span>
+                          <div className="flex min-w-0 items-center gap-1.5">
                             <TeamFlag
                               code={match.awayTeam.countryCode}
                               crest={match.awayTeam.crest}
@@ -806,6 +810,7 @@ export function UserPredictionTable({ tournamentId, className }: UserPredictionT
                             />
                             <span className="text-[12px] font-medium text-foreground">{match.awayTeam.name}</span>
                           </div>
+                          <span className="text-[12px] font-medium text-foreground">(A)</span>
                         </div>
                       </TableCell>
 

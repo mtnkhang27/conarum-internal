@@ -4,6 +4,18 @@ import { Input } from '@/components/ui/input';
 
 export type WdlPick = 'home' | 'draw' | 'away';
 
+const PICK_SHORT_LABELS: Record<WdlPick, string> = {
+  home: 'H',
+  draw: 'D',
+  away: 'A',
+};
+
+const PICK_FULL_LABELS: Record<WdlPick, string> = {
+  home: 'Home',
+  draw: 'Draw',
+  away: 'Away',
+};
+
 export function determineOutcome(homeScore?: number | null, awayScore?: number | null): WdlPick | undefined {
   if (typeof homeScore !== 'number' || typeof awayScore !== 'number') return undefined;
   if (homeScore > awayScore) return 'home';
@@ -12,10 +24,19 @@ export function determineOutcome(homeScore?: number | null, awayScore?: number |
 }
 
 export function pickLabel(value?: string | null) {
-  if (value === 'home') return '1';
-  if (value === 'draw') return 'X';
-  if (value === 'away') return '2';
+  if (value === 'home' || value === 'draw' || value === 'away') {
+    return PICK_SHORT_LABELS[value];
+  }
+
   return '-';
+}
+
+export function pickTitle(value?: string | null) {
+  if (value === 'home' || value === 'draw' || value === 'away') {
+    return PICK_FULL_LABELS[value];
+  }
+
+  return undefined;
 }
 
 export function getPickToneClasses(tone: 'neutral' | 'correct' | 'incorrect') {
@@ -93,16 +114,28 @@ interface OutcomeOptionProps {
   locked?: boolean;
   tone?: 'neutral' | 'correct' | 'incorrect';
   label: string;
+  title?: string;
   onClick?: () => void;
   disabled?: boolean;
 }
 
-export function OutcomeOption({ selected, locked, tone = 'neutral', label, onClick, disabled }: OutcomeOptionProps) {
+export function OutcomeOption({
+  selected,
+  locked,
+  tone = 'neutral',
+  label,
+  title,
+  onClick,
+  disabled,
+}: OutcomeOptionProps) {
   return (
     <button
       type="button"
       onClick={onClick}
       disabled={disabled}
+      title={title}
+      aria-label={title}
+      aria-pressed={selected}
       className={cn(
         'inline-flex h-8 w-9 items-center justify-center rounded-md border text-[11px] font-semibold transition-colors',
         selected

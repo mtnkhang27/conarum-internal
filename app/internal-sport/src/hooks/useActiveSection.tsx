@@ -15,8 +15,6 @@ export function ActiveSectionProvider({ children }: { children: ReactNode }) {
 
     const setActiveSection = useCallback((id: string) => {
         setActiveSectionState(id);
-        // Also update URL hash silently (for bookmarking / deep-linking)
-        window.history.replaceState(null, "", `/#${id}`);
     }, []);
 
     return (

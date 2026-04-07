@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState, useCallback } from "react";
-import { useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { MatchPredictionTable } from "./components/MatchPredictionTable";
 import { LiveMatchesTable } from "./components/LiveMatchesTable";
@@ -48,7 +47,6 @@ function SectionHeading({
 
 // ─── Main page ─────────────────────────────────────────────────
 export function SportPage() {
-  const location = useLocation();
   const { t } = useTranslation();
   const [tournamentId, setTournamentId] = useState("");
   const [tournamentReady, setTournamentReady] = useState(false);
@@ -122,19 +120,8 @@ export function SportPage() {
     setRecentPredictionsRefreshKey((current) => current + 1);
   }, []);
 
-  // Scroll to hash section on mount / navigation
+  // Track only in-page programmatic scrolls triggered by UI actions.
   const programmaticScroll = useRef(false);
-  useEffect(() => {
-    const hash = location.hash.replace("#", "");
-    if (hash) {
-      programmaticScroll.current = true;
-      setTimeout(() => scrollToSection(hash), 100);
-      // Reset flag after the smooth scroll completes (~600ms)
-      setTimeout(() => {
-        programmaticScroll.current = false;
-      }, 800);
-    }
-  }, [location.hash]);
 
   // ── Scroll spy: sync sidebar with visible section ─────────
   const { setActiveSection } = useActiveSection();

@@ -255,7 +255,7 @@ export function CompletedMatchesTable({ tournamentId }: CompletedMatchesTablePro
                                     <td className="px-4 py-3 text-center">
                                         {hasScore ? (
                                             <span className="inline-block rounded border border-border bg-surface-dark px-2.5 py-1 font-mono text-sm font-bold text-success">
-                                                {match.finalScore!.home} â€“ {match.finalScore!.away}
+                                                {match.finalScore!.home} - {match.finalScore!.away}
                                             </span>
                                         ) : (
                                             <span className="text-xs text-muted-foreground">â€”</span>

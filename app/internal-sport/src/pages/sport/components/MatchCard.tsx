@@ -53,6 +53,13 @@ function getErrorMessage(error: unknown): string | undefined {
     return undefined;
 }
 
+function hasKickoffPassed(kickoffIso?: string): boolean {
+    if (!kickoffIso) return false;
+    const kickoffTime = new Date(kickoffIso).getTime();
+    if (Number.isNaN(kickoffTime)) return false;
+    return kickoffTime <= Date.now();
+}
+
 interface MatchCardProps {
     match: Match;
     isCompleted?: boolean;
@@ -166,6 +173,18 @@ export function MatchCard({ match, isCompleted = false, onPredictionChange }: Ma
 
     const onSubmit = async () => {
         if (isCompleted || isSaving || !hasCurrentSelection) return;
+        if (hasKickoffPassed(match.kickoffIso)) {
+            toast.error(
+                t("matchCard.failedToSave", { defaultValue: "Failed to save" }),
+                {
+                    description: t("matchCard.kickoffPassedDesc", {
+                        defaultValue:
+                            "This match has already kicked off, so you can no longer submit this prediction.",
+                    }),
+                },
+            );
+            return;
+        }
         setIsSaving(true);
         const apiPick = selectedOption;
         try {

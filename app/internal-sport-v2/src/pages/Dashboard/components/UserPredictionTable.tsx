@@ -194,6 +194,12 @@ function getMatchStatus(status: string, kickoff: string) {
   return 'upcoming';
 }
 
+function hasKickoffPassed(kickoff: string) {
+  const kickoffDate = new Date(kickoff);
+  if (Number.isNaN(kickoffDate.getTime())) return false;
+  return kickoffDate.getTime() <= Date.now();
+}
+
 function formatKickoffLabel(kickoff: string) {
   const date = new Date(kickoff);
   if (Number.isNaN(date.getTime())) return '-';
@@ -542,6 +548,19 @@ export function UserPredictionTable({ tournamentId, className }: UserPredictionT
   };
 
   const handleSaveRow = async (match: MatchPrediction) => {
+    if (hasKickoffPassed(match.kickoff)) {
+      toast.error(
+        t('predictionDashboard.saveFailed', { defaultValue: 'Failed to save prediction.' }),
+        {
+          description: t('predictionDashboard.kickoffPassedDescription', {
+            defaultValue:
+              'This match has already kicked off, so you can no longer submit this prediction.',
+          }),
+        }
+      );
+      return;
+    }
+
     if (isRowLocked(match) || rowActionState[match.id]) return;
 
     if (!match.predictedWdl) {

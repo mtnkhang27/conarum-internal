@@ -303,6 +303,7 @@ interface UserPredictionTableProps {
 export function UserPredictionTable({ tournamentId, className }: UserPredictionTableProps) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const [matches, setMatches] = useState<MatchPrediction[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [dateRange, setDateRange] = useState<DateRange>({ from: undefined, to: undefined });
@@ -405,6 +406,19 @@ export function UserPredictionTable({ tournamentId, className }: UserPredictionT
       loadMoreLockedRef.current = false;
     }
   }, [matchesQuery.isFetching]);
+
+  useEffect(() => {
+    const container = scrollContainerRef.current;
+
+    if (!container || !matches.length || !totalCount || matchesQuery.isFetching || loadMoreLockedRef.current) {
+      return;
+    }
+
+    if (container.scrollHeight <= container.clientHeight + 24 && matches.length < totalCount) {
+      loadMoreLockedRef.current = true;
+      setPage((current) => current + 1);
+    }
+  }, [matches.length, totalCount, matchesQuery.isFetching]);
 
   const updateMatch = (matchId: string, updater: (match: MatchPrediction) => MatchPrediction) => {
     setMatches((previous) => previous.map((match) => (match.id === matchId ? updater(match) : match)));
@@ -719,7 +733,7 @@ export function UserPredictionTable({ tournamentId, className }: UserPredictionT
             {t('predictionDashboard.noMatchesFound')}
           </div>
         ) : (
-          <div className="scrollbar-hidden min-h-0 h-full overflow-auto" onScroll={handleTableScroll}>
+          <div ref={scrollContainerRef} className="scrollbar-hidden min-h-0 h-full overflow-auto" onScroll={handleTableScroll}>
             <Table className="w-full min-w-[860px] table-auto text-[12px]">
               <TableHeader>
                 <TableRow className="hover:bg-transparent">

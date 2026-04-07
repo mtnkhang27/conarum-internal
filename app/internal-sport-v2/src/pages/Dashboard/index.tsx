@@ -14,15 +14,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { getLandingTournamentId, type TournamentSelectionItem } from './tournamentSelection';
 
 const ALL_TOURNAMENTS_VALUE = '__all__';
 
-interface TournamentItem {
-  ID: string;
-  name: string;
-  status?: string | null;
-  isDefault?: boolean | null;
-}
+type TournamentItem = TournamentSelectionItem;
 
 export function Dashboard() {
   const { t } = useTranslation();
@@ -41,12 +37,7 @@ export function Dashboard() {
   const tournaments = React.useMemo(() => tournamentsQuery.data ?? [], [tournamentsQuery.data]);
 
   const defaultTournamentId = React.useMemo(() => {
-    const defaultTournament =
-      tournaments.find((item) => item.isDefault) ||
-      tournaments.find((item) => item.status === 'active') ||
-      tournaments[0];
-
-    return defaultTournament?.ID || '';
+    return getLandingTournamentId(tournaments);
   }, [tournaments]);
 
   React.useEffect(() => {
@@ -62,11 +53,11 @@ export function Dashboard() {
       : undefined;
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-3 py-3">
+    <div className="flex h-0 min-h-0 flex-1 flex-col gap-3 overflow-hidden py-3">
       <Tabs
         value={activeTab}
         onValueChange={setActiveTab}
-        className="flex min-h-0 flex-1 flex-col gap-3"
+        className="flex h-0 min-h-0 flex-1 flex-col gap-3 overflow-hidden"
       >
         <div className="flex w-full flex-col gap-3">
           <div className="w-full sm:max-w-[320px]">

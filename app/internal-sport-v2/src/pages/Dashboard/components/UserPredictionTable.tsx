@@ -775,14 +775,16 @@ export function UserPredictionTable({ tournamentId, className }: UserPredictionT
         </div>
 
         {/* Teams */}
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex min-w-0 flex-1 items-center gap-1.5">
+        <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-x-3">
+          <div className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-1.5">
             <TeamFlag code={match.homeTeam.countryCode} crest={match.homeTeam.crest} name={match.homeTeam.name} />
-            <span className="truncate text-sm font-medium text-foreground">{match.homeTeam.name}</span>
+            <span title={match.homeTeam.name} className="truncate text-sm font-medium text-foreground">{match.homeTeam.name}</span>
           </div>
-          <span className="shrink-0 text-xs font-bold text-muted-foreground">VS</span>
-          <div className="flex min-w-0 flex-1 items-center justify-end gap-1.5">
-            <span className="truncate text-sm font-medium text-foreground">{match.awayTeam.name}</span>
+          <span className="shrink-0 rounded-full border border-primary/20 bg-primary/10 px-2 py-0.5 text-xs font-bold uppercase tracking-[0.12em] text-primary">
+            VS
+          </span>
+          <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-1.5">
+            <span title={match.awayTeam.name} className="truncate text-right text-sm font-medium text-foreground">{match.awayTeam.name}</span>
             <TeamFlag code={match.awayTeam.countryCode} crest={match.awayTeam.crest} name={match.awayTeam.name} />
           </div>
         </div>

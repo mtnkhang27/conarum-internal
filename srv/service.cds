@@ -409,6 +409,8 @@ service PlayerService {
                 prediction.isCorrect as isCorrect,
                 prediction.pointsEarned as pointsEarned,
                 coalesce(correctScoreBets.correctScoreBetCount, 0) as correctScoreBetCount : Integer,
+                coalesce(scoreBetConfig.maxBets, 0) as scoreBetMaxBets : Integer,
+                coalesce(scoreBetConfig.prize, 0) as scoreBetPrizeAmount : Decimal(15, 2),
                 case
                     when scoreBetConfig.prize is null then 0
                     else coalesce(correctScoreBets.correctScoreBetCount, 0) * scoreBetConfig.prize

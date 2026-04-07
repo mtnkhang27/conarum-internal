@@ -38,6 +38,10 @@ interface RecentPredictionRow {
   homeScore?: number | null;
   awayScore?: number | null;
   pointsEarned?: number | string | null;
+  correctScoreBetCount?: number | string | null;
+  scoreBetMaxBets?: number | string | null;
+  scoreBetPrizeAmount?: number | string | null;
+  scoreBetEarnedAmount?: number | string | null;
   isCorrect?: boolean | null;
   scoreBets?: ScoreBetRow[];
 }
@@ -72,6 +76,12 @@ function parseNumericValue(value?: number | string | null) {
   }
 
   return null;
+}
+
+function formatAmount(value?: number | null) {
+  return new Intl.NumberFormat('vi-VN', {
+    maximumFractionDigits: 0,
+  }).format(Number(value || 0));
 }
 
 function renderScorePick(scoreBet: ScoreBetRow, hasResult: boolean) {
@@ -151,9 +161,21 @@ export function RecentPredictionsCard({ tournamentId, className }: RecentPredict
                   );
                   const hasResult =
                     typeof item.homeScore === 'number' && typeof item.awayScore === 'number';
-                  const correctScorePicks = visibleScoreBets.filter((scoreBet) => scoreBet.isCorrect === true).length;
                   const isScored = item.status === 'scored' || hasResult;
                   const pointsEarned = parseNumericValue(item.pointsEarned);
+                  const correctScoreBetCount = parseNumericValue(item.correctScoreBetCount);
+                  const scoreBetMaxBets = parseNumericValue(item.scoreBetMaxBets);
+                  const scoreBetPrizeAmount = parseNumericValue(item.scoreBetPrizeAmount);
+                  const scoreBetEarnedAmount = parseNumericValue(item.scoreBetEarnedAmount);
+                  const fallbackCorrectCount = visibleScoreBets.filter((scoreBet) => scoreBet.isCorrect === true).length;
+                  const resolvedCorrectCount = correctScoreBetCount ?? fallbackCorrectCount;
+                  const configuredScoreBetCount = scoreBetMaxBets !== null
+                    ? Math.max(0, Math.trunc(scoreBetMaxBets))
+                    : visibleScoreBets.length;
+                  const scoreBetSummary = scoreBetPrizeAmount !== null
+                    ? `${formatAmount(scoreBetPrizeAmount)} / ${configuredScoreBetCount}`
+                    : null;
+                  const earnedSummary = `${resolvedCorrectCount}/${visibleScoreBets.length} - ${formatAmount(scoreBetEarnedAmount ?? 0)}`;
 
                   return (
                     <TableRow key={item.predictionId} className="align-top">
@@ -217,11 +239,13 @@ export function RecentPredictionsCard({ tournamentId, className }: RecentPredict
 
                       <TableCell className="px-3 py-2.5 align-top whitespace-normal text-center">
                         <span className="text-xs font-medium text-foreground">
-                          {isScored
-                            ? visibleScoreBets.length > 0
-                              ? `${correctScorePicks}/${visibleScoreBets.length}`
-                              : '-'
-                            : t('predictionDashboard.pending', 'Pending')}
+                          {scoreBetSummary
+                            ? isScored
+                              ? `${earnedSummary} (${scoreBetSummary})`
+                              : `${t('predictionDashboard.pending', 'Pending')} (${scoreBetSummary})`
+                            : isScored
+                              ? earnedSummary
+                              : t('predictionDashboard.pending', 'Pending')}
                         </span>
                       </TableCell>
 

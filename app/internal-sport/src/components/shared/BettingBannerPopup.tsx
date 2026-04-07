@@ -34,15 +34,14 @@ export function BettingBannerPopup({
     const [showTerms, setShowTerms] = useState(false);
 
     useEffect(() => {
-        if (loading) return;
         const dismissed = sessionStorage.getItem(SESSION_KEY);
         if (!dismissed) {
-            const timer = setTimeout(() => setVisible(true), 500);
+            const timer = setTimeout(() => setVisible(true), 300);
             return () => clearTimeout(timer);
         }
 
         onDismiss?.();
-    }, [loading, onDismiss]);
+    }, [onDismiss]);
 
     const dismiss = useCallback(() => {
         setClosing(true);
@@ -82,7 +81,9 @@ export function BettingBannerPopup({
             : matches.slice(0, 4);
 
     return (
-        <div className={`betting-overlay ${closing ? "closing" : ""}`}>
+        <div className={`betting-overlay !items-start !overflow-y-auto !p-3 sm:!items-center sm:!p-4 ${closing ? "closing" : ""}`}
+            style={{ WebkitOverflowScrolling: "touch" }}
+        >
             <div className="betting-overlay__bg">
                 <img
                     src={bannerHeroImg}
@@ -92,30 +93,39 @@ export function BettingBannerPopup({
                 />
             </div>
 
-            <div className="betting-banner">
-                <div className="betting-banner__header">
-                    <div className="betting-banner__title">
+            <div className="betting-banner my-auto max-h-[100dvh] overflow-y-auto sm:max-h-none sm:overflow-visible"
+                style={{ WebkitOverflowScrolling: "touch" }}
+            >
+                {/* Header */}
+                <div className="betting-banner__header !mb-4 sm:!mb-7">
+                    <div className="betting-banner__title !text-[26px] !tracking-[1px] sm:!text-[44px] sm:!tracking-[3px]">
                         🏆 <span className="betting-banner__title-bet">PREDICT</span>{" "}
                         <span className="betting-banner__title-now">NOW</span>
                     </div>
-                    <div className="betting-banner__subtitle">
+                    <div className="betting-banner__subtitle !mt-1 !text-[10px] sm:!mt-2 sm:!text-[13px]">
                         Predict the outcomes &amp; climb the leaderboard!
                     </div>
                 </div>
 
-                <div className="betting-banner__matches">
-                    {displayMatches.length > 0 ? (
+                {/* Matches */}
+                <div className="betting-banner__matches !mb-3 !gap-1.5 sm:!mb-5 sm:!gap-2.5">
+                    {loading ? (
+                        <div className="betting-banner__empty !py-3 sm:!py-5">
+                            <div className="betting-banner__loading-spinner" />
+                            Loading hot matches…
+                        </div>
+                    ) : displayMatches.length > 0 ? (
                         displayMatches.map((match) => (
-                            <div key={match.id} className="betting-match">
+                            <div key={match.id} className="betting-match !rounded-xl !px-2.5 !py-2 sm:!rounded-[14px] sm:!px-4 sm:!py-3.5">
                                 {match.isHotMatch && (
                                     <div className="betting-match__hot-badge">
                                         <span className="betting-match__hot-icon">🔥</span>
                                         <span className="betting-match__hot-text">HOT</span>
                                     </div>
                                 )}
-                                <div className="betting-match__row">
+                                <div className="betting-match__row !gap-2 sm:!gap-3">
                                     <div className="betting-match__team betting-match__team--home">
-                                        <span className="betting-match__name">{match.home.name}</span>
+                                        <span className="betting-match__name !max-w-[80px] !text-[10px] sm:!max-w-[120px] sm:!text-[12px]">{match.home.name}</span>
                                         <TeamCrest
                                             crest={match.home.crest}
                                             flag={match.home.flag}
@@ -123,7 +133,7 @@ export function BettingBannerPopup({
                                             size="lg"
                                         />
                                     </div>
-                                    <div className="betting-match__vs">VS</div>
+                                    <div className="betting-match__vs !text-[9px] sm:!text-[11px]">VS</div>
                                     <div className="betting-match__team betting-match__team--away">
                                         <TeamCrest
                                             crest={match.away.crest}
@@ -131,10 +141,10 @@ export function BettingBannerPopup({
                                             name={match.away.name}
                                             size="lg"
                                         />
-                                        <span className="betting-match__name">{match.away.name}</span>
+                                        <span className="betting-match__name !max-w-[80px] !text-[10px] sm:!max-w-[120px] sm:!text-[12px]">{match.away.name}</span>
                                     </div>
                                 </div>
-                                <div className="betting-match__time">{match.timeLabel}</div>
+                                <div className="betting-match__time !mt-0.5 !text-[9px] sm:!mt-1 sm:!text-[10px]">{match.timeLabel}</div>
                             </div>
                         ))
                     ) : (
@@ -145,14 +155,15 @@ export function BettingBannerPopup({
                     )}
                 </div>
 
-                <label className="betting-banner__agreement">
+                {/* Agreement */}
+                <label className="betting-banner__agreement !mb-3 !gap-2 !rounded-lg !p-2 sm:!mb-4 sm:!gap-2.5 sm:!rounded-xl sm:!p-3">
                     <input
                         type="checkbox"
                         checked={agreed}
                         onChange={(event) => setAgreed(event.target.checked)}
                         className="betting-banner__checkbox"
                     />
-                    <span className="betting-banner__agreement-text">
+                    <span className="betting-banner__agreement-text !text-[10.5px] !leading-snug sm:!text-[12.5px]">
                         I'm over 18 and agree to this site's{" "}
                         <button
                             type="button"
@@ -168,8 +179,9 @@ export function BettingBannerPopup({
                     </span>
                 </label>
 
+                {/* CTA */}
                 <button
-                    className={`betting-banner__cta ${!agreed ? "betting-banner__cta--disabled" : ""}`}
+                    className={`betting-banner__cta !rounded-xl !px-4 !py-3 !text-[14px] !tracking-[2px] sm:!rounded-2xl sm:!px-7 sm:!py-4.5 sm:!text-[20px] sm:!tracking-[3px] ${!agreed ? "betting-banner__cta--disabled" : ""}`}
                     onClick={handleBetNow}
                     disabled={!agreed}
                 >

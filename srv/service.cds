@@ -181,6 +181,19 @@ service PlayerService {
                 bet.isCorrect          as isCorrect
         };
 
+    /** Current user's correct exact-score bet counts per match. */
+    @readonly
+    @cds.api.ignore
+    entity CurrentUserCorrectScoreBetCountsView as
+        select from db.ScoreBet as bet
+            inner join CurrentPlayerView as currentPlayer
+                on currentPlayer.ID = bet.player.ID {
+            key bet.match.ID as matchId,
+                count(1)     as correctScoreBetCount : Integer
+        } where bet.isCorrect = true
+        group by
+            bet.match.ID;
+
     /**
      * Tournament matches keyed by external provider ID.
      * Lets TournamentBracketView resolve leg data without a TS after-read patch.
@@ -383,7 +396,11 @@ service PlayerService {
             left join db.Team as away
                 on away.ID = match.awayTeam.ID
             left join db.Tournament as tournament
-                on tournament.ID = prediction.tournament.ID {
+                on tournament.ID = prediction.tournament.ID
+            left join db.MatchScoreBetConfig as scoreBetConfig
+                on scoreBetConfig.match.ID = match.ID
+            left join CurrentUserCorrectScoreBetCountsView as correctScoreBets
+                on correctScoreBets.matchId = match.ID {
             key prediction.ID      as predictionId,
                 prediction.match.ID as matchId,
                 prediction.tournament.ID as tournament_ID,
@@ -391,6 +408,13 @@ service PlayerService {
                 prediction.status  as status,
                 prediction.isCorrect as isCorrect,
                 prediction.pointsEarned as pointsEarned,
+                coalesce(correctScoreBets.correctScoreBetCount, 0) as correctScoreBetCount : Integer,
+                coalesce(scoreBetConfig.maxBets, 0) as scoreBetMaxBets : Integer,
+                coalesce(scoreBetConfig.prize, 0) as scoreBetPrizeAmount : Decimal(15, 2),
+                case
+                    when scoreBetConfig.prize is null then 0
+                    else coalesce(correctScoreBets.correctScoreBetCount, 0) * scoreBetConfig.prize
+                end               as scoreBetEarnedAmount : Decimal(15, 2),
                 prediction.submittedAt as submittedAt,
                 match.kickoff      as kickoff,
                 match.homeScore    as homeScore,
@@ -1011,7 +1035,9 @@ service AdminService {
         familyName  : String(100);
         displayName : String(100);
         workzoneRole : String(20);
+        workzoneRoles : array of String;
         appRole     : String(40);
+        appRoles    : array of String;
         password    : String(255);
         makeAdmin   : Boolean;
         grantPredictionAdmin : Boolean;

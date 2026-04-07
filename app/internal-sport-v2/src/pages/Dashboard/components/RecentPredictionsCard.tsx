@@ -130,7 +130,7 @@ function resolveOutcomeTone(pick?: string | null, homeScore?: number | null, awa
 export function RecentPredictionsCard({ tournamentId, className }: RecentPredictionsCardProps) {
   const { t } = useTranslation();
   const containerClassName = cn(
-    'min-h-0 h-full overflow-hidden rounded-xl border border-muted/60 bg-card',
+    'rounded-xl border border-muted/60 bg-card lg:min-h-0 lg:h-full lg:overflow-hidden',
     className
   );
   const initialStateClassName = 'flex h-full min-h-[220px] items-center justify-center';
@@ -183,7 +183,7 @@ export function RecentPredictionsCard({ tournamentId, className }: RecentPredict
 
   return (
     <div className={containerClassName}>
-      <div className="scrollbar-hidden h-full overflow-auto">
+      <div className="scrollbar-hidden lg:h-full lg:overflow-auto">
         <Table className="w-full min-w-[980px] table-auto text-[12px]">
           <TableHeader>
             <TableRow className="hover:bg-transparent">

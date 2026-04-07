@@ -55,7 +55,7 @@ export function LeaderboardCard({ tournamentId, maxRows = 8, className }: Leader
     };
 
     return (
-        <Card className={cn('flex h-full w-full flex-col overflow-hidden border-border bg-card shadow-sm', className)}>
+        <Card className={cn('flex w-full flex-col border-border bg-card shadow-sm lg:h-full lg:overflow-hidden', className)}>
             <CardContent className="min-h-0 flex-1 p-0">
                 {isLoading ? (
                     <div className="flex h-full min-h-[220px] items-center justify-center">
@@ -71,7 +71,7 @@ export function LeaderboardCard({ tournamentId, maxRows = 8, className }: Leader
                         <p>{t('predictionDashboard.noPredictionsYet', 'No predictions available.')}</p>
                     </div>
                 ) : (
-                    <div className="scrollbar-hidden h-full overflow-auto">
+                    <div className="scrollbar-hidden lg:h-full lg:overflow-auto">
                         <Table className="w-full min-w-[760px] table-auto text-[12px]">
                             <TableHeader>
                                 <TableRow className="hover:bg-transparent">

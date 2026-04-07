@@ -141,7 +141,7 @@ export function TournamentChampionCard({
   };
 
   return (
-    <Card className={cn('flex h-full w-full flex-col overflow-hidden border-muted/60 bg-card shadow-sm', className)}>
+    <Card className={cn('flex w-full flex-col border-muted/60 bg-card shadow-sm lg:h-full lg:overflow-hidden', className)}>
       {/* <CardHeader className="border-b bg-muted/10 px-5 py-4">
         <div className="flex flex-col gap-2">
           <div>

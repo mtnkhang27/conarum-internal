@@ -707,8 +707,104 @@ export function UserPredictionTable({ tournamentId, className }: UserPredictionT
     );
   };
 
+  const renderMatchCard = (match: MatchPrediction) => {
+    const locked = isRowLocked(match);
+    const isSaving = rowActionState[match.id] === 'saving';
+    const isClearing = rowActionState[match.id] === 'clearing';
+    const visibleScorePicks = locked
+      ? match.scorePicks.filter((pick) => pick.home !== '' || pick.away !== '')
+      : match.scorePicks;
+    const canSave =
+      !locked && !isSaving && !isClearing && Boolean(match.predictedWdl) && hasChanges(match);
+    const canClear =
+      !isSaving &&
+      !isClearing &&
+      (hasPersistedPrediction(match) || hasChanges(match));
+
+    return (
+      <div key={match.id} className="rounded-xl border border-border/70 bg-card p-3 space-y-3">
+        {/* Header: Date + Status */}
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-xs font-medium text-foreground">
+            {formatKickoffLabel(match.kickoff)}
+          </span>
+          {getStatusBadge(
+            match.status,
+            match.status === 'upcoming'
+              ? t('predictionDashboard.statusUpcoming')
+              : match.status === 'live'
+                ? t('predictionDashboard.statusInProcess')
+                : t('predictionDashboard.statusClosed')
+          )}
+        </div>
+
+        {/* Teams */}
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex min-w-0 flex-1 items-center gap-1.5">
+            <TeamFlag code={match.homeTeam.countryCode} crest={match.homeTeam.crest} name={match.homeTeam.name} />
+            <span className="truncate text-sm font-medium text-foreground">{match.homeTeam.name}</span>
+          </div>
+          <span className="shrink-0 text-xs font-bold text-muted-foreground">VS</span>
+          <div className="flex min-w-0 flex-1 items-center justify-end gap-1.5">
+            <span className="truncate text-sm font-medium text-foreground">{match.awayTeam.name}</span>
+            <TeamFlag code={match.awayTeam.countryCode} crest={match.awayTeam.crest} name={match.awayTeam.name} />
+          </div>
+        </div>
+
+        {/* Outcome Pick */}
+        <div className="flex flex-col items-center gap-1.5">
+          {renderOutcomePick(match)}
+        </div>
+
+        {/* Score Picks */}
+        {match.scoreBettingEnabled && (
+          <div className="flex flex-col items-center gap-1.5">
+            {visibleScorePicks.length > 0 ? (
+              <div className="inline-flex flex-col items-center gap-1">
+                {visibleScorePicks.map((pick) => renderScorePick(match, pick))}
+              </div>
+            ) : (
+              !locked && (
+                <span className="text-xs text-muted-foreground">
+                  {t('predictionDashboard.noScorePicks', 'No score picks yet')}
+                </span>
+              )
+            )}
+          </div>
+        )}
+
+        {/* Actions */}
+        {!locked && (
+          <div className="flex items-center justify-end gap-2 border-t border-border/50 pt-2">
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => requestClearRow(match.id)}
+              disabled={!canClear}
+              className="h-8 gap-1.5 text-xs"
+            >
+              {isClearing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Eraser className="h-3.5 w-3.5" />}
+              {t('common.clear', 'Clear')}
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              onClick={() => void handleSaveRow(match)}
+              disabled={!canSave}
+              className="h-8 gap-1.5 text-xs"
+            >
+              {isSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+              {t('common.save', 'Save')}
+            </Button>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
-    <div className={cn('flex min-h-0 h-full w-full flex-col gap-3', className)}>
+    <div className={cn('flex w-full flex-col gap-3 lg:min-h-0 lg:h-full', className)}>
       <div className="shrink-0">
         <UserPredictionTableFilters
           searchTerm={searchTerm}
@@ -722,162 +818,24 @@ export function UserPredictionTable({ tournamentId, className }: UserPredictionT
         />
       </div>
 
-      <div className="min-h-0 flex-1 overflow-hidden rounded-xl border border-muted/60 bg-card">
-        {matchesQuery.isLoading && !hasRows ? (
-          <div className="flex h-full items-center justify-center py-16">
-            <Loader2 className="h-7 w-7 animate-spin text-primary" />
-          </div>
-        ) : matchesQuery.error ? (
-          <div className="flex h-full items-center justify-center px-6 py-10 text-center text-sm text-destructive">
-            {t('predictionDashboard.loadError')}
-          </div>
-        ) : !hasRows ? (
-          <div className="flex h-full items-center justify-center px-6 py-10 text-center text-sm text-muted-foreground">
-            {t('predictionDashboard.noMatchesFound')}
-          </div>
-        ) : (
-          <div ref={scrollContainerRef} className="scrollbar-hidden min-h-0 h-full overflow-auto" onScroll={handleTableScroll}>
-            <Table className="w-full min-w-[780px] table-auto text-[12px]">
-              <TableHeader>
-                <TableRow className="hover:bg-transparent">
-                  <TableHead className="sticky top-0 z-10 min-w-[126px] bg-card px-3 py-2.5">
-                    {t('predictionDashboard.columns.dateStage', 'Date')}
-                  </TableHead>
-                  <TableHead className="sticky top-0 z-10 min-w-[208px] bg-card px-3 py-2.5">
-                    {t('predictionDashboard.columns.teams')}
-                  </TableHead>
-                  <TableHead className="sticky top-0 z-10 min-w-[148px] bg-card px-3 py-2.5 text-center">
-                    {t('predictionDashboard.columns.scorePick')}
-                  </TableHead>
-                  <TableHead className="sticky top-0 z-10 min-w-[120px] bg-card px-3 py-2.5 text-center">
-                    {t('predictionDashboard.columns.wdlPick', 'Outcome')}
-                  </TableHead>
-                  <TableHead className="sticky top-0 z-10 min-w-[120px] bg-card px-3 py-2.5 text-center">
-                    {t('predictionDashboard.actions', 'Actions')}
-                  </TableHead>
-                </TableRow>
-              </TableHeader>
-
-              <TableBody>
-                {matches.map((match) => {
-                  const locked = isRowLocked(match);
-                  const isSaving = rowActionState[match.id] === 'saving';
-                  const isClearing = rowActionState[match.id] === 'clearing';
-                  const visibleScorePicks = locked
-                    ? match.scorePicks.filter((pick) => pick.home !== '' || pick.away !== '')
-                    : match.scorePicks;
-                  const canSave =
-                    !locked && !isSaving && !isClearing && Boolean(match.predictedWdl) && hasChanges(match);
-                  const canClear =
-                    !isSaving &&
-                    !isClearing &&
-                    (hasPersistedPrediction(match) || hasChanges(match));
-
-                  return (
-                    <TableRow key={match.id} className="align-top hover:bg-muted/20">
-                      <TableCell className="px-3 py-2.5 align-top whitespace-normal">
-                        <div className="flex flex-col gap-1.5">
-                          <span className="inline-flex items-center gap-1.5 text-xs font-medium text-foreground">
-                            {formatKickoffLabel(match.kickoff)}
-                          </span>
-                          {getStatusBadge(
-                            match.status,
-                            match.status === 'upcoming'
-                              ? t('predictionDashboard.statusUpcoming')
-                              : match.status === 'live'
-                                ? t('predictionDashboard.statusInProcess')
-                                : t('predictionDashboard.statusClosed')
-                          )}
-                        </div>
-                      </TableCell>
-
-                      <TableCell className="px-3 py-2.5 align-top whitespace-normal">
-                        <div className="inline-grid grid-cols-[minmax(0,13rem)_max-content] items-center gap-x-[22px] gap-y-1.5">
-                          <div className="flex min-w-0 items-center gap-1.5">
-                            <TeamFlag
-                              code={match.homeTeam.countryCode}
-                              crest={match.homeTeam.crest}
-                              name={match.homeTeam.name}
-                            />
-                            <span className="text-[12px] font-medium text-foreground">{match.homeTeam.name}</span>
-                          </div>
-                          <span className="text-[12px] font-medium text-foreground">(H)</span>
-                          <div className="flex min-w-0 items-center gap-1.5">
-                            <TeamFlag
-                              code={match.awayTeam.countryCode}
-                              crest={match.awayTeam.crest}
-                              name={match.awayTeam.name}
-                            />
-                            <span className="text-[12px] font-medium text-foreground">{match.awayTeam.name}</span>
-                          </div>
-                          <span className="text-[12px] font-medium text-foreground">(A)</span>
-                        </div>
-                      </TableCell>
-
-                      <TableCell className="px-3 py-2.5 align-top whitespace-normal text-center">
-                        <div className="flex flex-col items-center gap-1.5">
-                          {match.scoreBettingEnabled ? (
-                            visibleScorePicks.length > 0 ? (
-                              <div className="scrollbar-hidden flex w-full justify-center overflow-x-auto overflow-y-hidden pb-1">
-                                <div className="inline-flex min-w-[112px] flex-col items-center gap-1">
-                                  {visibleScorePicks.map((pick) => renderScorePick(match, pick))}
-                                </div>
-                              </div>
-                            ) : (
-                              <span className="text-xs text-muted-foreground">
-                                {locked ? '-' : t('predictionDashboard.noScorePicks', 'No score picks yet')}
-                              </span>
-                            )
-                          ) : (
-                            <span className="text-xs text-muted-foreground">-</span>
-                          )}
-                        </div>
-                      </TableCell>
-
-                      <TableCell className="px-3 py-2.5 align-top whitespace-normal text-center">
-                        <div className="flex justify-center">{renderOutcomePick(match)}</div>
-                      </TableCell>
-
-                      <TableCell className="px-3 py-2.5 align-top whitespace-normal text-center">
-                        <div className="flex items-center justify-center gap-1.5">
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button
-                                type="button"
-                                size="icon"
-                                variant="outline"
-                                onClick={() => void handleSaveRow(match)}
-                                disabled={!canSave}
-                                className="h-7 w-7 cursor-pointer"
-                              >
-                                {isSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent side="top">{t('common.save', 'Save')}</TooltipContent>
-                          </Tooltip>
-
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Button
-                                type="button"
-                                size="icon"
-                                variant="outline"
-                                onClick={() => requestClearRow(match.id)}
-                                disabled={!canClear}
-                                className="h-7 w-7 cursor-pointer"
-                              >
-                                {isClearing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Eraser className="h-3.5 w-3.5" />}
-                              </Button>
-                            </TooltipTrigger>
-                            <TooltipContent side="top">{t('common.clear', 'Clear')}</TooltipContent>
-                          </Tooltip>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
+      {/* Loading / Error / Empty states */}
+      {matchesQuery.isLoading && !hasRows ? (
+        <div className="flex items-center justify-center py-16">
+          <Loader2 className="h-7 w-7 animate-spin text-primary" />
+        </div>
+      ) : matchesQuery.error ? (
+        <div className="flex items-center justify-center px-6 py-10 text-center text-sm text-destructive">
+          {t('predictionDashboard.loadError')}
+        </div>
+      ) : !hasRows ? (
+        <div className="flex items-center justify-center px-6 py-10 text-center text-sm text-muted-foreground">
+          {t('predictionDashboard.noMatchesFound')}
+        </div>
+      ) : (
+        <>
+          {/* ── Mobile Card View (< lg) ── */}
+          <div className="flex flex-col gap-3 lg:hidden">
+            {matches.map(renderMatchCard)}
 
             {matchesQuery.isFetching && hasRows && (
               <div className="flex items-center justify-center py-4">
@@ -885,8 +843,161 @@ export function UserPredictionTable({ tournamentId, className }: UserPredictionT
               </div>
             )}
           </div>
-        )}
-      </div>
+
+          {/* ── Desktop Table View (lg+) ── */}
+          <div className="hidden rounded-xl border border-muted/60 bg-card lg:block lg:min-h-0 lg:flex-1 lg:overflow-hidden">
+            <div ref={scrollContainerRef} className="scrollbar-hidden lg:min-h-0 lg:h-full lg:overflow-auto" onScroll={handleTableScroll}>
+              <Table className="w-full min-w-[780px] table-auto text-[12px]">
+                <TableHeader>
+                  <TableRow className="hover:bg-transparent">
+                    <TableHead className="sticky top-0 z-10 min-w-[126px] bg-card px-3 py-2.5">
+                      {t('predictionDashboard.columns.dateStage', 'Date')}
+                    </TableHead>
+                    <TableHead className="sticky top-0 z-10 min-w-[208px] bg-card px-3 py-2.5">
+                      {t('predictionDashboard.columns.teams')}
+                    </TableHead>
+                    <TableHead className="sticky top-0 z-10 min-w-[148px] bg-card px-3 py-2.5 text-center">
+                      {t('predictionDashboard.columns.scorePick')}
+                    </TableHead>
+                    <TableHead className="sticky top-0 z-10 min-w-[120px] bg-card px-3 py-2.5 text-center">
+                      {t('predictionDashboard.columns.wdlPick', 'Outcome')}
+                    </TableHead>
+                    <TableHead className="sticky top-0 z-10 min-w-[120px] bg-card px-3 py-2.5 text-center">
+                      {t('predictionDashboard.actions', 'Actions')}
+                    </TableHead>
+                  </TableRow>
+                </TableHeader>
+
+                <TableBody>
+                  {matches.map((match) => {
+                    const locked = isRowLocked(match);
+                    const isSaving = rowActionState[match.id] === 'saving';
+                    const isClearing = rowActionState[match.id] === 'clearing';
+                    const visibleScorePicks = locked
+                      ? match.scorePicks.filter((pick) => pick.home !== '' || pick.away !== '')
+                      : match.scorePicks;
+                    const canSave =
+                      !locked && !isSaving && !isClearing && Boolean(match.predictedWdl) && hasChanges(match);
+                    const canClear =
+                      !isSaving &&
+                      !isClearing &&
+                      (hasPersistedPrediction(match) || hasChanges(match));
+
+                    return (
+                      <TableRow key={match.id} className="align-top hover:bg-muted/20">
+                        <TableCell className="px-3 py-2.5 align-top whitespace-normal">
+                          <div className="flex flex-col gap-1.5">
+                            <span className="inline-flex items-center gap-1.5 text-xs font-medium text-foreground">
+                              {formatKickoffLabel(match.kickoff)}
+                            </span>
+                            {getStatusBadge(
+                              match.status,
+                              match.status === 'upcoming'
+                                ? t('predictionDashboard.statusUpcoming')
+                                : match.status === 'live'
+                                  ? t('predictionDashboard.statusInProcess')
+                                  : t('predictionDashboard.statusClosed')
+                            )}
+                          </div>
+                        </TableCell>
+
+                        <TableCell className="px-3 py-2.5 align-top whitespace-normal">
+                          <div className="inline-grid grid-cols-[minmax(0,13rem)_max-content] items-center gap-x-[22px] gap-y-1.5">
+                            <div className="flex min-w-0 items-center gap-1.5">
+                              <TeamFlag
+                                code={match.homeTeam.countryCode}
+                                crest={match.homeTeam.crest}
+                                name={match.homeTeam.name}
+                              />
+                              <span className="text-[12px] font-medium text-foreground">{match.homeTeam.name}</span>
+                            </div>
+                            <span className="text-[12px] font-medium text-foreground">(H)</span>
+                            <div className="flex min-w-0 items-center gap-1.5">
+                              <TeamFlag
+                                code={match.awayTeam.countryCode}
+                                crest={match.awayTeam.crest}
+                                name={match.awayTeam.name}
+                              />
+                              <span className="text-[12px] font-medium text-foreground">{match.awayTeam.name}</span>
+                            </div>
+                            <span className="text-[12px] font-medium text-foreground">(A)</span>
+                          </div>
+                        </TableCell>
+
+                        <TableCell className="px-3 py-2.5 align-top whitespace-normal text-center">
+                          <div className="flex flex-col items-center gap-1.5">
+                            {match.scoreBettingEnabled ? (
+                              visibleScorePicks.length > 0 ? (
+                                <div className="scrollbar-hidden flex w-full justify-center overflow-x-auto overflow-y-hidden pb-1">
+                                  <div className="inline-flex min-w-[112px] flex-col items-center gap-1">
+                                    {visibleScorePicks.map((pick) => renderScorePick(match, pick))}
+                                  </div>
+                                </div>
+                              ) : (
+                                <span className="text-xs text-muted-foreground">
+                                  {locked ? '-' : t('predictionDashboard.noScorePicks', 'No score picks yet')}
+                                </span>
+                              )
+                            ) : (
+                              <span className="text-xs text-muted-foreground">-</span>
+                            )}
+                          </div>
+                        </TableCell>
+
+                        <TableCell className="px-3 py-2.5 align-top whitespace-normal text-center">
+                          <div className="flex justify-center">{renderOutcomePick(match)}</div>
+                        </TableCell>
+
+                        <TableCell className="px-3 py-2.5 align-top whitespace-normal text-center">
+                          <div className="flex items-center justify-center gap-1.5">
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  type="button"
+                                  size="icon"
+                                  variant="outline"
+                                  onClick={() => void handleSaveRow(match)}
+                                  disabled={!canSave}
+                                  className="h-7 w-7 cursor-pointer"
+                                >
+                                  {isSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent side="top">{t('common.save', 'Save')}</TooltipContent>
+                            </Tooltip>
+
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  type="button"
+                                  size="icon"
+                                  variant="outline"
+                                  onClick={() => requestClearRow(match.id)}
+                                  disabled={!canClear}
+                                  className="h-7 w-7 cursor-pointer"
+                                >
+                                  {isClearing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Eraser className="h-3.5 w-3.5" />}
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent side="top">{t('common.clear', 'Clear')}</TooltipContent>
+                            </Tooltip>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+
+              {matchesQuery.isFetching && hasRows && (
+                <div className="flex items-center justify-center py-4">
+                  <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                </div>
+              )}
+            </div>
+          </div>
+        </>
+      )}
 
       <AlertDialog open={Boolean(clearConfirmMatchId)} onOpenChange={(open) => !open && setClearConfirmMatchId(null)}>
         <AlertDialogContent>

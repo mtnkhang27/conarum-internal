@@ -168,34 +168,34 @@ export function UserPage() {
   }
 
   return (
-    <div className="scrollbar-hidden flex min-h-0 flex-1 flex-col gap-4 overflow-auto pr-1">
-      <div className="space-y-1">
-        <h1 className="text-2xl font-semibold text-foreground">{t('userPage.title', 'User Profile')}</h1>
-        <p className="text-sm text-muted-foreground">
+    <div className="scrollbar-hidden flex min-h-0 flex-1 flex-col gap-3 overflow-auto pr-1 sm:gap-4">
+      <div className="space-y-0.5 sm:space-y-1">
+        <h1 className="text-xl font-semibold text-foreground sm:text-2xl">{t('userPage.title', 'User Profile')}</h1>
+        <p className="text-xs text-muted-foreground sm:text-sm">
           {t('userPage.subtitle', 'Manage your personal details and tournament identity in one place.')}
         </p>
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-[320px_minmax(0,1fr)]">
+      <div className="grid gap-3 sm:gap-4 lg:grid-cols-[280px_minmax(0,1fr)] xl:grid-cols-[320px_minmax(0,1fr)]">
         <Card className="gap-0">
           <CardHeader className="border-b">
             <CardTitle>{t('userPage.summary', 'Summary')}</CardTitle>
             <CardDescription>{t('userPage.summaryHint', 'This card shows the identity currently synced from backend.')}</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4 pt-6">
-            <div className="flex items-center gap-4">
-              <Avatar className="h-16 w-16 border border-border">
+          <CardContent className="space-y-4 pt-4 sm:pt-6">
+            <div className="flex items-center gap-3 sm:gap-4">
+              <Avatar className="h-12 w-12 border border-border sm:h-16 sm:w-16">
                 <AvatarImage src={draft.avatarUrl || undefined} alt={draft.displayName || draft.email} />
-                <AvatarFallback className="bg-primary/10 text-lg font-semibold text-primary">
+                <AvatarFallback className="bg-primary/10 text-base font-semibold text-primary sm:text-lg">
                   {initials || 'U'}
                 </AvatarFallback>
               </Avatar>
 
               <div className="min-w-0">
-                <p className="truncate text-lg font-semibold text-foreground">
+                <p className="truncate text-base font-semibold text-foreground sm:text-lg">
                   {draft.displayName || draft.email || t('userPage.unknownUser', 'User')}
                 </p>
-                <p className="truncate text-sm text-muted-foreground">{draft.email || '-'}</p>
+                <p className="truncate text-xs text-muted-foreground sm:text-sm">{draft.email || '-'}</p>
               </div>
             </div>
 
@@ -234,24 +234,24 @@ export function UserPage() {
 
         <Card className="gap-0">
           <CardHeader className="border-b">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div>
+            <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between sm:gap-3">
+              <div className="min-w-0">
                 <CardTitle>{t('userPage.details', 'Profile Details')}</CardTitle>
-                <CardDescription>{t('userPage.detailsHint', 'Keep your profile current so leaderboard and admin views stay clean.')}</CardDescription>
+                <CardDescription className="text-xs sm:text-sm">{t('userPage.detailsHint', 'Keep your profile current so leaderboard and admin views stay clean.')}</CardDescription>
               </div>
 
               {isEditing ? (
                 <div className="flex items-center gap-2">
-                  <Button type="button" size="sm" variant="outline" onClick={handleCancel} disabled={saveProfileMutation.isPending}>
+                  <Button type="button" size="sm" variant="outline" onClick={handleCancel} disabled={saveProfileMutation.isPending} className="flex-1 sm:flex-none">
                     {t('common.cancel', 'Cancel')}
                   </Button>
-                  <Button type="button" size="sm" onClick={() => saveProfileMutation.mutate(draft)} disabled={saveProfileMutation.isPending}>
+                  <Button type="button" size="sm" onClick={() => saveProfileMutation.mutate(draft)} disabled={saveProfileMutation.isPending} className="flex-1 sm:flex-none">
                     <Save className="h-4 w-4" />
                     {saveProfileMutation.isPending ? t('common.saving', 'Saving...') : t('common.save', 'Save')}
                   </Button>
                 </div>
               ) : (
-                <Button type="button" size="sm" variant="subtle" onClick={() => setIsEditing(true)}>
+                <Button type="button" size="sm" variant="subtle" onClick={() => setIsEditing(true)} className="w-full sm:w-auto">
                   <UserRound className="h-4 w-4" />
                   {t('userPage.edit', 'Edit Profile')}
                 </Button>
@@ -259,7 +259,7 @@ export function UserPage() {
             </div>
           </CardHeader>
 
-          <CardContent className="grid gap-4 pt-6 md:grid-cols-2">
+          <CardContent className="grid gap-3 pt-4 sm:gap-4 sm:pt-6 md:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="user-display-name">{t('userPage.fields.displayName', 'Display Name')}</Label>
               <Input
@@ -299,7 +299,8 @@ export function UserPage() {
               <Label htmlFor="user-bio">{t('userPage.fields.bio', 'Bio')}</Label>
               <Textarea
                 id="user-bio"
-                rows={5}
+                rows={3}
+                className="sm:min-h-[120px]"
                 value={draft.bio}
                 onChange={(event) => handleFieldChange('bio', event.target.value)}
                 readOnly={!isEditing}

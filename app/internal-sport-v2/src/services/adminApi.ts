@@ -161,7 +161,35 @@ export const scoreBetProcessingApi = {
       typeof options?.processed === 'boolean' ? `isProcessed eq ${options.processed}` : null,
     ].filter(Boolean);
 
-    const query = `?$filter=${encodeURIComponent(filters.join(' and '))}&$orderby=playerName asc,kickoff desc,submittedAt desc`;
+    const selectFields = [
+      'ID',
+      'player_ID',
+      'match_ID',
+      'tournament_ID',
+      'tournamentName',
+      'predictedHomeScore',
+      'predictedAwayScore',
+      'actualHomeScore',
+      'actualAwayScore',
+      'kickoff',
+      'stage',
+      'homeTeamName',
+      'homeTeamFlag',
+      'awayTeamName',
+      'awayTeamFlag',
+      'status',
+      'isCorrect',
+      'isProcessed',
+      'submittedAt',
+      'playerName',
+      'playerEmail',
+      'prizeAmount',
+    ];
+
+    const query =
+      `?$filter=${encodeURIComponent(filters.join(' and '))}`
+      + `&$select=${selectFields.join(',')}`
+      + '&$orderby=playerName asc,kickoff desc,submittedAt desc';
 
     return odataList<AdminScoreBetProcessingView>(`/AdminScoreBetProcessingView${query}`);
   },

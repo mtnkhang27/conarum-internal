@@ -144,6 +144,15 @@ function serializeScorePicks(scorePicks: ScorePick[]) {
   return scorePicks.map((pick) => `${pick.home}:${pick.away}`).join('|');
 }
 
+function matchHasPendingChanges(
+  match: Pick<MatchPrediction, 'predictedWdl' | 'initialPredictedWdl' | 'scorePicks' | 'initialScorePicks'>
+) {
+  return (
+    match.predictedWdl !== match.initialPredictedWdl ||
+    serializeScorePicks(match.scorePicks) !== serializeScorePicks(match.initialScorePicks)
+  );
+}
+
 function hasAnyFilledScorePick(scorePicks: ScorePick[]) {
   return scorePicks.some((pick) => pick.home !== '' || pick.away !== '');
 }
@@ -297,6 +306,27 @@ function mapMatchRow(row: AvailableMatchRow): MatchPrediction {
   };
 }
 
+function mergeMatchWithLocalDraft(nextMatch: MatchPrediction, previousMatch?: MatchPrediction) {
+  if (!previousMatch || !matchHasPendingChanges(previousMatch)) {
+    return nextMatch;
+  }
+
+  const draftScorePicks = cloneScorePicks(previousMatch.scorePicks);
+  const initialScorePicks = cloneScorePicks(previousMatch.initialScorePicks);
+
+  return {
+    ...nextMatch,
+    predictedWdl: previousMatch.predictedWdl,
+    initialPredictedWdl: previousMatch.initialPredictedWdl,
+    scorePicks: nextMatch.scoreBettingEnabled
+      ? ensureScorePickSlots(draftScorePicks, nextMatch.maxBets)
+      : draftScorePicks,
+    initialScorePicks: nextMatch.scoreBettingEnabled
+      ? ensureScorePickSlots(initialScorePicks, nextMatch.maxBets)
+      : initialScorePicks,
+  };
+}
+
 interface UserPredictionTableProps {
   tournamentId?: string;
   className?: string;
@@ -394,12 +424,20 @@ export function UserPredictionTable({ tournamentId, className }: UserPredictionT
     const mappedMatches = matchesQuery.data.items.map(mapMatchRow);
     setTotalCount(matchesQuery.data.totalCount);
     setMatches((previous) => {
+      const previousById = new Map(previous.map((match) => [match.id, match]));
+      const mergedMatches = mappedMatches.map((match) =>
+        mergeMatchWithLocalDraft(match, previousById.get(match.id))
+      );
+
       if (page === 1) {
-        return mappedMatches;
+        return mergedMatches;
       }
 
-      const existingIds = new Set(previous.map((match) => match.id));
-      return [...previous, ...mappedMatches.filter((match) => !existingIds.has(match.id))];
+      const mergedById = new Map(mergedMatches.map((match) => [match.id, match]));
+      const nextPrevious = previous.map((match) => mergedById.get(match.id) ?? match);
+      const existingIds = new Set(nextPrevious.map((match) => match.id));
+
+      return [...nextPrevious, ...mergedMatches.filter((match) => !existingIds.has(match.id))];
     });
   }, [matchesQuery.data, page]);
 
@@ -472,9 +510,7 @@ export function UserPredictionTable({ tournamentId, className }: UserPredictionT
   const hasPersistedPrediction = (match: MatchPrediction) =>
     Boolean(match.initialPredictedWdl) || hasAnyFilledScorePick(match.initialScorePicks);
 
-  const hasChanges = (match: MatchPrediction) =>
-    match.predictedWdl !== match.initialPredictedWdl ||
-    serializeScorePicks(match.scorePicks) !== serializeScorePicks(match.initialScorePicks);
+  const hasChanges = (match: MatchPrediction) => matchHasPendingChanges(match);
 
   const resetToInitialState = (matchId: string) => {
     updateMatch(matchId, (match) => ({

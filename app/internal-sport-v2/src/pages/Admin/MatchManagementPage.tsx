@@ -577,7 +577,6 @@ export function MatchManagementPage() {
             matchId={matchId}
             teams={teams}
             tournaments={tournaments}
-            onNotFound={() => navigate('/admin/matches')}
             onChanged={async () => {
               await loadMatches();
             }}
@@ -704,7 +703,6 @@ function MatchDetailPanel({
   matchId: string;
   teams: AdminTeam[];
   tournaments: AdminTournament[];
-  onNotFound: () => Promise<void> | void;
   onChanged: () => Promise<void> | void;
   onDeleted: () => Promise<void> | void;
 }) {
@@ -719,7 +717,6 @@ function MatchDetailPanel({
   const [resultHome, setResultHome] = useState('');
   const [resultAway, setResultAway] = useState('');
   const [isCorrection, setIsCorrection] = useState(false);
-  const [detailError, setDetailError] = useState<string | null>(null);
   const [form, setForm] = useState<MatchFormState>(DEFAULT_CREATE_FORM);
   const [outcomePoints, setOutcomePoints] = useState('1');
   const [scoreBettingEnabled, setScoreBettingEnabled] = useState(false);
@@ -728,7 +725,6 @@ function MatchDetailPanel({
 
   const loadDetail = useCallback(async () => {
     setLoading(true);
-    setDetailError(null);
 
     try {
       const [nextMatch, nextConfig, nextPredictions, nextScoreBets] = await Promise.all([
@@ -758,20 +754,12 @@ function MatchDetailPanel({
       setMaxBets(String(Math.max(1, Math.trunc(Number(nextConfig?.maxBets || 3)))));
       setPrizeInput(sanitizeCurrencyInput(String(Math.trunc(Number(nextConfig?.prize || 200000)))));
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to load match details.';
       setMatch(null);
-      setDetailError(message);
-
-      if (/404|not found/i.test(message)) {
-        await Promise.resolve(onNotFound());
-        return;
-      }
-
-      toast.error(message);
+      toast.error(error instanceof Error ? error.message : 'Failed to load match details.');
     } finally {
       setLoading(false);
     }
-  }, [matchId, onNotFound]);
+  }, [matchId]);
 
   useEffect(() => {
     void loadDetail();
@@ -968,7 +956,7 @@ function MatchDetailPanel({
     return (
       <EmptySelectionPanel
         title="Match unavailable"
-        description={detailError || 'Select another match from the list to continue.'}
+        description="Select another match from the list to continue."
       />
     );
   }

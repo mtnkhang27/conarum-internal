@@ -161,8 +161,8 @@ function normalizeScorePicksForSave(scorePicks: ScorePick[]) {
 
     return {
       ...pick,
-      home: '',
-      away: '',
+      home: pick.home || '0',
+      away: pick.away || '0',
     };
   });
 }

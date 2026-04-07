@@ -621,14 +621,6 @@ export function TournamentManagementPage() {
     [],
   );
 
-  const stats = useMemo(() => {
-    const active = filteredRows.filter((item) => item.status === 'active').length;
-    const defaults = filteredRows.filter((item) => item.isDefault).length;
-    const locked = filteredRows.filter((item) => item.bettingLocked).length;
-
-    return { total: filteredRows.length, active, defaults, locked };
-  }, [filteredRows]);
-
   const handleCreateTournament = async () => {
     setBusy(true);
 
@@ -659,13 +651,6 @@ export function TournamentManagementPage() {
   return (
     <div className={cn('grid gap-6', tournamentId ? 'xl:grid-cols-[minmax(0,1.3fr)_minmax(420px,1fr)]' : 'grid-cols-1')}>
       <div className="min-w-0 space-y-6">
-        <div className="grid gap-4 md:grid-cols-4">
-          <SummaryStatCard label="Visible tournaments" value={String(stats.total)} hint="Current worklist after filters" />
-          <SummaryStatCard label="Active" value={String(stats.active)} hint="Running competitions" />
-          <SummaryStatCard label="Default" value={String(stats.defaults)} hint="Auto-selected tournament(s)" />
-          <SummaryStatCard label="Betting locked" value={String(stats.locked)} hint="Tournament-wide lock enabled" />
-        </div>
-
         <Card className="border-border/80 shadow-sm">
           <CardHeader className="border-b border-border/80 bg-muted/20">
             <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">

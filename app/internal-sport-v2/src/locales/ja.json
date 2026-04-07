@@ -1,0 +1,110 @@
+{
+    "predictionDashboard": {
+        "title": "予想ダッシュボード",
+        "subtitle": "試合予想、ランキング、最新結果をまとめて管理します。",
+        "myPredictions": "自分の予想",
+        "myPredictionsSubtitle": "これからの試合に対する予想を確認・更新します。",
+        "searchByTeam": "チームで検索...",
+        "searchByTeamName": "チーム名で検索...",
+        "noMatchesFound": "条件に一致する試合が見つかりません。",
+        "noPredictionsYet": "予想データはまだありません。",
+        "noScorePicks": "スコア予想はまだありません",
+        "loadError": "予想データを読み込めませんでした。バックエンドの起動と認証を確認してください。",
+        "selectTournament": "大会を選択",
+        "allTournaments": "すべての大会",
+        "allMatches": "すべての試合",
+        "hotMatchFilter": "試合タイプ",
+        "hotMatchOnly": "注目試合のみ",
+        "actions": "操作",
+        "pending": "保留中",
+        "predictionSaved": "予想を保存しました。",
+        "predictionCleared": "予想をクリアしました。",
+        "saveFailed": "予想を保存できませんでした。",
+        "clearFailed": "予想をクリアできませんでした。",
+        "selectOutcomeFirst": "保存する前に勝敗を選択してください。",
+        "confirmClearTitle": "予想をクリアしますか？",
+        "confirmClearDescription": "この操作で、この試合の勝敗予想とスコア予想が削除されます。",
+        "completedMatches": "終了した試合",
+        "completedMatchesSubtitle": "結果を確認し、自分の予想と比較します。",
+        "noCompleted": "終了した試合はまだありません。",
+        "tabs": {
+            "matches": "試合",
+            "leaderboard": "ランキング",
+            "history": "履歴",
+            "champion": "優勝予想"
+        },
+        "columns": {
+            "matchId": "試合ID",
+            "dateStage": "日時",
+            "teams": "チーム",
+            "scorePick": "スコア予想",
+            "wdlPick": "勝敗",
+            "scorePickEarned": "スコア的中",
+            "status": "状態",
+            "result": "結果",
+            "points": "ポイント"
+        },
+        "statusUpcoming": "予定",
+        "statusInProcess": "進行中",
+        "statusClosed": "終了",
+        "points": "pt",
+        "leaderboard": {
+            "title": "グローバルランキング",
+            "subtitle": "世界のトップ10プレイヤー。",
+            "loadError": "ランキングを読み込めませんでした。",
+            "rank": "順位",
+            "player": "プレイヤー",
+            "bets": "予想数",
+            "accuracy": "的中率",
+            "pts": "pt",
+            "streak": "{{count}} 連勝"
+        }
+    },
+    "shell": {
+        "appTitle": "社内スポーツ予想",
+        "appSubtitle": "予想、ランキング、トーナメントアクセスを一か所で管理します。",
+        "dashboard": "ダッシュボード",
+        "user": "ユーザー",
+        "admin": "管理",
+        "language": "言語",
+        "adminWorkspace": "管理ワークスペース",
+        "adminWorkspaceHint": "試合、大会、ユーザー権限を管理します。"
+    },
+    "userPage": {
+        "title": "ユーザープロフィール",
+        "subtitle": "個人情報とトーナメント上の表示情報をここで管理します。",
+        "summary": "概要",
+        "summaryHint": "このカードにはバックエンドと同期されている現在の情報が表示されます。",
+        "details": "プロフィール詳細",
+        "detailsHint": "ランキングや管理画面で正しく表示されるよう、プロフィールを最新の状態に保ってください。",
+        "edit": "プロフィールを編集",
+        "saved": "プロフィールを更新しました。",
+        "saveFailed": "プロフィールを更新できませんでした。",
+        "loading": "プロフィールを読み込み中...",
+        "loadError": "現在プロフィールを読み込めません。",
+        "unknownUser": "ユーザー",
+        "noRoles": "ロールなし",
+        "emptyField": "未設定",
+        "favoriteTeamPlaceholder": "大会一覧に存在するチーム名をそのまま入力してください。",
+        "bioPlaceholder": "自分について、好きなチーム、予想スタイルなどを短く入力してください。",
+        "fields": {
+            "displayName": "表示名",
+            "email": "メール",
+            "firstName": "名",
+            "lastName": "姓",
+            "phone": "電話番号",
+            "country": "国",
+            "city": "都市",
+            "timezone": "タイムゾーン",
+            "favoriteTeam": "好きなチーム",
+            "bio": "自己紹介"
+        }
+    },
+    "admin": {
+        "tabs": {
+            "matches": "試合",
+            "tournaments": "大会",
+            "users": "ユーザー"
+        }
+    }
+}

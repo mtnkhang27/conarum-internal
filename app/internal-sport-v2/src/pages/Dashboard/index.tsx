@@ -14,10 +14,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Button } from '@/components/ui/button';
-import { useUserInfo } from '@/hooks/useUserInfo';
-import { ShieldCheck } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
 
 const ALL_TOURNAMENTS_VALUE = '__all__';
 
@@ -30,8 +26,6 @@ interface TournamentItem {
 
 export function Dashboard() {
   const { t } = useTranslation();
-  const navigate = useNavigate();
-  const { isAdmin } = useUserInfo();
   const [activeTab, setActiveTab] = React.useState('matches');
   const [selectedTournamentValue, setSelectedTournamentValue] = React.useState('');
 
@@ -74,56 +68,43 @@ export function Dashboard() {
         onValueChange={setActiveTab}
         className="flex min-h-0 flex-1 flex-col gap-3"
       >
-        <div className="flex w-full items-center justify-between gap-3">
-          <TabsList className="w-full justify-start gap-2 overflow-x-auto">
-            <div className="min-w-[240px] max-w-[360px] shrink-0">
-              <Select
-                value={currentTournamentValue}
-                onValueChange={setSelectedTournamentValue}
-                disabled={tournamentsQuery.isLoading && tournaments.length === 0}
-              >
-                <SelectTrigger className="h-9 bg-background">
-                  <SelectValue placeholder={t('predictionDashboard.selectTournament', 'Select tournament')} />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={ALL_TOURNAMENTS_VALUE}>
-                    {t('predictionDashboard.allTournaments', 'All tournaments')}
-                  </SelectItem>
-                  {tournaments.map((item) => (
-                    <SelectItem key={item.ID} value={item.ID}>
-                      {item.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-          <TabsTrigger value="matches" className="min-w-[140px]">
-            {t('predictionDashboard.tabs.matches', 'Matches')}
-          </TabsTrigger>
-          <TabsTrigger value="leaderboard" className="min-w-[150px]">
-            {t('predictionDashboard.tabs.leaderboard', 'Leaderboard')}
-          </TabsTrigger>
-          <TabsTrigger value="history" className="min-w-[140px]">
-            {t('predictionDashboard.tabs.history', 'History')}
-          </TabsTrigger>
-          <TabsTrigger value="champion" className="min-w-[180px]">
-            {t('predictionDashboard.tabs.champion', 'Tournament Champion')}
-          </TabsTrigger>
-          </TabsList>
-
-          {isAdmin ? (
-            <Button
-              type="button"
-              variant="subtle"
-              size="sm"
-              className="shrink-0"
-              onClick={() => navigate('/admin')}
+        <div className="flex w-full flex-col gap-3">
+          <div className="w-full sm:max-w-[320px]">
+            <Select
+              value={currentTournamentValue}
+              onValueChange={setSelectedTournamentValue}
+              disabled={tournamentsQuery.isLoading && tournaments.length === 0}
             >
-              <ShieldCheck className="h-4 w-4" />
-              Admin
-            </Button>
-          ) : null}
+              <SelectTrigger className="h-9 bg-background">
+                <SelectValue placeholder={t('predictionDashboard.selectTournament', 'Select tournament')} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL_TOURNAMENTS_VALUE}>
+                  {t('predictionDashboard.allTournaments', 'All tournaments')}
+                </SelectItem>
+                {tournaments.map((item) => (
+                  <SelectItem key={item.ID} value={item.ID}>
+                    {item.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <TabsList className="h-auto w-full flex-wrap justify-start gap-2 overflow-visible bg-transparent p-0">
+            <TabsTrigger value="matches" className="min-w-[140px] flex-none rounded-full border border-border bg-card px-4">
+              {t('predictionDashboard.tabs.matches', 'Matches')}
+            </TabsTrigger>
+            <TabsTrigger value="leaderboard" className="min-w-[150px] flex-none rounded-full border border-border bg-card px-4">
+              {t('predictionDashboard.tabs.leaderboard', 'Leaderboard')}
+            </TabsTrigger>
+            <TabsTrigger value="history" className="min-w-[140px] flex-none rounded-full border border-border bg-card px-4">
+              {t('predictionDashboard.tabs.history', 'History')}
+            </TabsTrigger>
+            <TabsTrigger value="champion" className="min-w-[180px] flex-none rounded-full border border-border bg-card px-4">
+              {t('predictionDashboard.tabs.champion', 'Tournament Champion')}
+            </TabsTrigger>
+          </TabsList>
         </div>
 
         <TabsContent

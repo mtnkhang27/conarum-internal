@@ -128,6 +128,23 @@
         "more": "more",
         "name": "Name",
         "next": "Next",
+        "selectTournament": "Select tournament",
+        "allTournaments": "All tournaments",
+        "allMatches": "All matches",
+        "hotMatchFilter": "Match type",
+        "hotMatchOnly": "Hot matches only",
+        "actions": "Actions",
+        "pending": "Pending",
+        "predictionSaved": "Prediction saved successfully.",
+        "predictionCleared": "Prediction cleared successfully.",
+        "saveFailed": "Failed to save prediction.",
+        "clearFailed": "Failed to clear prediction.",
+        "selectOutcomeFirst": "Select an outcome pick before saving.",
+        "confirmClearTitle": "Clear prediction?",
+        "confirmClearDescription": "This action will remove your selected outcome and score picks for this match.",
+        "completedMatches": "Completed Matches",
+        "completedMatchesSubtitle": "Review results and compare them with your submitted picks.",
+        "noCompleted": "No completed matches available yet.",
         "no": "No",
         "noData": "No data available",
         "noResults": "No results found",
@@ -1242,7 +1259,10 @@
         "myPredictions": "My Predictions",
         "myPredictionsSubtitle": "Review and update your predictions for upcoming matches.",
         "searchByTeam": "Search by team...",
+        "searchByTeamName": "Search by team name...",
         "noMatchesFound": "No matches found matching your criteria.",
+        "noPredictionsYet": "No predictions available.",
+        "noScorePicks": "No score picks yet",
         "loadError": "Failed to load prediction data. Please ensure the backend is running and authenticated.",
         "showing": "Showing {{from}}–{{to}} of {{total}}",
         "prev": "Prev",
@@ -1258,6 +1278,12 @@
             "result": "Result",
             "points": "Points"
         },
+        "tabs": {
+            "matches": "Matches",
+            "leaderboard": "Leaderboard",
+            "history": "History",
+            "champion": "Tournament Champion"
+        },
         "addPick": "Add Pick ({{current}}/{{max}})",
         "statusUpcoming": "Upcoming",
         "statusInProcess": "In Process",
@@ -1266,8 +1292,59 @@
             "title": "Global Leaderboard",
             "subtitle": "Top 10 players worldwide.",
             "loadError": "Could not load leaderboard.",
+            "rank": "Rank",
+            "player": "Player",
+            "bets": "Bets",
+            "accuracy": "Accuracy",
             "pts": "pts",
             "streak": "{{count}} W"
+        }
+    },
+    "shell": {
+        "appTitle": "Internal Sport Prediction",
+        "appSubtitle": "Predict, track, and manage your tournament access in one place.",
+        "dashboard": "Dashboard",
+        "user": "User",
+        "admin": "Admin",
+        "language": "Language",
+        "adminWorkspace": "Admin Workspace",
+        "adminWorkspaceHint": "Manage matches, tournaments, and user access."
+    },
+    "userPage": {
+        "title": "User Profile",
+        "subtitle": "Manage your personal details and tournament identity in one place.",
+        "summary": "Summary",
+        "summaryHint": "This card shows the identity currently synced from backend.",
+        "details": "Profile Details",
+        "detailsHint": "Keep your profile current so leaderboard and admin views stay clean.",
+        "edit": "Edit Profile",
+        "saved": "Profile updated successfully.",
+        "saveFailed": "Failed to update profile.",
+        "loading": "Loading your profile...",
+        "loadError": "Unable to load your profile right now.",
+        "unknownUser": "User",
+        "noRoles": "No roles",
+        "emptyField": "Not set",
+        "favoriteTeamPlaceholder": "Type a team name exactly as it exists in the tournament list.",
+        "bioPlaceholder": "Add a short note about yourself, your favorite team, or your prediction style.",
+        "fields": {
+            "displayName": "Display Name",
+            "email": "Email",
+            "firstName": "First Name",
+            "lastName": "Last Name",
+            "phone": "Phone",
+            "country": "Country",
+            "city": "City",
+            "timezone": "Timezone",
+            "favoriteTeam": "Favorite Team",
+            "bio": "Bio"
+        }
+    },
+    "admin": {
+        "tabs": {
+            "matches": "Matches",
+            "tournaments": "Tournaments",
+            "users": "Users"
         }
     }
 }

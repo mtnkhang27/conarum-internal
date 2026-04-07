@@ -73,11 +73,11 @@ export class ProfileHandler {
         const firstNameInput = normalizeInput(req.data?.firstName, 100);
         const lastNameInput = normalizeInput(req.data?.lastName, 100);
         const phoneInput = normalizeInput(req.data?.phone, 50);
-        const countryInput = normalizeInput(req.data?.country, 10);
         const cityInput = normalizeInput(req.data?.city, 120);
         const timezoneInput = normalizeInput(req.data?.timezone, 80);
         const bioInput = normalizeInput(req.data?.bio, 2000);
         const avatarInput = normalizeInput(req.data?.avatarUrl, Number.MAX_SAFE_INTEGER);
+        const countryCodeInput = normalizeInput(req.data?.country, 10);
         const favoriteTeamIdInput = normalizeInput(req.data?.favoriteTeamId, 120);
         const favoriteTeamInput = normalizeInput(req.data?.favoriteTeam, 120);
 
@@ -103,6 +103,7 @@ export class ProfileHandler {
             || (displayNameInput !== undefined ? displayNameInput : existingDisplayName)
             || fallbackDisplayName
         ).slice(0, 100);
+        const countryCode = await this.resolveCountryCode(req, countryCodeInput, player.country_code ?? player.country);
 
         const updateData: Record<string, unknown> = {
             displayName: finalDisplayName,
@@ -114,7 +115,7 @@ export class ProfileHandler {
             givenName: finalGivenName,
             familyName: finalFamilyName,
             favoriteTeam_ID: favoriteTeamId,
-            country_code: this.toNullable(countryInput ? countryInput.toUpperCase() : countryInput, player.country_code ?? player.country),
+            country_code: countryCode,
         };
 
         await UPDATE(Player).where({ ID: player.ID }).set(updateData);
@@ -145,7 +146,34 @@ export class ProfileHandler {
         if (!player && context.email) {
             player = await SELECT.one.from(Player).where({ email: context.email });
         }
+        if (!player && context.loginName) {
+            player = await SELECT.one.from(Player).where({ loginName: context.loginName });
+        }
         return { player, context };
+    }
+
+    private async resolveCountryCode(
+        req: Request,
+        nextValue: string | undefined,
+        currentValue: string | null | undefined,
+    ): Promise<string | null> {
+        if (nextValue === undefined) {
+            return currentValue ?? null;
+        }
+
+        const trimmed = nextValue.trim();
+        if (!trimmed) {
+            return null;
+        }
+
+        const normalized = trimmed.toUpperCase();
+        const country = await SELECT.one.from('sap.common.Countries').columns('code').where({ code: normalized });
+        if (country?.code) {
+            return country.code;
+        }
+
+        // Keep save non-blocking when country is entered as a free-text label.
+        return currentValue ?? null;
     }
 
     private validateAvatar(req: Request, avatarValue: string): string {

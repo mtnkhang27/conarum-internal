@@ -1,11 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { Mail, MapPin, Phone, Save, UserRound } from 'lucide-react';
+import { Save, UserRound } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -110,15 +109,9 @@ export function UserPage() {
   const saveProfileMutation = useMutation({
     mutationFn: async (profile: EditableUserProfile) => {
       const payload = {
-        avatarUrl: profile.avatarUrl || '',
         displayName: profile.displayName || '',
         firstName: profile.firstName || '',
         lastName: profile.lastName || '',
-        phone: profile.phone || '',
-        country: profile.country || '',
-        city: profile.city || '',
-        timezone: profile.timezone || '',
-        favoriteTeam: profile.favoriteTeam || '',
         bio: profile.bio || '',
       };
 
@@ -206,7 +199,7 @@ export function UserPage() {
               </div>
             </div>
 
-            <div className="flex flex-wrap gap-2">
+            {/* <div className="flex flex-wrap gap-2">
               {draft.roles.length > 0 ? (
                 draft.roles.map((role) => (
                   <Badge key={role} variant="outline" className="rounded-full">
@@ -218,9 +211,9 @@ export function UserPage() {
                   {t('userPage.noRoles', 'No roles')}
                 </Badge>
               )}
-            </div>
+            </div> */}
 
-            <div className="space-y-3 rounded-xl border border-border/70 bg-muted/30 p-4 text-sm">
+            {/* <div className="space-y-3 rounded-xl border border-border/70 bg-muted/30 p-4 text-sm">
               <div className="flex items-center gap-2 text-muted-foreground">
                 <Mail className="h-4 w-4" />
                 <span>{draft.email || '-'}</span>
@@ -235,7 +228,7 @@ export function UserPage() {
                   {[draft.city, draft.country].filter(Boolean).join(', ') || t('userPage.emptyField', 'Not set')}
                 </span>
               </div>
-            </div>
+            </div> */}
           </CardContent>
         </Card>
 
@@ -278,11 +271,6 @@ export function UserPage() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="user-email">{t('userPage.fields.email', 'Email')}</Label>
-              <Input id="user-email" value={draft.email} readOnly />
-            </div>
-
-            <div className="space-y-2">
               <Label htmlFor="user-first-name">{t('userPage.fields.firstName', 'First Name')}</Label>
               <Input
                 id="user-first-name"
@@ -303,54 +291,8 @@ export function UserPage() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="user-phone">{t('userPage.fields.phone', 'Phone')}</Label>
-              <Input
-                id="user-phone"
-                value={draft.phone}
-                onChange={(event) => handleFieldChange('phone', event.target.value)}
-                readOnly={!isEditing}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="user-country">{t('userPage.fields.country', 'Country')}</Label>
-              <Input
-                id="user-country"
-                value={draft.country}
-                onChange={(event) => handleFieldChange('country', event.target.value)}
-                readOnly={!isEditing}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="user-city">{t('userPage.fields.city', 'City')}</Label>
-              <Input
-                id="user-city"
-                value={draft.city}
-                onChange={(event) => handleFieldChange('city', event.target.value)}
-                readOnly={!isEditing}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="user-timezone">{t('userPage.fields.timezone', 'Timezone')}</Label>
-              <Input
-                id="user-timezone"
-                value={draft.timezone}
-                onChange={(event) => handleFieldChange('timezone', event.target.value)}
-                readOnly={!isEditing}
-              />
-            </div>
-
-            <div className="space-y-2 md:col-span-2">
-              <Label htmlFor="user-favorite-team">{t('userPage.fields.favoriteTeam', 'Favorite Team')}</Label>
-              <Input
-                id="user-favorite-team"
-                value={draft.favoriteTeam}
-                onChange={(event) => handleFieldChange('favoriteTeam', event.target.value)}
-                readOnly={!isEditing}
-                placeholder={t('userPage.favoriteTeamPlaceholder', 'Type a team name exactly as it exists in the tournament list.')}
-              />
+              <Label htmlFor="user-email">{t('userPage.fields.email', 'Email')}</Label>
+              <Input id="user-email" value={draft.email} readOnly />
             </div>
 
             <div className="space-y-2 md:col-span-2">

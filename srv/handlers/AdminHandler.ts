@@ -89,7 +89,6 @@ export class AdminHandler {
         for (const rawItem of inputUsers) {
             const item = rawItem && typeof rawItem === 'object' ? rawItem as Record<string, unknown> : {};
             const email = this.normalizeEmail(item.email);
-            const userName = this.normalizeProvisioningUserName(item.userName);
             const accessResolution = this.resolveProvisioningAccess(item);
             const password = this.resolveProvisioningPassword(item);
             const identity = this.resolveProvisioningIdentity(item);
@@ -130,6 +129,11 @@ export class AdminHandler {
             }
 
             const access = accessResolution;
+            const derivedIdentity = this.deriveIdentityFromEmail(email);
+            const userName = this.normalizeProvisioningUserName(item.userName) ?? derivedIdentity.userName;
+            const givenName = this.safeText(item.givenName, 100) ?? derivedIdentity.givenName;
+            const familyName = this.safeText(item.familyName, 100) ?? derivedIdentity.familyName;
+            const displayName = this.safeText(item.displayName, 120) ?? this.composeDisplayName(givenName, familyName);
 
             try {
                 let idpUser = await scopedIdpClient.findUserByEmail(email);
@@ -145,9 +149,9 @@ export class AdminHandler {
                     idpUser = await scopedIdpClient.createUser({
                         email,
                         userName,
-                        givenName: this.safeText(item.givenName, 100),
-                        familyName: this.safeText(item.familyName, 100),
-                        displayName: this.safeText(item.displayName, 120),
+                        givenName,
+                        familyName,
+                        displayName,
                         password: password.value,
                         groups: access.assignedGroups,
                         userType: identity.userType,
@@ -168,9 +172,9 @@ export class AdminHandler {
                     idpUserId: idpUser.id,
                     email,
                     loginName: this.safeText(idpUser.userName, 255) ?? userName ?? email,
-                    displayName: this.safeText(item.displayName, 100) ?? this.safeText(idpUser.displayName, 100),
-                    givenName: this.safeText(item.givenName, 100),
-                    familyName: this.safeText(item.familyName, 100),
+                    displayName: this.safeText(item.displayName, 100) ?? this.safeText(idpUser.displayName, 100) ?? this.composeDisplayName(givenName, familyName),
+                    givenName,
+                    familyName,
                     assignedGroups,
                     assignedAppRoles: access.assignedAppRoles,
                     identityOrigin: this.safeText(idpUser.origin, 120) ?? identity.identityOrigin,
@@ -1711,6 +1715,40 @@ export class AdminHandler {
         const trimmed = value.trim();
         if (!trimmed) return null;
         return trimmed.slice(0, 255).toLowerCase();
+    }
+
+    private deriveIdentityFromEmail(email: string): {
+        userName: string;
+        givenName: string | null;
+        familyName: string | null;
+    } {
+        const localPart = email.split('@')[0]?.trim().toLowerCase() || '';
+        const normalizedUserName = localPart ? localPart.slice(0, 255) : email;
+        const parts = localPart
+            .split(/[._-]+/)
+            .map((part) => part.trim())
+            .filter((part) => part.length > 0);
+
+        const formatNamePart = (value: string | undefined): string | null => {
+            if (!value) return null;
+            const lower = value.toLowerCase();
+            return `${lower.charAt(0).toUpperCase()}${lower.slice(1)}`;
+        };
+
+        return {
+            userName: normalizedUserName,
+            givenName: formatNamePart(parts[0]),
+            familyName: formatNamePart(parts.length > 1 ? parts[parts.length - 1] : undefined),
+        };
+    }
+
+    private composeDisplayName(firstName: string | null | undefined, lastName: string | null | undefined): string | null {
+        const parts = [firstName, lastName]
+            .map((value) => (typeof value === 'string' ? value.trim() : ''))
+            .filter((value) => value.length > 0);
+
+        if (parts.length === 0) return null;
+        return parts.join(' ').slice(0, 100);
     }
 
     private safeText(value: unknown, maxLen: number): string | null {

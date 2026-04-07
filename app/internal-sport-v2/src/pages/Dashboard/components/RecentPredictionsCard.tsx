@@ -37,6 +37,8 @@ interface RecentPredictionRow {
   homeScore?: number | null;
   awayScore?: number | null;
   pointsEarned?: number | string | null;
+  correctScoreBetCount?: number | string | null;
+  scoreBetEarnedAmount?: number | string | null;
   isCorrect?: boolean | null;
   scoreBets?: ScoreBetRow[];
 }
@@ -149,9 +151,12 @@ export function RecentPredictionsCard({ tournamentId, className }: RecentPredict
                 );
                 const hasResult =
                   typeof item.homeScore === 'number' && typeof item.awayScore === 'number';
-                const correctScorePicks = visibleScoreBets.filter((scoreBet) => scoreBet.isCorrect === true).length;
                 const isScored = item.status === 'scored' || hasResult;
                 const pointsEarned = parseNumericValue(item.pointsEarned);
+                const correctScoreBetCount = parseNumericValue(item.correctScoreBetCount);
+                const scoreBetEarnedAmount = parseNumericValue(item.scoreBetEarnedAmount);
+                const fallbackCorrectCount = visibleScoreBets.filter((scoreBet) => scoreBet.isCorrect === true).length;
+                const resolvedCorrectCount = correctScoreBetCount ?? fallbackCorrectCount;
 
                 return (
                   <TableRow key={item.predictionId} className="align-top">
@@ -216,9 +221,7 @@ export function RecentPredictionsCard({ tournamentId, className }: RecentPredict
                     <TableCell className="px-3 py-2.5 align-top whitespace-normal text-center">
                       <span className="text-xs font-medium text-foreground">
                         {isScored
-                          ? visibleScoreBets.length > 0
-                            ? `${correctScorePicks}/${visibleScoreBets.length}`
-                            : '-'
+                          ? `${resolvedCorrectCount}/${visibleScoreBets.length} - ${(scoreBetEarnedAmount ?? 0).toFixed(2)} ${t('predictionDashboard.points', 'pts')}`
                           : t('predictionDashboard.pending', 'Pending')}
                       </span>
                     </TableCell>

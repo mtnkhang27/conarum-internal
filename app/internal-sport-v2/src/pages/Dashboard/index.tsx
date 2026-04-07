@@ -82,17 +82,17 @@ export function Dashboard() {
             </Select>
           </div>
 
-          <TabsList className="h-auto w-full flex-wrap justify-start gap-2 overflow-visible bg-transparent p-0">
-            <TabsTrigger value="matches" className="min-w-[140px] flex-none rounded-full border border-border bg-card px-4">
+          <TabsList className="h-auto w-full flex-wrap justify-start gap-1 rounded-full border border-border/80 bg-card/90 p-1">
+            <TabsTrigger value="matches" className="min-w-[140px] flex-none rounded-full border-transparent px-4 text-foreground data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-none">
               {t('predictionDashboard.tabs.matches', 'Matches')}
             </TabsTrigger>
-            <TabsTrigger value="leaderboard" className="min-w-[150px] flex-none rounded-full border border-border bg-card px-4">
+            <TabsTrigger value="leaderboard" className="min-w-[150px] flex-none rounded-full border-transparent px-4 text-foreground data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-none">
               {t('predictionDashboard.tabs.leaderboard', 'Leaderboard')}
             </TabsTrigger>
-            <TabsTrigger value="history" className="min-w-[140px] flex-none rounded-full border border-border bg-card px-4">
+            <TabsTrigger value="history" className="min-w-[140px] flex-none rounded-full border-transparent px-4 text-foreground data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-none">
               {t('predictionDashboard.tabs.history', 'History')}
             </TabsTrigger>
-            <TabsTrigger value="champion" className="min-w-[180px] flex-none rounded-full border border-border bg-card px-4">
+            <TabsTrigger value="champion" className="min-w-[180px] flex-none rounded-full border-transparent px-4 text-foreground data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-none">
               {t('predictionDashboard.tabs.champion', 'Tournament Champion')}
             </TabsTrigger>
           </TabsList>

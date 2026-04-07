@@ -1,5 +1,6 @@
 const CREST_CDN_REGEX = /^https?:\/\/crests\.football-data\.org\//i;
-const CREST_PROXY_ENDPOINT = '/api/crest-proxy';
+// Keep API calls app-relative so Work Zone sub-path hosting can resolve them.
+const CREST_PROXY_ENDPOINT = 'api/crest-proxy';
 
 export function mapExternalAssetUrls<T>(value: T): T {
     if (typeof value === 'string') {

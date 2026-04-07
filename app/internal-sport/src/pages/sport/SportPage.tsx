@@ -211,12 +211,12 @@ export function SportPage() {
                     SECTION 2 — Matches (Available + Live + Upcoming)
                 ══════════════════════════════════════════ */}
         <section className="mb-14">
-          <SectionHeading
+          {/* <SectionHeading
             id={SECTION.matches}
             color="bg-primary"
             title={t("sport.sections.matches")}
             subtitle={t("sport.sections.matchesSubtitle")}
-          />
+          /> */}
 
           <MatchPredictionTable
             tournamentId={tournamentId}

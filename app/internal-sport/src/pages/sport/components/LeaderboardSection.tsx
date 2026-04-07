@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Trophy, Medal, Award } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { playerLeaderboardApi } from "@/services/playerApi";
@@ -60,6 +60,31 @@ export function LeaderboardSection({ tournamentId }: LeaderboardSectionProps) {
             .finally(() => setLoading(false));
     }, [tournamentId]);
 
+    const normalizedEntries = useMemo<TournamentLeaderboardItem[]>(() => {
+        const sorted = [...entries].sort((a, b) => {
+            const aPoints = Number(a.totalPoints || 0);
+            const bPoints = Number(b.totalPoints || 0);
+            if (bPoints !== aPoints) return bPoints - aPoints;
+
+            const aCorrect = Number(a.totalCorrect || 0);
+            const bCorrect = Number(b.totalCorrect || 0);
+            if (bCorrect !== aCorrect) return bCorrect - aCorrect;
+
+            const aPredictions = Number(a.totalPredictions || 0);
+            const bPredictions = Number(b.totalPredictions || 0);
+            if (bPredictions !== aPredictions) return bPredictions - aPredictions;
+
+            return (a.displayName || "").localeCompare(b.displayName || "", undefined, {
+                sensitivity: "base",
+            });
+        });
+
+        return sorted.map((player, index) => ({
+            ...player,
+            rank: player.rank ?? index + 1,
+        }));
+    }, [entries]);
+
     if (!tournamentId) {
         return (
             <div className="flex h-32 flex-col items-center justify-center gap-2 text-muted-foreground">
@@ -73,7 +98,7 @@ export function LeaderboardSection({ tournamentId }: LeaderboardSectionProps) {
         return <LoadingOverlay />;
     }
 
-    if (error || entries.length === 0) {
+    if (error || normalizedEntries.length === 0) {
         return (
             <div className="flex h-32 flex-col items-center justify-center gap-2 text-muted-foreground">
                 <Trophy className="h-7 w-7 text-border" />
@@ -82,8 +107,8 @@ export function LeaderboardSection({ tournamentId }: LeaderboardSectionProps) {
         );
     }
 
-    const topPlayers = entries.slice(0, 3);
-    const meEntry = entries.find((e) => e.isMe);
+    const topPlayers = normalizedEntries.slice(0, 3);
+    const meEntry = normalizedEntries.find((e) => e.isMe);
     const meInTop5 = meEntry ? meEntry.rank <= 5 : false;
     const accuracyFor = (player: TournamentLeaderboardItem) =>
         player.totalPredictions > 0
@@ -139,7 +164,7 @@ export function LeaderboardSection({ tournamentId }: LeaderboardSectionProps) {
 
                 <div className="overflow-hidden rounded-lg border border-border bg-card">
                     <div className="space-y-3 p-3 md:hidden">
-                        {entries.map((player) => (
+                        {normalizedEntries.map((player) => (
                             <div
                                 key={`${player.rank}-${player.playerId}`}
                                 className={`rounded-xl border bg-surface/30 p-4 shadow-[0_6px_18px_rgba(10,10,30,0.18)] ${rowGlowClass(player.rank, !!player.isMe)}`}
@@ -261,7 +286,7 @@ export function LeaderboardSection({ tournamentId }: LeaderboardSectionProps) {
                         </div>
 
                         <div className="min-w-[640px] divide-y divide-border">
-                            {entries.map((player) => {
+                            {normalizedEntries.map((player) => {
                                 return (
                                     <div
                                         key={`${player.rank}-${player.playerId}`}

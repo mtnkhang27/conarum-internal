@@ -259,7 +259,12 @@ export function MatchPredictionTable({
         }
     };
 
-    const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
+    const effectiveTotalCount =
+        !loading && page === 1 && matches.length < pageSize
+            ? matches.length
+            : totalCount;
+
+    const totalPages = Math.max(1, Math.ceil(effectiveTotalCount / pageSize));
     const currentPage = Math.min(page, totalPages);
 
     const handlePageChange = useCallback(
@@ -276,8 +281,8 @@ export function MatchPredictionTable({
             ? 0
             : (gridLayout.columns - (matches.length % gridLayout.columns)) % gridLayout.columns;
 
-    const from = totalCount === 0 ? 0 : (currentPage - 1) * pageSize + 1;
-    const to = Math.min(currentPage * pageSize, totalCount);
+    const from = effectiveTotalCount === 0 ? 0 : (currentPage - 1) * pageSize + 1;
+    const to = Math.min(currentPage * pageSize, effectiveTotalCount);
     const showContentLoadingOverlay = loading && matches.length > 0;
 
     useEffect(() => {
@@ -496,7 +501,7 @@ export function MatchPredictionTable({
 
             {tournamentReady && (
                 <p className="w-full text-xs text-muted-foreground sm:text-right">
-                    {t("common.showing", { from, to, total: totalCount })}
+                    {t("common.showing", { from, to, total: effectiveTotalCount })}
                 </p>
             )}
         </div>

@@ -37,7 +37,7 @@
     "lint-ui": "eslint app/internal-sport/src",
     "ts-typecheck": "tsc --noEmit",
     "undeploy": "cf undeploy cnma_internal_prediction --delete-services --delete-service-keys",
-    "clean": "npx rimraf gen mta_archives cnma_internal_prediction.mtar app.zip ui_resources .cnma_internal_prediction_mta_build_tmp @cds-models srv-compiled",
+    "clean": "npx rimraf gen mta_archives cnma_internal_prediction.mtar app.zip ui_resources ui_resources_v1 .cnma_internal_prediction_mta_build_tmp @cds-models srv-compiled",
     "build": "cds build --production",
     "build:db": "cds build --production",
     "deploy": "cds build --production && mbt build && cf deploy mta_archives/cnma_internal_prediction_1.0.0.mtar --retries 1",
@@ -45,7 +45,9 @@
     "build:srv": "rimraf resources mta_archives && mbt module-build -m=cnma_internal_prediction_srv -a -g -t mta_archives",
     "deploy:srv": "npm run build:srv && cf deploy cnma_internal_prediction.mtar -m=cnma_internal_prediction_srv",
     "build:app": "npm run build:rls",
-    "deploy:app": "npm run build:app && cf deploy mta_archives/cnma_internal_prediction_1.0.0.mtar -m cnma_internal_prediction_ui_deployer",
+    "deploy:app": "npm run deploy:app:v1",
+    "deploy:app:v1": "npm run build:app && cf deploy mta_archives/cnma_internal_prediction_1.0.0.mtar -m cnma_internal_prediction_ui_v1_deployer",
+    "deploy:app:all": "npm run build:app && cf deploy mta_archives/cnma_internal_prediction_1.0.0.mtar -m cnma_internal_prediction_ui_deployer",
     "build:rls": "npm run clean && npm run build && mbt build --mtar cnma_internal_prediction_1.0.0.mtar",
     "deploy:cf": "cf deploy mta_archives/cnma_internal_prediction_1.0.0.mtar --retries 1",
     "deploy:full": "npm run build:rls && npm run deploy:cf",
@@ -139,7 +141,7 @@
       "db": {
         "kind": "hana",
         "pool": {
-          "max": 20,
+          "max": 200,
           "acquireTimeoutMillis": 60000,
           "idleTimeoutMillis": 30000,
           "communicationTimeout": 600000

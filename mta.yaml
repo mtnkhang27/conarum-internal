@@ -116,6 +116,22 @@ modules:
           artifacts:
             - cnma_internal_prediction_v2_ui.zip
           target-path: ui_resources/
+  - name: cnma_internal_prediction_ui_v1_deployer
+    type: com.sap.application.content
+    path: .
+    requires:
+      - name: cnma_internal_prediction_html5_repo_host
+        parameters:
+          content-target: true
+    build-parameters:
+      build-result: ui_resources_v1
+      ignore:
+        - "*node_modules*"
+      requires:
+        - name: cnma_internal_prediction_ui
+          artifacts:
+            - cnma_internal_prediction_ui.zip
+          target-path: ui_resources_v1/
 
   # ──────────────── Destination Content ────────────────
   - name: cnma_internal_prediction_destination_content

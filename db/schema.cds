@@ -362,6 +362,7 @@ entity ScoreBet : cuid, managed {
     status             : BetStatus default 'pending';
     submittedAt        : DateTime;
     isCorrect          : Boolean;
+    isProcessed        : Boolean default false;
 }
 
 /**

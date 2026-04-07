@@ -4,6 +4,7 @@ import { materializeSlotBetsForMatch } from '../lib/SlotBetMaterializer';
 import { STAGE_MAP, STATUS_MAP, OUTCOME_MAP } from '../lib/constants';
 import { BracketBuilder } from '../lib/BracketBuilder';
 import { IdentityDirectoryClient } from '../lib/IdentityDirectoryClient';
+import { ScoreBetProcessingProcessor } from '../lib/processors/ScoreBetProcessingProcessor';
 import {
     CAP_ROLE_ADMIN,
     CAP_ROLE_USER,
@@ -65,11 +66,13 @@ export class AdminHandler {
     private srv: cds.ApplicationService;
     private scoringEngine: ScoringEngine;
     private bracketBuilder: BracketBuilder;
+    private scoreBetProcessingProcessor: ScoreBetProcessingProcessor;
 
     constructor(srv: cds.ApplicationService) {
         this.srv = srv;
         this.scoringEngine = new ScoringEngine();
         this.bracketBuilder = new BracketBuilder();
+        this.scoreBetProcessingProcessor = new ScoreBetProcessingProcessor();
     }
 
     /**
@@ -376,7 +379,7 @@ export class AdminHandler {
         // Reset score bets
         await UPDATE(ScoreBet)
             .where({ match_ID: matchId, status: { in: ['won', 'lost'] } })
-            .set({ status: 'pending', isCorrect: null });
+            .set({ status: 'pending', isCorrect: null, isProcessed: false });
 
         // Re-open the match so _scoreMatch accepts it
         await UPDATE(Match).where({ ID: matchId }).set({ status: 'live' });
@@ -394,6 +397,38 @@ export class AdminHandler {
             message: `Match result corrected to ${homeScore}-${awayScore}. ${result.predictionsScored} predictions and ${result.scoreBetsScored} score bets re-scored.`,
             predictionsScored: result.predictionsScored,
             scoreBetsScored: result.scoreBetsScored,
+        };
+    }
+
+    /**
+     * Mark all correct score bets for one player+tournament batch as processed.
+     * This keeps admin payout tracking on a single screen grouped by user.
+     */
+    async setPlayerScoreBetsProcessed(req: Request) {
+        const playerId = typeof req.data?.playerId === 'string' ? req.data.playerId.trim() : '';
+        const tournamentId = typeof req.data?.tournamentId === 'string' ? req.data.tournamentId.trim() : '';
+        const processed = req.data?.processed !== false;
+
+        if (!playerId) return req.error(400, 'playerId is required');
+        if (!tournamentId) return req.error(400, 'tournamentId is required');
+
+        const tx = cds.tx(req);
+        const result = await this.scoreBetProcessingProcessor.setPlayerScoreBetsProcessed(tx, {
+            playerId,
+            tournamentId,
+            processed,
+        });
+
+        const scopeLabel = result.tournamentName
+            ? `${result.playerName ?? playerId} in ${result.tournamentName}`
+            : (result.playerName ?? playerId);
+
+        return {
+            success: true,
+            message: result.processedCount > 0
+                ? `${result.processedCount} score bet(s) ${processed ? 'marked as processed' : 'reset to pending'} for ${scopeLabel}.`
+                : `No correct score bets found for ${scopeLabel}.`,
+            processedCount: result.processedCount,
         };
     }
 

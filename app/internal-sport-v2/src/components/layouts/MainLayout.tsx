@@ -12,7 +12,7 @@ export function MainLayout() {
   const { isAdmin } = useUserInfo();
 
   return (
-    <div className="flex min-h-screen w-full flex-col bg-background">
+    <div className="flex h-screen min-h-screen w-full flex-col overflow-hidden bg-background">
       <header className="sticky top-0 z-30 border-b border-border/70 bg-background/95 backdrop-blur">
         <div className="mx-auto flex w-full flex-wrap items-center justify-between gap-3 px-4 py-3 lg:px-8">
           <NavLink to="/" className="flex min-w-0 items-center gap-3">
@@ -30,7 +30,7 @@ export function MainLayout() {
           </NavLink>
 
           <div className="flex flex-wrap items-center justify-end gap-2">
-            <LanguageSwitcher />
+            {/* <LanguageSwitcher /> */}
 
             <Button asChild type="button" size="sm" variant="subtle" className="rounded-full">
               <NavLink to="/user">
@@ -51,7 +51,10 @@ export function MainLayout() {
         </div>
       </header>
 
-      <main id="main-scroll-container" className="mx-auto flex min-h-0 w-full flex-1 flex-col px-4 py-4 lg:px-8">
+      <main
+        id="main-scroll-container"
+        className="mx-auto flex min-h-0 w-full flex-1 flex-col overflow-hidden px-4 py-4 lg:px-8"
+      >
         <Outlet />
       </main>
     </div>

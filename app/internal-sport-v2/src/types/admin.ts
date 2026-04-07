@@ -151,10 +151,39 @@ export interface AdminScoreBetView {
   predictedAwayScore: number;
   status: string;
   isCorrect: boolean | null;
+  isProcessed: boolean;
   submittedAt: string | null;
   playerName: string | null;
   playerAvatar: string | null;
   playerEmail: string | null;
+}
+
+export interface AdminScoreBetProcessingView {
+  ID: string;
+  player_ID: string;
+  match_ID: string;
+  tournament_ID: string;
+  tournamentName: string | null;
+  predictedHomeScore: number;
+  predictedAwayScore: number;
+  actualHomeScore: number | null;
+  actualAwayScore: number | null;
+  kickoff: string | null;
+  stage: AdminMatch['stage'] | null;
+  homeTeamName: string | null;
+  homeTeamFlag: string | null;
+  homeTeamCrest: string | null;
+  awayTeamName: string | null;
+  awayTeamFlag: string | null;
+  awayTeamCrest: string | null;
+  status: string;
+  isCorrect: boolean | null;
+  isProcessed: boolean;
+  submittedAt: string | null;
+  playerName: string | null;
+  playerAvatar: string | null;
+  playerEmail: string | null;
+  prizeAmount: number;
 }
 
 export interface AdminChampionPickView {
@@ -214,6 +243,10 @@ export interface ActionResult {
 export interface MatchResultResponse extends ActionResult {
   predictionsScored: number;
   scoreBetsScored: number;
+}
+
+export interface ScoreBetProcessingResult extends ActionResult {
+  processedCount: number;
 }
 
 export type SandboxWorkzoneRole = 'User' | 'Admin';

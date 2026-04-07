@@ -25,6 +25,11 @@ export function AdminLayout() {
       label: t('admin.tabs.tournaments', 'Tournaments'),
     },
     {
+      value: 'score-bets',
+      to: '/admin/score-bets',
+      label: t('admin.tabs.scoreBets', 'Score Bets'),
+    },
+    {
       value: 'users',
       to: '/admin/users',
       label: t('admin.tabs.users', 'Users'),
@@ -33,6 +38,8 @@ export function AdminLayout() {
 
   const activeTab = location.pathname.startsWith('/admin/tournaments')
     ? 'tournaments'
+    : location.pathname.startsWith('/admin/score-bets')
+      ? 'score-bets'
     : location.pathname.startsWith('/admin/users')
       ? 'users'
       : 'matches';
@@ -50,7 +57,7 @@ export function AdminLayout() {
   }
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-3 py-3">
+    <div className="mx-auto flex min-h-0 w-full flex-1 flex-col gap-3 overflow-auto px-4 py-4 lg:px-8">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <p className="text-sm font-semibold text-foreground">{t('shell.adminWorkspace', 'Admin Workspace')}</p>
@@ -60,7 +67,7 @@ export function AdminLayout() {
         </div>
 
         <div className="flex flex-wrap items-center justify-end gap-2">
-          <LanguageSwitcher />
+          {/* <LanguageSwitcher /> */}
           <Button type="button" size="sm" variant="subtle" className="rounded-full" onClick={() => navigate('/')}>
             <LayoutGrid className="h-4 w-4" />
             {t('shell.dashboard', 'Dashboard')}

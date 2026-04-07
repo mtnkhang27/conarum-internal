@@ -9,9 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - Sandbox user provisioning now supports explicit app-role mapping and optional initial password assignment for newly created IDP users.
+- Admin score-bet processing now tracks a per-bet `isProcessed` flag and provides a dedicated admin screen grouped by user with tournament filtering.
 
 ### Changed
 - Admin sandbox-user results now show assigned groups, assigned app roles, and whether the initial password was applied.
+- Correcting a finished match now resets score-bet processing flags for that match so payout review can be done again safely.
 
 ### Fixed
 - (none)

@@ -8,6 +8,7 @@ import { useFLPSyncDirect, getInitialFLPRoute } from './hooks/useFLPSync';
 import { useRef, useEffect } from 'react';
 import { AdminLayout } from './pages/Admin/AdminLayout';
 import { MatchManagementPage } from './pages/Admin/MatchManagementPage';
+import { ScoreBetProcessingPage } from './pages/Admin/ScoreBetProcessingPage';
 import { TournamentManagementPage } from './pages/Admin/TournamentManagementPage';
 import { UserProvisionPage } from './pages/Admin/UserProvisionPage';
 import { UserPage } from './pages/User/UserPage';
@@ -58,6 +59,7 @@ export default function App() {
                                 <Route path="/admin/matches/:matchId" element={<MatchManagementPage />} />
                                 <Route path="/admin/tournaments" element={<TournamentManagementPage />} />
                                 <Route path="/admin/tournaments/:tournamentId" element={<TournamentManagementPage />} />
+                                <Route path="/admin/score-bets" element={<ScoreBetProcessingPage />} />
                                 <Route path="/admin/users" element={<UserProvisionPage />} />
                                 <Route path="/admin" element={<Navigate to="/admin/matches" replace />} />
                             </Route>

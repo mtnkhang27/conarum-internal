@@ -16,8 +16,6 @@ import {
 } from '@/components/ui/select';
 import { getLandingTournamentId, type TournamentSelectionItem } from './tournamentSelection';
 
-const ALL_TOURNAMENTS_VALUE = '__all__';
-
 type TournamentItem = TournamentSelectionItem;
 
 export function Dashboard() {
@@ -45,12 +43,8 @@ export function Dashboard() {
     setSelectedTournamentValue(defaultTournamentId);
   }, [defaultTournamentId, selectedTournamentValue]);
 
-  const currentTournamentValue =
-    selectedTournamentValue || defaultTournamentId || ALL_TOURNAMENTS_VALUE;
-  const selectedTournamentId =
-    currentTournamentValue && currentTournamentValue !== ALL_TOURNAMENTS_VALUE
-      ? currentTournamentValue
-      : undefined;
+  const currentTournamentValue = selectedTournamentValue || defaultTournamentId || '';
+  const selectedTournamentId = currentTournamentValue || undefined;
 
   return (
     <div className="flex h-0 min-h-0 flex-1 flex-col gap-3 overflow-hidden py-3">
@@ -88,9 +82,6 @@ export function Dashboard() {
                   <SelectValue placeholder={t('predictionDashboard.selectTournament', 'Select tournament')} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value={ALL_TOURNAMENTS_VALUE}>
-                    {t('predictionDashboard.allTournaments', 'All tournaments')}
-                  </SelectItem>
                   {tournaments.map((item) => (
                     <SelectItem key={item.ID} value={item.ID}>
                       {item.name}

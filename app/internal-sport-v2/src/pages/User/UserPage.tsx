@@ -168,7 +168,7 @@ export function UserPage() {
   }
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-4">
+    <div className="scrollbar-hidden flex min-h-0 flex-1 flex-col gap-4 overflow-auto pr-1">
       <div className="space-y-1">
         <h1 className="text-2xl font-semibold text-foreground">{t('userPage.title', 'User Profile')}</h1>
         <p className="text-sm text-muted-foreground">

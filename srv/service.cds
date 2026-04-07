@@ -855,11 +855,58 @@ service AdminService {
                 bet.predictedAwayScore as predictedAwayScore,
                 bet.status             as status,
                 bet.isCorrect          as isCorrect,
+                bet.isProcessed        as isProcessed,
                 bet.submittedAt        as submittedAt,
                 player.displayName     as playerName,
                 player.avatarUrl       as playerAvatar,
                 player.email           as playerEmail
         };
+
+    /**
+     * Correct exact-score bets with match, tournament, and player context.
+     * Powers the admin payout-processing screen that groups winning bets by user.
+     */
+    @readonly
+    entity AdminScoreBetProcessingView as
+        select from db.ScoreBet as bet
+            inner join db.Match as match
+                on match.ID = bet.match.ID
+            left join db.Player as player
+                on player.ID = bet.player.ID
+            left join db.Tournament as tournament
+                on tournament.ID = match.tournament.ID
+            left join db.Team as home
+                on home.ID = match.homeTeam.ID
+            left join db.Team as away
+                on away.ID = match.awayTeam.ID
+            left join db.MatchScoreBetConfig as scoreBetConfig
+                on scoreBetConfig.match.ID = match.ID {
+            key bet.ID                 as ID,
+                bet.player.ID          as player_ID,
+                bet.match.ID           as match_ID,
+                match.tournament.ID    as tournament_ID,
+                tournament.name        as tournamentName,
+                bet.predictedHomeScore as predictedHomeScore,
+                bet.predictedAwayScore as predictedAwayScore,
+                match.homeScore        as actualHomeScore,
+                match.awayScore        as actualAwayScore,
+                match.kickoff          as kickoff,
+                match.stage            as stage,
+                home.name              as homeTeamName,
+                home.flagCode          as homeTeamFlag,
+                home.crest             as homeTeamCrest,
+                away.name              as awayTeamName,
+                away.flagCode          as awayTeamFlag,
+                away.crest             as awayTeamCrest,
+                bet.status             as status,
+                bet.isCorrect          as isCorrect,
+                bet.isProcessed        as isProcessed,
+                bet.submittedAt        as submittedAt,
+                player.displayName     as playerName,
+                player.avatarUrl       as playerAvatar,
+                player.email           as playerEmail,
+                coalesce(scoreBetConfig.prize, 0) as prizeAmount : Decimal(15, 2)
+        } where bet.isCorrect = true;
 
     /**
      * Champion picks for a tournament with player and team info pre-joined.
@@ -944,6 +991,10 @@ service AdminService {
         scoreBetsScored   : Integer;
     }
 
+    type ScoreBetProcessingResponse : ActionResult {
+        processedCount : Integer;
+    }
+
     /** Enter match result and trigger scoring. */
     action enterMatchResult(matchId: UUID, homeScore: Integer, awayScore: Integer) returns MatchResultResponse;
 
@@ -991,6 +1042,12 @@ service AdminService {
      * When locked=true, all betting (outcome, score, champion) for this tournament is blocked.
      */
     action lockTournamentBetting(tournamentId: UUID, locked: Boolean)               returns ActionResult;
+
+    /**
+     * Mark one player's correct score bets in a tournament as processed/unprocessed.
+     * Used by the admin payout-processing screen that groups winners by player.
+     */
+    action setPlayerScoreBetsProcessed(playerId: UUID, tournamentId: UUID, processed: Boolean default true) returns ScoreBetProcessingResponse;
 
     // ── Competition Import ────────────────────────────────────
 

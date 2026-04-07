@@ -5,6 +5,7 @@ import type {
   AdminMatch,
   AdminMatchListItem,
   AdminPredictionView,
+  AdminScoreBetProcessingView,
   AdminScoreBetView,
   AdminTeam,
   AdminTournament,
@@ -15,6 +16,7 @@ import type {
   MatchScoreBetConfig,
   SandboxUserProvisionInput,
   SandboxUserProvisionResult,
+  ScoreBetProcessingResult,
 } from '@/types/admin';
 import axiosInstance from '@/services/core/axiosInstance';
 import { mapExternalAssetUrls } from '@/utils/externalAssetProxy';
@@ -150,6 +152,24 @@ export const scoreBetsApi = {
     odataList<AdminScoreBetView>(
       `/AdminMatchScoreBetsView?$filter=match_ID eq '${escapeODataString(matchId)}'&$orderby=submittedAt desc`,
     ),
+};
+
+export const scoreBetProcessingApi = {
+  listByTournament: (tournamentId: string, options?: { processed?: boolean }) => {
+    const filters = [
+      `tournament_ID eq '${escapeODataString(tournamentId)}'`,
+      typeof options?.processed === 'boolean' ? `isProcessed eq ${options.processed}` : null,
+    ].filter(Boolean);
+
+    const query = `?$filter=${encodeURIComponent(filters.join(' and '))}&$orderby=playerName asc,kickoff desc,submittedAt desc`;
+
+    return odataList<AdminScoreBetProcessingView>(`/AdminScoreBetProcessingView${query}`);
+  },
+  setPlayerProcessed: (playerId: string, tournamentId: string, processed = true) =>
+    odata<ScoreBetProcessingResult>('/setPlayerScoreBetsProcessed', {
+      method: 'POST',
+      body: JSON.stringify({ playerId, tournamentId, processed }),
+    }),
 };
 
 export const teamsApi = {

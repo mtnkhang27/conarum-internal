@@ -7,13 +7,15 @@ import { IdentityDirectoryClient } from '../lib/IdentityDirectoryClient';
 import {
     CAP_ROLE_ADMIN,
     CAP_ROLE_USER,
-    DEFAULT_SANDBOX_ADMIN_GROUP,
-    DEFAULT_SANDBOX_USER_GROUP,
     ProvisionableAppRole,
+    SandboxWorkzoneRole,
     expandStoredRolesFromAppRoles,
     getAssignedAppRolesForAppRole,
-    getAssignedGroupsForAppRole,
-    normalizeProvisionableAppRole,
+    getAssignedGroupsForWorkzoneRole,
+    normalizeSandboxWorkzoneRole,
+    normalizeStrictProvisionableAppRole,
+    WORKZONE_ROLE_ADMIN,
+    WORKZONE_ROLE_USER,
 } from '../lib/AuthRoleConfig';
 
 /** football-data.org API token — read from env, falls back to empty string. */
@@ -30,9 +32,17 @@ type ProvisionPasswordResolution = {
 };
 
 type ProvisioningAccessResolution = {
+    workzoneRole: SandboxWorkzoneRole;
     appRole: ProvisionableAppRole;
+    workzoneRoles: SandboxWorkzoneRole[];
+    appRoles: ProvisionableAppRole[];
     assignedGroups: string[];
     assignedAppRoles: ProvisionableAppRole[];
+};
+
+type ProvisioningIdentityResolution = {
+    identityOrigin: string | null;
+    userType: string | null;
 };
 
 type SandboxProvisionResultRow = {
@@ -79,14 +89,37 @@ export class AdminHandler {
         for (const rawItem of inputUsers) {
             const item = rawItem && typeof rawItem === 'object' ? rawItem as Record<string, unknown> : {};
             const email = this.normalizeEmail(item.email);
-            const access = this.resolveProvisioningAccess(item);
+            const userName = this.normalizeProvisioningUserName(item.userName);
+            const accessResolution = this.resolveProvisioningAccess(item);
             const password = this.resolveProvisioningPassword(item);
+            const identity = this.resolveProvisioningIdentity(item);
+            const scopedIdpClient = identity.identityOrigin || identity.userType
+                ? new IdentityDirectoryClient({
+                    memberOrigin: identity.identityOrigin ?? undefined,
+                    defaultUserType: identity.userType ?? undefined,
+                })
+                : idpClient;
             if (!email) {
                 results.push({
                     email: typeof item.email === 'string' ? item.email : '',
                     success: false,
                     status: 'skipped',
                     message: 'Invalid email',
+                    idpUserId: null,
+                    assignedGroups: accessResolution?.assignedGroups ?? [],
+                    assignedAppRoles: accessResolution?.assignedAppRoles ?? [],
+                    passwordApplied: false,
+                    passwordSource: null,
+                });
+                continue;
+            }
+
+            if (!accessResolution) {
+                results.push({
+                    email,
+                    success: false,
+                    status: 'failed',
+                    message: 'Invalid role configuration. Allowed workzoneRole/workzoneRoles values: User, Admin. Allowed appRole/appRoles values: PredictionUser, PredictionAdmin.',
                     idpUserId: null,
                     assignedGroups: [],
                     assignedAppRoles: [],
@@ -96,18 +129,28 @@ export class AdminHandler {
                 continue;
             }
 
+            const access = accessResolution;
+
             try {
-                let idpUser = await idpClient.findUserByEmail(email);
+                let idpUser = await scopedIdpClient.findUserByEmail(email);
                 let status = 'existing';
                 let passwordApplied = false;
                 if (!idpUser) {
-                    idpUser = await idpClient.createUser({
+                    idpUser = await scopedIdpClient.findReusableUserByEmail(email);
+                    if (idpUser) {
+                        status = 'reused';
+                    }
+                }
+                if (!idpUser) {
+                    idpUser = await scopedIdpClient.createUser({
                         email,
+                        userName,
                         givenName: this.safeText(item.givenName, 100),
                         familyName: this.safeText(item.familyName, 100),
                         displayName: this.safeText(item.displayName, 120),
                         password: password.value,
                         groups: access.assignedGroups,
+                        userType: identity.userType,
                         active: true,
                     });
                     status = 'created';
@@ -115,22 +158,22 @@ export class AdminHandler {
                 }
 
                 const assignedGroups = [...access.assignedGroups];
-                if (status === 'existing') {
-                    await idpClient.addUserToGroup(DEFAULT_SANDBOX_USER_GROUP, idpUser.id, DEFAULT_SANDBOX_USER_GROUP);
-
-                    if (access.appRole === CAP_ROLE_ADMIN) {
-                        await idpClient.addUserToGroup(DEFAULT_SANDBOX_ADMIN_GROUP, idpUser.id, DEFAULT_SANDBOX_ADMIN_GROUP);
+                if (status !== 'created') {
+                    for (const groupName of assignedGroups) {
+                        await scopedIdpClient.addUserToGroup(groupName, idpUser.id, groupName);
                     }
                 }
 
                 await this.upsertPlayerIdentity(Player, {
                     idpUserId: idpUser.id,
                     email,
-                    displayName: this.safeText(item.displayName, 100),
+                    loginName: this.safeText(idpUser.userName, 255) ?? userName ?? email,
+                    displayName: this.safeText(item.displayName, 100) ?? this.safeText(idpUser.displayName, 100),
                     givenName: this.safeText(item.givenName, 100),
                     familyName: this.safeText(item.familyName, 100),
                     assignedGroups,
                     assignedAppRoles: access.assignedAppRoles,
+                    identityOrigin: this.safeText(idpUser.origin, 120) ?? identity.identityOrigin,
                 });
 
                 results.push({
@@ -139,10 +182,11 @@ export class AdminHandler {
                     status,
                     message: this.buildProvisionSuccessMessage(
                         status,
-                        access.assignedAppRoles,
+                        access.workzoneRole,
+                        access.appRole,
                         password,
                         passwordApplied,
-                        idpClient.describeUserIdentity(idpUser)
+                        scopedIdpClient.describeUserIdentity(idpUser)
                     ),
                     idpUserId: idpUser.id,
                     assignedGroups,
@@ -427,6 +471,99 @@ export class AdminHandler {
         return {
             success: true,
             message: `Global leaderboard recalculated for ${players.length} players`
+        };
+    }
+
+    /**
+     * Clear all non-player data so the app can be re-seeded from scratch
+     * without losing provisioned user accounts.
+     */
+    async clearAllDataExceptPlayers(req: Request) {
+        const tx = cds.tx(req);
+        const {
+            Player,
+            Tournament,
+            Team,
+            TournamentTeam,
+            TeamMember,
+            Match,
+            Prediction,
+            SlotPrediction,
+            ScoreBet,
+            SlotScoreBet,
+            ChampionPick,
+            PlayerTournamentStats,
+            MatchScoreBetConfig,
+            BracketSlot,
+        } = cds.entities('cnma.prediction');
+
+        const deletedCounts = {
+            predictions: 0,
+            slotPredictions: 0,
+            scoreBets: 0,
+            slotScoreBets: 0,
+            championPicks: 0,
+            playerTournamentStats: 0,
+            matchScoreBetConfigs: 0,
+            matches: 0,
+            bracketSlots: 0,
+            tournamentTeams: 0,
+            teamMembers: 0,
+            tournaments: 0,
+            teams: 0,
+        };
+
+        const resetPlayerCount = await tx.run(
+            UPDATE(Player).set({
+                favoriteTeam_ID: null,
+                totalPoints: 0,
+                totalCorrect: 0,
+                totalPredictions: 0,
+                currentStreak: 0,
+                bestStreak: 0,
+                rank: null,
+            })
+        );
+
+        await tx.run(
+            UPDATE(Match).set({
+                bracketSlot_ID: null,
+            })
+        );
+
+        await tx.run(
+            UPDATE(BracketSlot).set({
+                homeTeam_ID: null,
+                awayTeam_ID: null,
+                leg1_ID: null,
+                leg2_ID: null,
+                winner_ID: null,
+                nextSlot_ID: null,
+            })
+        );
+
+        deletedCounts.predictions = Number(await tx.run(DELETE.from(Prediction))) || 0;
+        deletedCounts.slotPredictions = Number(await tx.run(DELETE.from(SlotPrediction))) || 0;
+        deletedCounts.scoreBets = Number(await tx.run(DELETE.from(ScoreBet))) || 0;
+        deletedCounts.slotScoreBets = Number(await tx.run(DELETE.from(SlotScoreBet))) || 0;
+        deletedCounts.championPicks = Number(await tx.run(DELETE.from(ChampionPick))) || 0;
+        deletedCounts.playerTournamentStats = Number(await tx.run(DELETE.from(PlayerTournamentStats))) || 0;
+        deletedCounts.matchScoreBetConfigs = Number(await tx.run(DELETE.from(MatchScoreBetConfig))) || 0;
+        deletedCounts.matches = Number(await tx.run(DELETE.from(Match))) || 0;
+        deletedCounts.bracketSlots = Number(await tx.run(DELETE.from(BracketSlot))) || 0;
+        deletedCounts.tournamentTeams = Number(await tx.run(DELETE.from(TournamentTeam))) || 0;
+        deletedCounts.teamMembers = Number(await tx.run(DELETE.from(TeamMember))) || 0;
+        deletedCounts.tournaments = Number(await tx.run(DELETE.from(Tournament))) || 0;
+        deletedCounts.teams = Number(await tx.run(DELETE.from(Team))) || 0;
+
+        return {
+            success: true,
+            message: [
+                `Cleared all non-player data.`,
+                `Players reset: ${Number(resetPlayerCount) || 0}.`,
+                `Deleted ${deletedCounts.tournaments} tournament(s), ${deletedCounts.matches} match(es), ${deletedCounts.teams} team(s),`,
+                `${deletedCounts.predictions} prediction(s), ${deletedCounts.scoreBets} score bet(s), ${deletedCounts.championPicks} champion pick(s).`,
+            ].join(' '),
         };
     }
 
@@ -1569,6 +1706,13 @@ export class AdminHandler {
         return normalized;
     }
 
+    private normalizeProvisioningUserName(value: unknown): string | null {
+        if (typeof value !== 'string') return null;
+        const trimmed = value.trim();
+        if (!trimmed) return null;
+        return trimmed.slice(0, 255).toLowerCase();
+    }
+
     private safeText(value: unknown, maxLen: number): string | null {
         if (typeof value !== 'string') return null;
         const trimmed = value.trim();
@@ -1576,14 +1720,71 @@ export class AdminHandler {
         return trimmed.slice(0, maxLen);
     }
 
-    private resolveProvisioningAccess(rawItem: Record<string, unknown>): ProvisioningAccessResolution {
-        const appRole = normalizeProvisionableAppRole(rawItem.appRole)
-            ?? (rawItem.makeAdmin === true ? CAP_ROLE_ADMIN : CAP_ROLE_USER);
+    private parseRoleSelectionArray<T extends string>(
+        value: unknown,
+        normalizer: (raw: unknown) => T | null
+    ): T[] | null | undefined {
+        if (value == null) return undefined;
+        if (!Array.isArray(value)) return null;
+
+        const parsed: T[] = [];
+        const seen = new Set<T>();
+
+        for (const entry of value) {
+            const normalized = normalizer(entry);
+            if (!normalized) return null;
+            if (seen.has(normalized)) continue;
+            seen.add(normalized);
+            parsed.push(normalized);
+        }
+
+        return parsed;
+    }
+
+    private resolveProvisioningAccess(rawItem: Record<string, unknown>): ProvisioningAccessResolution | null {
+        const requestedWorkzoneRoles = this.parseRoleSelectionArray(rawItem.workzoneRoles, normalizeSandboxWorkzoneRole);
+        const requestedAppRoles = this.parseRoleSelectionArray(rawItem.appRoles, normalizeStrictProvisionableAppRole);
+        const requestedWorkzoneRole = normalizeSandboxWorkzoneRole(rawItem.workzoneRole);
+        const requestedAppRole = normalizeStrictProvisionableAppRole(rawItem.appRole);
+        const rawWorkzoneRole = this.safeText(rawItem.workzoneRole, 20);
+        const rawAppRole = this.safeText(rawItem.appRole, 40);
+
+        if (requestedWorkzoneRoles === null || requestedAppRoles === null) {
+            return null;
+        }
+
+        if (rawWorkzoneRole && !requestedWorkzoneRole) {
+            return null;
+        }
+
+        if (rawAppRole && !requestedAppRole) {
+            return null;
+        }
+
+        const workzoneRole = requestedWorkzoneRole
+            ?? (rawItem.makeAdmin === true ? WORKZONE_ROLE_ADMIN : WORKZONE_ROLE_USER);
+        const appRole = requestedAppRole
+            ?? (rawItem.grantPredictionAdmin === true ? CAP_ROLE_ADMIN : CAP_ROLE_USER);
+
+        const workzoneRoles = requestedWorkzoneRoles && requestedWorkzoneRoles.length > 0
+            ? requestedWorkzoneRoles
+            : [workzoneRole];
+        const appRoles = requestedAppRoles && requestedAppRoles.length > 0
+            ? requestedAppRoles
+            : [appRole];
+
+        const assignedGroups = [...new Set(workzoneRoles.flatMap((role) => getAssignedGroupsForWorkzoneRole(role)))];
+        const assignedAppRoles = [...new Set(appRoles.flatMap((role) => getAssignedAppRolesForAppRole(role)))];
+        const primaryWorkzoneRole = workzoneRoles.includes(WORKZONE_ROLE_ADMIN) ? WORKZONE_ROLE_ADMIN : WORKZONE_ROLE_USER;
+        const primaryAppRole = assignedAppRoles.includes(CAP_ROLE_ADMIN) ? CAP_ROLE_ADMIN : CAP_ROLE_USER;
 
         return {
-            appRole,
-            assignedGroups: getAssignedGroupsForAppRole(appRole),
-            assignedAppRoles: getAssignedAppRolesForAppRole(appRole),
+            workzoneRole: primaryWorkzoneRole,
+            appRole: primaryAppRole,
+            workzoneRoles,
+            appRoles,
+            assignedGroups,
+            assignedAppRoles,
         };
     }
 
@@ -1609,14 +1810,22 @@ export class AdminHandler {
         };
     }
 
+    private resolveProvisioningIdentity(rawItem: Record<string, unknown>): ProvisioningIdentityResolution {
+        return {
+            identityOrigin: this.safeText(rawItem.identityOrigin, 120),
+            userType: this.safeText(rawItem.userType, 80),
+        };
+    }
+
     private buildProvisionSuccessMessage(
         status: string,
-        assignedAppRoles: ProvisionableAppRole[],
+        workzoneRole: SandboxWorkzoneRole,
+        appRole: ProvisionableAppRole,
         password: ProvisionPasswordResolution,
         passwordApplied: boolean,
         userIdentitySummary: string
     ): string {
-        const accessLabel = assignedAppRoles.join(' + ');
+        const accessLabel = `workzone '${workzoneRole}', app '${appRole}'`;
         const identitySuffix = userIdentitySummary ? ` Matched ${userIdentitySummary}.` : '';
 
         if (status === 'created') {
@@ -1625,6 +1834,14 @@ export class AdminHandler {
             }
 
             return `User created and access '${accessLabel}' assigned. No initial password was configured.${identitySuffix}`;
+        }
+
+        if (status === 'reused') {
+            if (password.value) {
+                return `Existing Identity Authentication account was reused and access '${accessLabel}' ensured. Existing password was not changed.${identitySuffix}`;
+            }
+
+            return `Existing Identity Authentication account was reused and access '${accessLabel}' was ensured.${identitySuffix}`;
         }
 
         if (password.value) {
@@ -1639,11 +1856,13 @@ export class AdminHandler {
         input: {
             idpUserId: string;
             email: string;
+            loginName: string;
             displayName: string | null;
             givenName: string | null;
             familyName: string | null;
             assignedGroups: string[];
             assignedAppRoles: ProvisionableAppRole[];
+            identityOrigin: string | null;
         }
     ): Promise<void> {
         const roles = expandStoredRolesFromAppRoles(input.assignedAppRoles);
@@ -1656,14 +1875,14 @@ export class AdminHandler {
 
         const updatePayload = {
             userUUID: input.idpUserId,
-            loginName: input.email,
+            loginName: input.loginName,
             email: input.email,
             displayName: input.displayName || `${input.givenName || ''} ${input.familyName || ''}`.trim() || input.email,
             givenName: input.givenName,
             familyName: input.familyName,
             roles: JSON.stringify(roles),
             scopes: JSON.stringify(scopes),
-            identityOrigin: 'sandbox-idp',
+            identityOrigin: input.identityOrigin,
             lastLoginAt: new Date().toISOString(),
         };
 

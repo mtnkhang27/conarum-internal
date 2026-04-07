@@ -2,6 +2,31 @@ import cds, { Request } from "@sap/cds";
 import { materializeSlotBetsForMatch } from "../lib/SlotBetMaterializer";
 import { PlayerResolver } from "../lib/PlayerResolver";
 
+type SubmittedScoreInput = {
+  homeScore: number;
+  awayScore: number;
+};
+
+function isValidSubmittedScore(score: unknown): score is SubmittedScoreInput {
+  if (!score || typeof score !== "object") {
+    return false;
+  }
+
+  const candidate = score as Partial<SubmittedScoreInput>;
+  const homeScore = candidate.homeScore;
+  const awayScore = candidate.awayScore;
+  return (
+    Number.isInteger(homeScore) &&
+    Number.isInteger(awayScore) &&
+    typeof homeScore === "number" &&
+    typeof awayScore === "number" &&
+    homeScore >= 0 &&
+    awayScore >= 0 &&
+    homeScore <= 99 &&
+    awayScore <= 99
+  );
+}
+
 /**
  * PredictionHandler — Handles user prediction submissions.
  * Validates business rules before persisting predictions.
@@ -220,6 +245,9 @@ export class PredictionHandler {
     const { matchId, pick, scores } = req.data;
     const { Prediction, ScoreBet, Match, MatchScoreBetConfig } =
       cds.entities("cnma.prediction");
+    const submittedScores = Array.isArray(scores)
+      ? (scores as unknown[])
+      : null;
 
     // Validate match
     const match = await SELECT.one.from(Match).where({ ID: matchId });
@@ -258,6 +286,7 @@ export class PredictionHandler {
     }
 
     const playerId = await this.getOrCreatePlayerId(req);
+    const nowIso = now.toISOString();
 
     // ── Save winner prediction ──
     if (pick && ["home", "draw", "away"].includes(pick)) {
@@ -271,7 +300,7 @@ export class PredictionHandler {
         }
         await UPDATE(Prediction).where({ ID: existing.ID }).set({
           pick,
-          submittedAt: now.toISOString(),
+          submittedAt: nowIso,
         });
       } else {
         await INSERT.into(Prediction).entries({
@@ -280,22 +309,32 @@ export class PredictionHandler {
           tournament_ID: match.tournament_ID,
           pick,
           status: "submitted",
-          submittedAt: now.toISOString(),
+          submittedAt: nowIso,
         });
       }
     }
 
     // ── Save score bets ──
-    if (scores && scores.length > 0) {
-      // Check if match has score bet config enabled
-      const config = await SELECT.one
-        .from(MatchScoreBetConfig)
-        .where({ match_ID: matchId });
-      if (!config || !config.enabled) {
+    if (submittedScores) {
+      if (submittedScores.some((score) => !isValidSubmittedScore(score))) {
         return req.error(
           400,
-          "Score predictions are not available for this match",
+          "Each score pick must be a whole number between 0 and 99",
         );
+      }
+      const normalizedScores = submittedScores as SubmittedScoreInput[];
+
+      // Check if match has score bet config enabled
+      if (normalizedScores.length > 0) {
+        const config = await SELECT.one
+          .from(MatchScoreBetConfig)
+          .where({ match_ID: matchId });
+        if (!config || !config.enabled) {
+          return req.error(
+            400,
+            "Score predictions are not available for this match",
+          );
+        }
       }
 
       // Lock when match has kicked off
@@ -309,22 +348,14 @@ export class PredictionHandler {
         match_ID: matchId,
       });
 
-      const validScores = scores.filter(
-        (s: any) =>
-          s.homeScore >= 0 &&
-          s.awayScore >= 0 &&
-          s.homeScore <= 99 &&
-          s.awayScore <= 99,
-      );
-
-      for (const s of validScores) {
+      for (const score of normalizedScores) {
         await INSERT.into(ScoreBet).entries({
           player_ID: playerId,
           match_ID: matchId,
-          predictedHomeScore: s.homeScore,
-          predictedAwayScore: s.awayScore,
+          predictedHomeScore: score.homeScore,
+          predictedAwayScore: score.awayScore,
           status: "pending",
-          submittedAt: now.toISOString(),
+          submittedAt: nowIso,
         });
       }
     }

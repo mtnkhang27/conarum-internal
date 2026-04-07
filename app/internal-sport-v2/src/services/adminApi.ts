@@ -197,6 +197,14 @@ export const tournamentActionsApi = {
     }),
 };
 
+export const adminMaintenanceApi = {
+  clearAllDataExceptPlayers: () =>
+    odata<ActionResult>('/clearAllDataExceptPlayers', {
+      method: 'POST',
+      body: JSON.stringify({}),
+    }),
+};
+
 export const championPicksApi = {
   listByTournament: (tournamentId: string) =>
     odataList<AdminChampionPickView>(

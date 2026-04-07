@@ -32,6 +32,7 @@ type ScimGroup = {
 
 type ProvisionUserInput = {
     email: string;
+    userName?: string | null;
     givenName?: string | null;
     familyName?: string | null;
     displayName?: string | null;
@@ -54,7 +55,7 @@ type ClientConfig = {
 
 const DEFAULT_TIMEOUT_MS = 20000;
 const DEFAULT_SCIM_DESTINATION_NAME = 'EXTERNAL_IDP_TANENT_DEST_CFG';
-const DEFAULT_SCIM_USER_TYPE = 'partner';
+const DEFAULT_SCIM_USER_TYPE = null;
 const DEFAULT_USER_SEARCH_COUNT = 25;
 
 const trimToNull = (value: unknown): string | null => {
@@ -84,6 +85,7 @@ const ensureLeadingSlash = (value: string): string => {
 const escapeFilterString = (value: string): string => value.replace(/"/g, '\\"');
 const encodePathSegment = (value: string): string => encodeURIComponent(value);
 const getListResources = <T>(response: ScimListResponse<T>): T[] => response.Resources ?? response.resources ?? [];
+const SCIM_USER_QUERY_ATTRIBUTES = ['id', 'userName', 'emails', 'origin', 'userType', 'displayName'];
 
 const getScimUserEmails = (user: ScimUser): string[] => {
     const emails = new Set<string>();
@@ -130,6 +132,16 @@ const matchesExpectedValue = (actual: unknown, expected: unknown): boolean => {
     return normalizeValue(actual) === normalizedExpected;
 };
 
+const isDefaultIdentityOrigin = (origin: unknown): boolean => {
+    const normalized = normalizeValue(origin);
+    return normalized === 'sap.default' || normalized === 'sap.custom';
+};
+
+const isKnownNonDefaultIdentityOrigin = (origin: unknown): boolean => {
+    const normalized = normalizeValue(origin);
+    return Boolean(normalized) && !isDefaultIdentityOrigin(normalized);
+};
+
 export const selectManagedScimUserCandidate = (
     candidates: ScimUser[],
     config: Pick<ClientConfig, 'memberOrigin' | 'defaultUserType'>
@@ -143,10 +155,39 @@ export const selectManagedScimUserCandidate = (
 
     const desiredUserType = trimToNull(config.defaultUserType);
     if (desiredUserType) {
-        return candidates.find((candidate) => matchesExpectedValue(candidate.userType, desiredUserType)) ?? null;
+        const userTypeMatches = candidates.filter((candidate) => matchesExpectedValue(candidate.userType, desiredUserType));
+        if (userTypeMatches.length === 0) {
+            return null;
+        }
+
+        // Only treat users with an explicit, non-default origin as app-managed identities.
+        // Missing origin is ambiguous and should not be auto-matched.
+        const nonDefaultOriginMatches = userTypeMatches.filter((candidate) => isKnownNonDefaultIdentityOrigin(candidate.origin));
+        if (nonDefaultOriginMatches.length === 1) {
+            return nonDefaultOriginMatches[0];
+        }
+
+        if (nonDefaultOriginMatches.length > 1) {
+            return null;
+        }
+
+        // Avoid treating corporate/default IdP users as app-managed identities.
+        return null;
     }
 
-    return candidates[0] ?? null;
+    return null;
+};
+
+export const selectReusableScimUserCandidate = (
+    candidates: ScimUser[],
+    config: Pick<ClientConfig, 'memberOrigin' | 'defaultUserType'>
+): ScimUser | null => {
+    const managedCandidate = selectManagedScimUserCandidate(candidates, config);
+    if (managedCandidate) {
+        return managedCandidate;
+    }
+
+    return candidates.length === 1 ? candidates[0] : null;
 };
 
 export const describeExpectedManagedIdentity = (config: Pick<ClientConfig, 'memberOrigin' | 'defaultUserType'>): string => {
@@ -192,6 +233,21 @@ const normalizeScimBaseUrl = (value: string): string => {
         return trimmed;
     }
     return `${trimmed}/service/scim`;
+};
+
+const deriveScimMemberOriginFromBaseUrl = (baseUrl: string): string | null => {
+    try {
+        const parsedUrl = new URL(baseUrl);
+        const host = parsedUrl.hostname.toLowerCase();
+        const match = host.match(/^([a-z0-9-]+)\.accounts\.(?:ondemand\.com|400\.ondemand\.com)$/i);
+        if (!match?.[1]) {
+            return null;
+        }
+
+        return `${match[1]}.accounts.cloud.sap`;
+    } catch {
+        return null;
+    }
 };
 
 const readScimCredentialsFromDirectEnv = (config?: Partial<ClientConfig>) => {
@@ -243,6 +299,37 @@ const extractScimCredentialsFromDestination = (
     });
 };
 
+const extractScimMemberOriginFromDestination = (candidate: unknown, destinationName: string): string | null => {
+    if (!isRecord(candidate)) return null;
+
+    const name = trimToNull(candidate.name);
+    if (name !== destinationName) return null;
+
+    const directOrigin = trimToNull(
+        candidate.memberOrigin ??
+            candidate.identityOrigin ??
+            candidate.origin ??
+            candidate.trustOrigin ??
+            candidate.trustOriginKey
+    );
+    if (directOrigin) {
+        return directOrigin;
+    }
+
+    const configuration = isRecord(candidate.configuration) ? candidate.configuration : null;
+    if (!configuration) {
+        return null;
+    }
+
+    return trimToNull(
+        configuration.memberOrigin ??
+            configuration.identityOrigin ??
+            configuration.origin ??
+            configuration.trustOrigin ??
+            configuration.trustOriginKey
+    );
+};
+
 const readScimCredentialsFromDestinations = (destinationName: string, config?: Partial<ClientConfig>) => {
     const rawDestinations = trimToNull(process.env.destinations);
     if (!rawDestinations) return null;
@@ -287,22 +374,69 @@ const readScimCredentialsFromDefaultEnv = (destinationName: string, config?: Par
     return null;
 };
 
+const resolveScimDestinationName = (): string => {
+    return (
+        trimToNull(process.env.IDP_SCIM_DESTINATION_NAME ?? process.env.IAS_DESTINATION_NAME) ??
+        DEFAULT_SCIM_DESTINATION_NAME
+    );
+};
+
+const readScimMemberOriginFromDestinations = (destinationName: string): string | null => {
+    const rawDestinations = trimToNull(process.env.destinations);
+    if (rawDestinations) {
+        try {
+            const parsed = JSON.parse(rawDestinations);
+            if (Array.isArray(parsed)) {
+                for (const candidate of parsed) {
+                    const memberOrigin = extractScimMemberOriginFromDestination(candidate, destinationName);
+                    if (memberOrigin) return memberOrigin;
+                }
+            }
+        } catch {
+            // Ignore malformed destinations and continue fallback resolution.
+        }
+    }
+
+    const defaultEnvPath = resolvePath(process.cwd(), 'default-env.json');
+    if (!existsSync(defaultEnvPath)) return null;
+
+    try {
+        const parsed = JSON.parse(readFileSync(defaultEnvPath, 'utf8'));
+        if (!isRecord(parsed) || !Array.isArray(parsed.destinations)) {
+            return null;
+        }
+
+        for (const candidate of parsed.destinations) {
+            const memberOrigin = extractScimMemberOriginFromDestination(candidate, destinationName);
+            if (memberOrigin) return memberOrigin;
+        }
+    } catch {
+        return null;
+    }
+
+    return null;
+};
+
 const resolveScimCredentials = (config?: Partial<ClientConfig>) => {
     const directCredentials = toResolvedScimCredentials(readScimCredentialsFromDirectEnv(config));
     if (directCredentials) {
-        return directCredentials;
+        return {
+            credentials: directCredentials,
+            destinationName: null as string | null,
+        };
     }
 
-    const destinationName =
-        trimToNull(process.env.IDP_SCIM_DESTINATION_NAME ?? process.env.IAS_DESTINATION_NAME) ??
-        DEFAULT_SCIM_DESTINATION_NAME;
+    const destinationName = resolveScimDestinationName();
 
     const destinationCredentials =
         readScimCredentialsFromDestinations(destinationName, config) ??
         readScimCredentialsFromDefaultEnv(destinationName, config);
 
     if (destinationCredentials) {
-        return destinationCredentials;
+        return {
+            credentials: destinationCredentials,
+            destinationName,
+        };
     }
 
     return null;
@@ -325,22 +459,31 @@ export class IdentityDirectoryClient {
     private readonly config: ClientConfig;
 
     constructor(config?: Partial<ClientConfig>) {
-        const resolvedCredentials = resolveScimCredentials(config);
+        const resolvedConfig = resolveScimCredentials(config);
 
-        if (!resolvedCredentials) {
+        if (!resolvedConfig) {
             throw new Error(
                 'Missing IDP SCIM configuration. Provide either IDP_SCIM_BASE_URL/IDP_SCIM_BASIC_USERNAME/IDP_SCIM_BASIC_PASSWORD, IAS_URL/IAS_CLIENT_ID/IAS_CLIENT_SECRET, SCIM_URL/SCIM_USER/SCIM_PASSWORD, or destination EXTERNAL_IDP_TANENT_DEST_CFG.'
             );
         }
 
+        const resolvedDestinationOrigin = resolvedConfig.destinationName
+            ? readScimMemberOriginFromDestinations(resolvedConfig.destinationName)
+            : null;
+        const derivedOriginFromBaseUrl = deriveScimMemberOriginFromBaseUrl(resolvedConfig.credentials.baseUrl);
+
         this.config = {
-            baseUrl: resolvedCredentials.baseUrl,
+            baseUrl: resolvedConfig.credentials.baseUrl,
             usersPath: ensureLeadingSlash(trimToNull(config?.usersPath ?? process.env.IDP_SCIM_USERS_PATH) ?? '/Users'),
             groupsPath: ensureLeadingSlash(trimToNull(config?.groupsPath ?? process.env.IDP_SCIM_GROUPS_PATH) ?? '/Groups'),
-            username: resolvedCredentials.username,
-            password: resolvedCredentials.password,
+            username: resolvedConfig.credentials.username,
+            password: resolvedConfig.credentials.password,
             memberOrigin: trimToNull(
-                config?.memberOrigin ?? process.env.IDP_SCIM_MEMBER_ORIGIN ?? process.env.IDP_SCIM_TRUST_ORIGIN
+                config?.memberOrigin ??
+                    process.env.IDP_SCIM_MEMBER_ORIGIN ??
+                    process.env.IDP_SCIM_TRUST_ORIGIN ??
+                        resolvedDestinationOrigin ??
+                        derivedOriginFromBaseUrl
             ),
             defaultUserType:
                 trimToNull(config?.defaultUserType ?? process.env.IDP_SCIM_USER_TYPE) ?? DEFAULT_SCIM_USER_TYPE,
@@ -362,6 +505,16 @@ export class IdentityDirectoryClient {
         return selectManagedScimUserCandidate(candidates, this.config);
     }
 
+    async findReusableUserByEmail(email: string): Promise<ScimUser | null> {
+        const normalizedEmail = normalizeEmail(email);
+        if (!normalizedEmail) {
+            return null;
+        }
+
+        const candidates = await this.listUsersByEmail(normalizedEmail);
+        return selectReusableScimUserCandidate(candidates, this.config);
+    }
+
     async createUser(input: ProvisionUserInput): Promise<ScimUser> {
         const normalizedEmail = normalizeEmail(input.email);
         if (!normalizedEmail) {
@@ -371,6 +524,8 @@ export class IdentityDirectoryClient {
         const givenName = trimToNull(input.givenName) ?? normalizedEmail.split('@')[0];
         const familyName = trimToNull(input.familyName) ?? 'User';
         const displayName = trimToNull(input.displayName) ?? `${givenName} ${familyName}`.trim();
+        const requestedUserName = trimToNull(input.userName);
+        const normalizedUserName = requestedUserName ? requestedUserName.toLowerCase() : normalizedEmail;
         const password = trimToNull(input.password);
         const userType = trimToNull(input.userType) ?? this.config.defaultUserType;
         const groups = (input.groups ?? [])
@@ -379,7 +534,7 @@ export class IdentityDirectoryClient {
 
         const payload: Record<string, unknown> = {
             schemas: ['urn:ietf:params:scim:schemas:core:2.0:User'],
-            userName: normalizedEmail,
+            userName: normalizedUserName,
             displayName,
             active: input.active ?? true,
             name: {
@@ -423,14 +578,14 @@ export class IdentityDirectoryClient {
         } catch (error: unknown) {
             if (this.isDuplicateUserConflict(error)) {
                 const duplicateCandidates = await this.listUsersByEmail(normalizedEmail);
-                const managedDuplicateUser = selectManagedScimUserCandidate(duplicateCandidates, this.config);
-                if (managedDuplicateUser) {
-                    return managedDuplicateUser;
+                const reusableDuplicateUser = selectReusableScimUserCandidate(duplicateCandidates, this.config);
+                if (reusableDuplicateUser) {
+                    return reusableDuplicateUser;
                 }
 
                 const duplicateUser = duplicateCandidates[0] ?? null;
                 if (duplicateUser) {
-                    throw new Error(this.buildDuplicateUserConflictMessage(normalizedEmail, duplicateUser));
+                    throw new Error(this.buildDuplicateUserConflictMessage(normalizedEmail, normalizedUserName, duplicateUser));
                 }
             }
 
@@ -441,17 +596,17 @@ export class IdentityDirectoryClient {
             return createdUser;
         }
 
-        const lookupUser = await this.findUserByEmail(normalizedEmail);
+        const lookupUser = await this.findReusableUserByEmail(normalizedEmail);
         if (!lookupUser?.id) {
             const duplicateCandidates = await this.listUsersByEmail(normalizedEmail);
-            const managedDuplicateUser = selectManagedScimUserCandidate(duplicateCandidates, this.config);
-            if (managedDuplicateUser?.id) {
-                return managedDuplicateUser;
+            const reusableDuplicateUser = selectReusableScimUserCandidate(duplicateCandidates, this.config);
+            if (reusableDuplicateUser?.id) {
+                return reusableDuplicateUser;
             }
 
             const duplicateUser = duplicateCandidates[0] ?? null;
             if (duplicateUser) {
-                throw new Error(this.buildDuplicateUserConflictMessage(normalizedEmail, duplicateUser));
+                throw new Error(this.buildDuplicateUserConflictMessage(normalizedEmail, normalizedUserName, duplicateUser));
             }
 
             throw new Error(`SCIM POST ${this.config.usersPath} succeeded but the created user could not be looked up again for ${normalizedEmail}.`);
@@ -654,9 +809,10 @@ export class IdentityDirectoryClient {
 
         const users: ScimUser[] = [];
         const count = DEFAULT_USER_SEARCH_COUNT;
+        const encodedAttributes = encodeURIComponent(SCIM_USER_QUERY_ATTRIBUTES.join(','));
         const byUsernameFilter = encodeURIComponent(`userName eq "${escapeFilterString(normalizedEmail)}"`);
         const byUsername = await this.request<ScimListResponse<ScimUser>>(
-            `${this.config.usersPath}?filter=${byUsernameFilter}&startIndex=1&count=${count}`,
+            `${this.config.usersPath}?filter=${byUsernameFilter}&attributes=${encodedAttributes}&startIndex=1&count=${count}`,
             { method: 'GET' }
         );
         users.push(...getListResources(byUsername));
@@ -664,7 +820,7 @@ export class IdentityDirectoryClient {
         try {
             const filter = encodeURIComponent(`emails.value eq "${escapeFilterString(normalizedEmail)}"`);
             const byEmail = await this.request<ScimListResponse<ScimUser>>(
-                `${this.config.usersPath}?filter=${filter}&startIndex=1&count=${count}`,
+                `${this.config.usersPath}?filter=${filter}&attributes=${encodedAttributes}&startIndex=1&count=${count}`,
                 { method: 'GET' }
             );
             users.push(...getListResources(byEmail));
@@ -674,7 +830,7 @@ export class IdentityDirectoryClient {
                 try {
                     const legacyFilter = encodeURIComponent(`emails eq "${escapeFilterString(normalizedEmail)}"`);
                     const byLegacyEmail = await this.request<ScimListResponse<ScimUser>>(
-                        `${this.config.usersPath}?filter=${legacyFilter}&startIndex=1&count=${count}`,
+                        `${this.config.usersPath}?filter=${legacyFilter}&attributes=${encodedAttributes}&startIndex=1&count=${count}`,
                         { method: 'GET' }
                     );
                     users.push(...getListResources(byLegacyEmail));
@@ -699,12 +855,24 @@ export class IdentityDirectoryClient {
         return /already\s+exists|account\s+exists|duplicate|uniqueness|must\s+be\s+unique/i.test(message);
     }
 
-    private buildDuplicateUserConflictMessage(email: string, conflictingUser: ScimUser): string {
+    private buildDuplicateUserConflictMessage(
+        email: string,
+        requestedUserName: string,
+        conflictingUser: ScimUser
+    ): string {
+        const expectedOrigin = trimToNull(this.config.memberOrigin);
+        const originHint = expectedOrigin
+            ? ''
+            : " Provide identityOrigin in the request payload (for example '<tenant-subdomain>.accounts.cloud.sap') or configure IDP_SCIM_MEMBER_ORIGIN/IDP_SCIM_TRUST_ORIGIN.";
+        const requestedUserNameHint = requestedUserName !== email
+            ? ` Requested userName='${requestedUserName}'. IAS may enforce unique email across origins, so a custom userName alone might still be blocked when email already exists in Default IdP.`
+            : '';
+
         return [
             `Cannot create sandbox user '${email}'.`,
             `Identity Authentication already has a different account with the same email/login (${describeScimUserIdentity(conflictingUser)}).`,
             `Expected the application-managed identity ${describeExpectedManagedIdentity(this.config)}.`,
-            'Provisioning stopped to avoid assigning app access to the wrong identity.'
+            `Provisioning stopped to avoid assigning app access to the wrong identity.${requestedUserNameHint}${originHint}`
         ].join(' ');
     }
 

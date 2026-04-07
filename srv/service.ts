@@ -83,8 +83,7 @@ export class AdminService extends cds.ApplicationService {
             const normalizedRoles = new Set(context.roles.map((role) => role.trim().toLowerCase()));
             const isAdmin =
                 normalizedRoles.has('predictionadmin')
-                || normalizedRoles.has('admin')
-                || normalizedRoles.has('cnma_conarum_internal_admin');
+                || normalizedRoles.has('admin');
             if (AUTH_TRACE_ENABLED) {
                 console.log('[AdminService TRACE]', JSON.stringify({
                     email: context.email,
@@ -108,6 +107,7 @@ export class AdminService extends cds.ApplicationService {
         this.on('correctMatchResult', this.adminHandler.correctMatchResult.bind(this.adminHandler));
         this.on('setPenaltyWinner', this.adminHandler.setPenaltyWinner.bind(this.adminHandler));
         this.on('recalculateLeaderboard', this.adminHandler.recalculateLeaderboard.bind(this.adminHandler));
+        this.on('clearAllDataExceptPlayers', this.adminHandler.clearAllDataExceptPlayers.bind(this.adminHandler));
         this.on('lockChampionPredictions', this.adminHandler.lockChampionPredictions.bind(this.adminHandler));
         this.on('resolveChampionPicks', this.adminHandler.resolveChampionPicksAction.bind(this.adminHandler));
         this.on('syncMatchResults', this.adminHandler.syncMatchResults.bind(this.adminHandler));

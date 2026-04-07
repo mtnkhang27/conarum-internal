@@ -1178,7 +1178,8 @@
             "dateStage": "Datum / Phase",
             "teams": "Teams",
             "scorePick": "Ergebnis-Tipp",
-            "wdlPick": "Sieg/Unentschieden/Niederlage",
+            "wdlPick": "Ausgang",
+            "scorePickEarned": "Ergebnis-Tipp Treffer",
             "status": "Status",
             "result": "Ergebnis",
             "points": "Punkte"

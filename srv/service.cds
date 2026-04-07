@@ -932,6 +932,9 @@ service AdminService {
     /** Force recalculate leaderboard rankings (all or by tournament). */
     action recalculateLeaderboard(tournamentId: UUID)                               returns ActionResult;
 
+    /** Remove all non-player data and reset player stats so the app can be reseeded from scratch. */
+    action clearAllDataExceptPlayers()                                              returns ActionResult;
+
     /** Lock champion predictions for a specific tournament (UC3). */
     action lockChampionPredictions(tournamentId: UUID)                              returns ActionResult;
 
@@ -1003,12 +1006,17 @@ service AdminService {
 
     type SandboxUserProvisionInput {
         email       : String(255);
+        userName    : String(255);
         givenName   : String(100);
         familyName  : String(100);
         displayName : String(100);
+        workzoneRole : String(20);
         appRole     : String(40);
         password    : String(255);
         makeAdmin   : Boolean;
+        grantPredictionAdmin : Boolean;
+        identityOrigin : String(120);
+        userType    : String(80);
     }
 
     type SandboxUserProvisionResult {

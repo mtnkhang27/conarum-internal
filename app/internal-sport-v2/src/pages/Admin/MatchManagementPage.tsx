@@ -484,15 +484,8 @@ export function MatchManagementPage() {
   };
 
   return (
-    <div className={cn('grid gap-6', matchId ? 'xl:grid-cols-[minmax(0,1.45fr)_minmax(420px,0.95fr)]' : 'grid-cols-1')}>
+    <div className={cn('grid gap-6', matchId ? 'xl:grid-cols-[minmax(0,1.6fr)_minmax(360px,1fr)]' : 'grid-cols-1')}>
       <div className="min-w-0 space-y-6">
-        <div className="grid gap-4 md:grid-cols-4">
-          <SummaryStatCard label="Visible matches" value={String(stats.total)} />
-          <SummaryStatCard label="Score pick enabled" value={String(stats.scoreEnabledCount)} />
-          <SummaryStatCard label="Live matches" value={String(stats.liveCount)} />
-          <SummaryStatCard label="Hot matches" value={String(stats.hotCount)} />
-        </div>
-
         <Card className="border-border/80 shadow-sm">
           <CardHeader className="border-b border-border/80 bg-muted/20">
             <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
@@ -516,12 +509,12 @@ export function MatchManagementPage() {
               </div>
             </div>
 
-            <div className="grid gap-3 pt-4 lg:grid-cols-[minmax(0,1fr)_200px_180px_180px_180px_170px]">
-              <div className="relative">
+            <div className="flex flex-wrap items-center gap-3 pt-4">
+              <div className="relative min-w-[240px] flex-1">
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} placeholder="Search by team or tournament" className="pl-9" />
               </div>
-              <select className={FIELD_CLASSNAME} value={selectedTournamentId} onChange={(event) => setSelectedTournamentId(event.target.value)}>
+              <select className={cn(FIELD_CLASSNAME, 'min-w-[180px]')} value={selectedTournamentId} onChange={(event) => setSelectedTournamentId(event.target.value)}>
                 <option value={ALL_OPTION}>All tournaments</option>
                 {tournaments.map((tournament) => (
                   <option key={tournament.ID} value={tournament.ID}>
@@ -529,7 +522,7 @@ export function MatchManagementPage() {
                   </option>
                 ))}
               </select>
-              <select className={FIELD_CLASSNAME} value={selectedStatus} onChange={(event) => setSelectedStatus(event.target.value)}>
+              <select className={cn(FIELD_CLASSNAME, 'min-w-[160px]')} value={selectedStatus} onChange={(event) => setSelectedStatus(event.target.value)}>
                 <option value={ALL_OPTION}>All status</option>
                 {MATCH_STATUSES.map((status) => (
                   <option key={status} value={status}>
@@ -537,7 +530,7 @@ export function MatchManagementPage() {
                   </option>
                 ))}
               </select>
-              <select className={FIELD_CLASSNAME} value={selectedStage} onChange={(event) => setSelectedStage(event.target.value)}>
+              <select className={cn(FIELD_CLASSNAME, 'min-w-[160px]')} value={selectedStage} onChange={(event) => setSelectedStage(event.target.value)}>
                 <option value={ALL_OPTION}>All stages</option>
                 {MATCH_STAGES.map((stage) => (
                   <option key={stage} value={stage}>
@@ -545,12 +538,12 @@ export function MatchManagementPage() {
                   </option>
                 ))}
               </select>
-              <select className={FIELD_CLASSNAME} value={selectedHotState} onChange={(event) => setSelectedHotState(event.target.value)}>
+              <select className={cn(FIELD_CLASSNAME, 'min-w-[180px]')} value={selectedHotState} onChange={(event) => setSelectedHotState(event.target.value)}>
                 <option value={ALL_OPTION}>All highlight states</option>
                 <option value="hot">Hot matches only</option>
                 <option value="normal">Normal matches only</option>
               </select>
-              <Input type="date" value={selectedDay} onChange={(event) => setSelectedDay(event.target.value)} />
+              <Input type="date" value={selectedDay} onChange={(event) => setSelectedDay(event.target.value)} className="min-w-[170px]" />
             </div>
           </CardHeader>
 
@@ -584,6 +577,7 @@ export function MatchManagementPage() {
             matchId={matchId}
             teams={teams}
             tournaments={tournaments}
+            onNotFound={() => navigate('/admin/matches')}
             onChanged={async () => {
               await loadMatches();
             }}
@@ -710,6 +704,7 @@ function MatchDetailPanel({
   matchId: string;
   teams: AdminTeam[];
   tournaments: AdminTournament[];
+  onNotFound: () => Promise<void> | void;
   onChanged: () => Promise<void> | void;
   onDeleted: () => Promise<void> | void;
 }) {
@@ -724,6 +719,7 @@ function MatchDetailPanel({
   const [resultHome, setResultHome] = useState('');
   const [resultAway, setResultAway] = useState('');
   const [isCorrection, setIsCorrection] = useState(false);
+  const [detailError, setDetailError] = useState<string | null>(null);
   const [form, setForm] = useState<MatchFormState>(DEFAULT_CREATE_FORM);
   const [outcomePoints, setOutcomePoints] = useState('1');
   const [scoreBettingEnabled, setScoreBettingEnabled] = useState(false);
@@ -732,6 +728,7 @@ function MatchDetailPanel({
 
   const loadDetail = useCallback(async () => {
     setLoading(true);
+    setDetailError(null);
 
     try {
       const [nextMatch, nextConfig, nextPredictions, nextScoreBets] = await Promise.all([
@@ -761,11 +758,20 @@ function MatchDetailPanel({
       setMaxBets(String(Math.max(1, Math.trunc(Number(nextConfig?.maxBets || 3)))));
       setPrizeInput(sanitizeCurrencyInput(String(Math.trunc(Number(nextConfig?.prize || 200000)))));
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to load match details.');
+      const message = error instanceof Error ? error.message : 'Failed to load match details.';
+      setMatch(null);
+      setDetailError(message);
+
+      if (/404|not found/i.test(message)) {
+        await Promise.resolve(onNotFound());
+        return;
+      }
+
+      toast.error(message);
     } finally {
       setLoading(false);
     }
-  }, [matchId]);
+  }, [matchId, onNotFound]);
 
   useEffect(() => {
     void loadDetail();
@@ -948,13 +954,22 @@ function MatchDetailPanel({
     }
   };
 
-  if (loading || !match) {
+  if (loading) {
     return (
       <Card className="border-border/80 shadow-sm">
         <CardContent className="flex min-h-[420px] items-center justify-center text-sm text-muted-foreground">
           Loading match details...
         </CardContent>
       </Card>
+    );
+  }
+
+  if (!match) {
+    return (
+      <EmptySelectionPanel
+        title="Match unavailable"
+        description={detailError || 'Select another match from the list to continue.'}
+      />
     );
   }
 

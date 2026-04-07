@@ -16,7 +16,7 @@ import {
 } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { useUserInfo } from '@/hooks/useUserInfo';
-import { History, ListChecks, ShieldCheck, Trophy, UsersRound } from 'lucide-react';
+import { ShieldCheck } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 const ALL_TOURNAMENTS_VALUE = '__all__';
@@ -69,81 +69,73 @@ export function Dashboard() {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3 py-3">
-      <div className="flex w-full items-center justify-between gap-3">
-        <div className="w-full max-w-[360px]">
-          <Select
-            value={currentTournamentValue}
-            onValueChange={setSelectedTournamentValue}
-            disabled={tournamentsQuery.isLoading && tournaments.length === 0}
-          >
-            <SelectTrigger className="bg-background">
-              <SelectValue placeholder={t('predictionDashboard.selectTournament', 'Select tournament')} />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={ALL_TOURNAMENTS_VALUE}>
-                {t('predictionDashboard.allTournaments', 'All tournaments')}
-              </SelectItem>
-              {tournaments.map((item) => (
-                <SelectItem key={item.ID} value={item.ID}>
-                  {item.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-
-        {isAdmin ? (
-          <Button
-            type="button"
-            variant="subtle"
-            size="sm"
-            className="shrink-0"
-            onClick={() => navigate('/admin')}
-          >
-            <ShieldCheck className="h-4 w-4" />
-            Admin
-          </Button>
-        ) : null}
-      </div>
-
       <Tabs
         value={activeTab}
         onValueChange={setActiveTab}
         className="flex min-h-0 flex-1 flex-col gap-3"
       >
-        <TabsList className="w-full justify-start overflow-x-auto">
+        <div className="flex w-full items-center justify-between gap-3">
+          <TabsList className="w-full justify-start gap-2 overflow-x-auto">
+            <div className="min-w-[240px] max-w-[360px] shrink-0">
+              <Select
+                value={currentTournamentValue}
+                onValueChange={setSelectedTournamentValue}
+                disabled={tournamentsQuery.isLoading && tournaments.length === 0}
+              >
+                <SelectTrigger className="h-9 bg-background">
+                  <SelectValue placeholder={t('predictionDashboard.selectTournament', 'Select tournament')} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={ALL_TOURNAMENTS_VALUE}>
+                    {t('predictionDashboard.allTournaments', 'All tournaments')}
+                  </SelectItem>
+                  {tournaments.map((item) => (
+                    <SelectItem key={item.ID} value={item.ID}>
+                      {item.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
           <TabsTrigger value="matches" className="min-w-[140px]">
-            <ListChecks className="h-4 w-4" />
             {t('predictionDashboard.tabs.matches', 'Matches')}
           </TabsTrigger>
           <TabsTrigger value="leaderboard" className="min-w-[150px]">
-            <UsersRound className="h-4 w-4" />
             {t('predictionDashboard.tabs.leaderboard', 'Leaderboard')}
           </TabsTrigger>
           <TabsTrigger value="history" className="min-w-[140px]">
-            <History className="h-4 w-4" />
             {t('predictionDashboard.tabs.history', 'History')}
           </TabsTrigger>
           <TabsTrigger value="champion" className="min-w-[180px]">
-            <Trophy className="h-4 w-4" />
             {t('predictionDashboard.tabs.champion', 'Tournament Champion')}
           </TabsTrigger>
-        </TabsList>
+          </TabsList>
+
+          {isAdmin ? (
+            <Button
+              type="button"
+              variant="subtle"
+              size="sm"
+              className="shrink-0"
+              onClick={() => navigate('/admin')}
+            >
+              <ShieldCheck className="h-4 w-4" />
+              Admin
+            </Button>
+          ) : null}
+        </div>
 
         <TabsContent
           value="matches"
-          className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-muted/60 bg-card p-3"
+          className="flex min-h-0 flex-1 flex-col overflow-hidden"
         >
-          <UserPredictionTable
-            className="h-full"
-            tournamentId={selectedTournamentId}
-            tournaments={tournaments}
-          />
+          <UserPredictionTable className="h-full" tournamentId={selectedTournamentId} />
         </TabsContent>
 
         <TabsContent
           value="leaderboard"
-          className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-muted/60 bg-card p-3"
+          className="flex min-h-0 flex-1 flex-col overflow-hidden"
         >
           <LeaderboardCard
             tournamentId={selectedTournamentId}
@@ -154,14 +146,14 @@ export function Dashboard() {
 
         <TabsContent
           value="history"
-          className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-muted/60 bg-card p-3"
+          className="flex min-h-0 flex-1 flex-col overflow-hidden"
         >
           <RecentPredictionsCard tournamentId={selectedTournamentId} className="h-full" />
         </TabsContent>
 
         <TabsContent
           value="champion"
-          className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-muted/60 bg-card p-3"
+          className="flex min-h-0 flex-1 flex-col overflow-hidden"
         >
           <TournamentChampionCard
             className="h-full"

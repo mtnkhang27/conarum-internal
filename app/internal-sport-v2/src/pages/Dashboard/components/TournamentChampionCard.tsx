@@ -148,7 +148,7 @@ export function TournamentChampionCard({
 
   return (
     <Card className={cn('flex h-full w-full flex-col overflow-hidden border-muted/60 bg-card shadow-sm', className)}>
-      <CardHeader className="border-b bg-muted/10 px-5 py-4">
+      {/* <CardHeader className="border-b bg-muted/10 px-5 py-4">
         <div className="flex flex-col gap-2">
           <div>
             <CardTitle className="text-xl font-bold">{t('champion.title', 'Tournament Champion')}</CardTitle>
@@ -168,7 +168,7 @@ export function TournamentChampionCard({
             {t('champion.bettingLocked', 'Champion betting locked')}
           </div>
         )}
-      </CardHeader>
+      </CardHeader> */}
 
       <CardContent className="min-h-0 flex-1 overflow-y-auto p-4">
         {tournamentsLoading || pickerQuery.isLoading ? (

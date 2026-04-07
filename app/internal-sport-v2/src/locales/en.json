@@ -1252,7 +1252,8 @@
             "dateStage": "Date / Stage",
             "teams": "Teams",
             "scorePick": "Score Pick",
-            "wdlPick": "WDL Pick",
+            "wdlPick": "Outcome",
+            "scorePickEarned": "Score Pick Earned",
             "status": "Status",
             "result": "Result",
             "points": "Points"

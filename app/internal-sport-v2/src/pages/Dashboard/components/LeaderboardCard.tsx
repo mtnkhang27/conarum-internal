@@ -1,11 +1,12 @@
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import axiosInstance from '@/services/core/axiosInstance';
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
-import { Trophy, Medal, Loader2 } from 'lucide-react';
+import { Card, CardContent } from '@/components/ui/card';
+import { Trophy, Loader2 } from 'lucide-react';
 import { cn } from '@/utils/cn';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useTranslation } from 'react-i18next';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 
 interface LeaderboardRow {
     ID?: string;
@@ -14,6 +15,8 @@ interface LeaderboardRow {
     displayName?: string;
     avatarUrl?: string | null;
     totalPoints?: number;
+    totalCorrect?: number | null;
+    totalPredictions?: number | null;
     isMe?: boolean;
 }
 
@@ -31,7 +34,6 @@ export function LeaderboardCard({ tournamentId, maxRows = 8, className }: Leader
     const { t } = useTranslation();
     const { data, isLoading, error } = useQuery({
         queryKey: ['leaderboardTop', tournamentId, maxRows],
-        enabled: Boolean(tournamentId),
         queryFn: async () => {
             const filter = tournamentId
                 ? `$filter=${encodeURIComponent(`tournament_ID eq '${escapeODataString(tournamentId)}'`)}&`
@@ -43,23 +45,17 @@ export function LeaderboardCard({ tournamentId, maxRows = 8, className }: Leader
         }
     });
 
-    const getRankColor = (rank: number) => {
+    const getRankTone = (rank: number) => {
         switch(rank) {
-            case 1: return "text-amber-400 bg-amber-400/10 border-amber-400/20";
-            case 2: return "text-slate-400 bg-slate-400/10 border-slate-400/20";
-            case 3: return "text-amber-700 bg-amber-700/10 border-amber-700/20";
-            default: return "text-muted-foreground bg-muted/50 border-transparent";
+            case 1: return 'border-amber-300 bg-amber-50 text-amber-700';
+            case 2: return 'border-slate-300 bg-slate-50 text-slate-700';
+            case 3: return 'border-orange-300 bg-orange-50 text-orange-700';
+            default: return 'border-border bg-muted/40 text-muted-foreground';
         }
     };
 
     return (
         <Card className={cn('flex h-full w-full flex-col overflow-hidden border-border bg-card shadow-sm', className)}>
-            <CardHeader className="border-b bg-muted/10 px-4 py-2">
-                <CardTitle className="flex items-center gap-2 text-base font-bold">
-                    <Trophy className="w-5 h-5 text-primary" />
-                    {t('predictionDashboard.leaderboard.title')}
-                </CardTitle>
-            </CardHeader>
             <CardContent className="min-h-0 flex-1 p-0">
                 {isLoading ? (
                     <div className="flex h-32 items-center justify-center">
@@ -69,55 +65,96 @@ export function LeaderboardCard({ tournamentId, maxRows = 8, className }: Leader
                     <div className="p-4 text-center text-sm text-destructive">
                         {t('predictionDashboard.leaderboard.loadError')}
                     </div>
-                ) : !tournamentId ? (
-                    <div className="flex h-full min-h-[220px] flex-col items-center justify-center gap-2 p-6 text-center text-muted-foreground">
-                        <Trophy className="h-8 w-8 text-border" />
-                        <p>{t('predictionDashboard.leaderboard.selectTournament', 'Select a tournament to view the leaderboard.')}</p>
-                    </div>
                 ) : !data?.length ? (
                     <div className="flex h-full min-h-[220px] flex-col items-center justify-center gap-2 p-6 text-center text-muted-foreground">
                         <Trophy className="h-8 w-8 text-border" />
                         <p>{t('predictionDashboard.noPredictionsYet', 'No predictions available.')}</p>
                     </div>
                 ) : (
-                    <div className="h-full overflow-y-auto">
-                        {data?.map((player, idx) => {
-                            const rank = player.rank || idx + 1;
+                    <div className="scrollbar-hidden h-full overflow-auto">
+                        <Table className="w-full min-w-[760px] table-auto text-[12px]">
+                            <TableHeader>
+                                <TableRow className="hover:bg-transparent">
+                                    <TableHead className="sticky top-0 z-10 min-w-[80px] bg-card px-3 py-2.5 text-center">
+                                        {t('predictionDashboard.leaderboard.rank', 'Rank')}
+                                    </TableHead>
+                                    <TableHead className="sticky top-0 z-10 min-w-[260px] bg-card px-3 py-2.5">
+                                        {t('predictionDashboard.leaderboard.player', 'Player')}
+                                    </TableHead>
+                                    <TableHead className="sticky top-0 z-10 min-w-[110px] bg-card px-3 py-2.5 text-center">
+                                        {t('predictionDashboard.leaderboard.bets', 'Bets')}
+                                    </TableHead>
+                                    <TableHead className="sticky top-0 z-10 min-w-[130px] bg-card px-3 py-2.5 text-center">
+                                        {t('predictionDashboard.leaderboard.accuracy', 'Accuracy')}
+                                    </TableHead>
+                                    <TableHead className="sticky top-0 z-10 min-w-[120px] bg-card px-3 py-2.5 text-center">
+                                        {t('predictionDashboard.points', 'Points')}
+                                    </TableHead>
+                                </TableRow>
+                            </TableHeader>
 
-                            return (
-                                <div
-                                    key={player.ID || player.playerId || idx}
-                                    className={cn(
-                                        'flex items-center gap-2 border-b px-3 py-2.5 transition-colors hover:bg-muted/10',
-                                        player.isMe ? 'bg-primary/5' : ''
-                                    )}
-                                >
-                                    <div
-                                        className={cn(
-                                            'flex h-7 w-7 items-center justify-center rounded-full border text-xs font-bold',
-                                            getRankColor(rank)
-                                        )}
-                                    >
-                                        {rank}
-                                    </div>
-                                    <Avatar className="h-8 w-8 border shadow-sm">
-                                        <AvatarImage src={player.avatarUrl || undefined} />
-                                        <AvatarFallback>{player.displayName?.substring(0, 2).toUpperCase() || '?'}</AvatarFallback>
-                                    </Avatar>
-                                    <div className="flex-1 overflow-hidden">
-                                        <h4 className="truncate text-sm font-semibold">{player.displayName}</h4>
-                                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                                            <span className="flex items-center"><Medal className="mr-1 h-3 w-3"/> {player.totalPoints || 0} {t('predictionDashboard.leaderboard.pts')}</span>
-                                        </div>
-                                    </div>
-                                    {player.isMe && (
-                                        <div className="rounded-full border border-primary/30 bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary shadow-sm">
-                                            {t('predictionDashboard.leaderboard.you', 'You')}
-                                        </div>
-                                    )}
-                                </div>
-                            );
-                        })}
+                            <TableBody>
+                                {data.map((player, idx) => {
+                                    const rank = player.rank || idx + 1;
+                                    const totalPredictions = Number(player.totalPredictions || 0);
+                                    const totalCorrect = Number(player.totalCorrect || 0);
+                                    const accuracy = totalPredictions > 0
+                                        ? `${Math.round((totalCorrect / totalPredictions) * 100)}%`
+                                        : '-';
+
+                                    return (
+                                        <TableRow
+                                            key={player.ID || player.playerId || idx}
+                                            className={cn(
+                                                'align-top',
+                                                player.isMe ? 'bg-primary/5 ring-1 ring-inset ring-primary/40' : 'hover:bg-muted/10'
+                                            )}
+                                        >
+                                            <TableCell className="px-3 py-2.5 text-center align-middle">
+                                                <span
+                                                    className={cn(
+                                                        'inline-flex h-7 min-w-7 items-center justify-center rounded-full border px-1 text-xs font-bold',
+                                                        getRankTone(rank)
+                                                    )}
+                                                >
+                                                    {rank}
+                                                </span>
+                                            </TableCell>
+
+                                            <TableCell className="px-3 py-2.5 align-middle">
+                                                <div className="flex items-center gap-2">
+                                                    <Avatar className="h-8 w-8 border shadow-sm">
+                                                        <AvatarImage src={player.avatarUrl || undefined} />
+                                                        <AvatarFallback>{player.displayName?.substring(0, 2).toUpperCase() || '?'}</AvatarFallback>
+                                                    </Avatar>
+                                                    <span className="truncate text-sm font-semibold text-foreground">
+                                                        {player.displayName || '-'}
+                                                    </span>
+                                                </div>
+                                            </TableCell>
+
+                                            <TableCell className="px-3 py-2.5 text-center align-middle">
+                                                <span className="text-xs font-medium text-foreground">
+                                                    {totalPredictions}
+                                                </span>
+                                            </TableCell>
+
+                                            <TableCell className="px-3 py-2.5 text-center align-middle">
+                                                <span className="text-xs font-medium text-foreground">
+                                                    {accuracy}
+                                                </span>
+                                            </TableCell>
+
+                                            <TableCell className="px-3 py-2.5 text-center align-middle">
+                                                <span className="text-xs font-medium text-foreground">
+                                                    {player.totalPoints || 0} {t('predictionDashboard.leaderboard.pts', 'pts')}
+                                                </span>
+                                            </TableCell>
+                                        </TableRow>
+                                    );
+                                })}
+                            </TableBody>
+                        </Table>
                     </div>
                 )}
             </CardContent>

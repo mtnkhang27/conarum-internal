@@ -1,12 +1,11 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useEffect, useRef, useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { Eraser, Loader2, Save } from 'lucide-react';
 import axiosInstance from '@/services/core/axiosInstance';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import {
   AlertDialog,
@@ -22,17 +21,18 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { cn } from '@/utils/cn';
 import type { DateRange } from '@/components/filterbar/types';
 import { UserPredictionTableFilters } from './UserPredictionTableFilters';
+import {
+  determineOutcome,
+  OutcomeOption,
+  ScorePickBox,
+  TeamFlag,
+  type WdlPick,
+} from './PredictionTableShared';
 
 type MatchStatus = 'upcoming' | 'live' | 'finished';
-type WdlPick = 'home' | 'draw' | 'away';
 type RowActionState = 'saving' | 'clearing';
 
 const PAGE_SIZE = 6;
-interface TournamentItem {
-  ID: string;
-  name: string;
-}
-
 interface ScoreBetRow {
   betId?: string;
   predictedHomeScore: number;
@@ -107,10 +107,6 @@ function normalizePick(value?: string | null): WdlPick | undefined {
   return undefined;
 }
 
-function normalizeScoreInput(value: string) {
-  return value.replace(/\D/g, '').slice(0, 2);
-}
-
 function createLocalPickId() {
   return `pick-${Math.random().toString(36).slice(2, 10)}`;
 }
@@ -150,6 +146,27 @@ function hasAnyFilledScorePick(scorePicks: ScorePick[]) {
   return scorePicks.some((pick) => pick.home !== '' || pick.away !== '');
 }
 
+function normalizeScorePicksForSave(scorePicks: ScorePick[]) {
+  return scorePicks.map((pick) => {
+    const hasHome = pick.home !== '';
+    const hasAway = pick.away !== '';
+
+    if (hasHome && hasAway) {
+      return { ...pick };
+    }
+
+    if (!hasHome && !hasAway) {
+      return { ...pick };
+    }
+
+    return {
+      ...pick,
+      home: '',
+      away: '',
+    };
+  });
+}
+
 function hasScoreResult(match: MatchPrediction) {
   return match.actualHomeScore !== undefined && match.actualAwayScore !== undefined;
 }
@@ -164,13 +181,6 @@ function getMatchStatus(status: string, kickoff: string) {
   }
 
   return 'upcoming';
-}
-
-function determineOutcome(homeScore?: number, awayScore?: number): WdlPick | undefined {
-  if (homeScore === undefined || awayScore === undefined) return undefined;
-  if (homeScore > awayScore) return 'home';
-  if (homeScore < awayScore) return 'away';
-  return 'draw';
 }
 
 function formatKickoffLabel(kickoff: string) {
@@ -220,28 +230,6 @@ function getErrorMessage(error: unknown) {
   );
 }
 
-const FlagIcon = ({ code, crest, name }: { code: string; crest?: string; name: string }) => {
-  const fallbackSrc = `https://flagcdn.com/24x18/${(code || 'un').toLowerCase()}.png`;
-  const defaultSrc = crest || fallbackSrc;
-
-  return (
-    <img
-      src={defaultSrc}
-      alt={name}
-      className="h-10 w-16 rounded-sm border bg-background object-contain p-0.5 shadow-sm"
-      onError={(event) => {
-        const target = event.target as HTMLImageElement;
-        if (target.src !== fallbackSrc) {
-          target.src = fallbackSrc;
-          return;
-        }
-
-        target.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'/%3E";
-      }}
-    />
-  );
-};
-
 function getStatusBadge(status: MatchStatus, label: string) {
   switch (status) {
     case 'upcoming':
@@ -263,18 +251,6 @@ function getStatusBadge(status: MatchStatus, label: string) {
         </Badge>
       );
   }
-}
-
-function getPickToneClasses(tone: 'neutral' | 'correct' | 'incorrect') {
-  if (tone === 'correct') return 'border-emerald-300 bg-emerald-50 text-emerald-700';
-  if (tone === 'incorrect') return 'border-amber-300 bg-amber-50 text-amber-700';
-  return 'border-border bg-background text-foreground';
-}
-
-function getScoreCellToneClasses(tone: 'neutral' | 'correct' | 'incorrect') {
-  if (tone === 'correct') return 'border-emerald-300 bg-emerald-50 text-emerald-700';
-  if (tone === 'incorrect') return 'border-amber-300 bg-amber-50 text-amber-700';
-  return 'border-border bg-white text-foreground';
 }
 
 function mapMatchRow(row: AvailableMatchRow): MatchPrediction {
@@ -321,14 +297,13 @@ function mapMatchRow(row: AvailableMatchRow): MatchPrediction {
 
 interface UserPredictionTableProps {
   tournamentId?: string;
-  tournaments?: TournamentItem[];
   className?: string;
 }
 
-export function UserPredictionTable({ tournamentId, tournaments = [], className }: UserPredictionTableProps) {
+export function UserPredictionTable({ tournamentId, className }: UserPredictionTableProps) {
   const { t } = useTranslation();
+  const queryClient = useQueryClient();
   const [matches, setMatches] = useState<MatchPrediction[]>([]);
-  const [selectedMatchId, setSelectedMatchId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [dateRange, setDateRange] = useState<DateRange>({ from: undefined, to: undefined });
   const [hotFilter, setHotFilter] = useState<'all' | 'hot'>('all');
@@ -339,55 +314,9 @@ export function UserPredictionTable({ tournamentId, tournaments = [], className 
   const [totalCount, setTotalCount] = useState(0);
   const [rowActionState, setRowActionState] = useState<Record<string, RowActionState | undefined>>({});
   const [clearConfirmMatchId, setClearConfirmMatchId] = useState<string | null>(null);
-  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
-  const splitContainerRef = useRef<HTMLDivElement | null>(null);
   const loadMoreLockedRef = useRef(false);
-  const [detailPaneRatio, setDetailPaneRatio] = useState(0.5);
-  const [isResizingSplit, setIsResizingSplit] = useState(false);
-  const [isDesktopLayout, setIsDesktopLayout] = useState(false);
   const dateFromIso = appliedDateRange.from?.toISOString() || '';
   const dateToIso = appliedDateRange.to?.toISOString() || '';
-
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-
-    const mediaQuery = window.matchMedia('(min-width: 1280px)');
-    const updateLayout = (event?: MediaQueryListEvent) => {
-      setIsDesktopLayout(event ? event.matches : mediaQuery.matches);
-    };
-
-    updateLayout();
-    mediaQuery.addEventListener('change', updateLayout);
-
-    return () => mediaQuery.removeEventListener('change', updateLayout);
-  }, []);
-
-  useEffect(() => {
-    if (!isResizingSplit) return;
-
-    const handleMouseMove = (event: MouseEvent) => {
-      if (!splitContainerRef.current) return;
-
-      const rect = splitContainerRef.current.getBoundingClientRect();
-      const x = event.clientX - rect.left;
-      const nextRatio = x / rect.width;
-      const clampedRatio = Math.min(0.68, Math.max(0.32, nextRatio));
-
-      setDetailPaneRatio(1 - clampedRatio);
-    };
-
-    const handleMouseUp = () => {
-      setIsResizingSplit(false);
-    };
-
-    window.addEventListener('mousemove', handleMouseMove);
-    window.addEventListener('mouseup', handleMouseUp);
-
-    return () => {
-      window.removeEventListener('mousemove', handleMouseMove);
-      window.removeEventListener('mouseup', handleMouseUp);
-    };
-  }, [isResizingSplit]);
 
   useEffect(() => {
     setMatches([]);
@@ -454,6 +383,7 @@ export function UserPredictionTable({ tournamentId, tournaments = [], className 
       };
     },
     refetchOnWindowFocus: false,
+    refetchOnMount: 'always',
   });
 
   useEffect(() => {
@@ -476,19 +406,47 @@ export function UserPredictionTable({ tournamentId, tournaments = [], className 
     }
   }, [matchesQuery.isFetching]);
 
-  const tournamentNameMap = useMemo(() => {
-    const entries = tournaments.map((tournament) => [tournament.ID, tournament.name] as const);
-    return new Map(entries);
-  }, [tournaments]);
-
   const updateMatch = (matchId: string, updater: (match: MatchPrediction) => MatchPrediction) => {
     setMatches((previous) => previous.map((match) => (match.id === matchId ? updater(match) : match)));
   };
 
+  const syncCachedAvailableMatch = (
+    matchId: string,
+    updater: (row: AvailableMatchRow) => AvailableMatchRow
+  ) => {
+    queryClient.setQueriesData<{ items: AvailableMatchRow[]; totalCount: number }>(
+      { queryKey: ['availableMatches'] },
+      (cached) => {
+        if (!cached || !Array.isArray(cached.items)) {
+          return cached;
+        }
+
+        let changed = false;
+        const nextItems = cached.items.map((item) => {
+          if (item.ID !== matchId) {
+            return item;
+          }
+
+          changed = true;
+          return updater(item);
+        });
+
+        if (!changed) {
+          return cached;
+        }
+
+        return {
+          ...cached,
+          items: nextItems,
+        };
+      }
+    );
+  };
+
   const isRowLocked = (match: MatchPrediction) => match.status !== 'upcoming' || match.bettingLocked;
 
-  const getValidScores = (match: MatchPrediction) =>
-    match.scorePicks
+  const getValidScores = (scorePicks: ScorePick[]) =>
+    scorePicks
       .filter((pick) => pick.home !== '' && pick.away !== '')
       .map((pick) => ({
         homeScore: Number(pick.home),
@@ -516,11 +474,10 @@ export function UserPredictionTable({ tournamentId, tournaments = [], className 
     side: 'home' | 'away',
     value: string
   ) => {
-    const normalizedValue = normalizeScoreInput(value);
     updateMatch(matchId, (match) => ({
       ...match,
       scorePicks: match.scorePicks.map((pick) =>
-        pick.id === pickId ? { ...pick, [side]: normalizedValue } : pick
+        pick.id === pickId ? { ...pick, [side]: value } : pick
       ),
     }));
   };
@@ -545,12 +502,8 @@ export function UserPredictionTable({ tournamentId, tournaments = [], className 
     setRowActionState((previous) => ({ ...previous, [match.id]: 'saving' }));
 
     try {
-      const validScores = getValidScores(match);
-      const hadPersistedScores = hasAnyFilledScorePick(match.initialScorePicks);
-
-      if (hadPersistedScores && validScores.length === 0) {
-        await axiosInstance.post('/api/player/cancelMatchPrediction', { matchId: match.id });
-      }
+      const normalizedScorePicks = normalizeScorePicksForSave(match.scorePicks);
+      const validScores = getValidScores(normalizedScorePicks);
 
       await axiosInstance.post('/api/player/submitMatchPrediction', {
         matchId: match.id,
@@ -558,11 +511,24 @@ export function UserPredictionTable({ tournamentId, tournaments = [], className 
         scores: validScores,
       });
 
+      syncCachedAvailableMatch(match.id, (row) => ({
+        ...row,
+        myPick: match.predictedWdl ?? null,
+        myScores: validScores.map((score) => ({
+          predictedHomeScore: score.homeScore,
+          predictedAwayScore: score.awayScore,
+          isCorrect: null,
+        })),
+      }));
+      void queryClient.invalidateQueries({ queryKey: ['availableMatches'] });
+      void queryClient.invalidateQueries({ queryKey: ['recentPredictions'] });
+
       toast.success(t('predictionDashboard.predictionSaved', 'Prediction saved successfully.'));
       updateMatch(match.id, (currentMatch) => ({
         ...currentMatch,
         initialPredictedWdl: currentMatch.predictedWdl,
-        initialScorePicks: cloneScorePicks(currentMatch.scorePicks),
+        scorePicks: cloneScorePicks(normalizedScorePicks),
+        initialScorePicks: cloneScorePicks(normalizedScorePicks),
       }));
     } catch (error) {
       toast.error(t('predictionDashboard.saveFailed', 'Failed to save prediction.'), {
@@ -585,6 +551,12 @@ export function UserPredictionTable({ tournamentId, tournaments = [], className 
 
     try {
       await axiosInstance.post('/api/player/cancelMatchPrediction', { matchId: match.id });
+      syncCachedAvailableMatch(match.id, (row) => ({
+        ...row,
+        myPick: null,
+        myScores: [],
+      }));
+      void queryClient.invalidateQueries({ queryKey: ['recentPredictions'] });
       toast.success(t('predictionDashboard.predictionCleared', 'Prediction cleared successfully.'));
       updateMatch(match.id, (currentMatch) => {
         const clearedScorePicks = ensureScorePickSlots([], currentMatch.maxBets);
@@ -620,27 +592,6 @@ export function UserPredictionTable({ tournamentId, tournaments = [], className 
 
   const hasRows = matches.length > 0;
   const hasMoreMatches = matches.length < totalCount;
-  const selectedMatch = matches.find((match) => match.id === selectedMatchId) || null;
-  const selectedMatchLocked = selectedMatch ? isRowLocked(selectedMatch) : false;
-  const selectedMatchIsSaving = selectedMatch ? rowActionState[selectedMatch.id] === 'saving' : false;
-  const selectedMatchIsClearing = selectedMatch ? rowActionState[selectedMatch.id] === 'clearing' : false;
-  const selectedMatchVisibleScorePicks = selectedMatch
-    ? selectedMatchLocked
-      ? selectedMatch.scorePicks.filter((pick) => pick.home !== '' || pick.away !== '')
-      : selectedMatch.scorePicks
-    : [];
-  const canSaveSelectedMatch = selectedMatch
-    ? !selectedMatchLocked &&
-      !selectedMatchIsSaving &&
-      !selectedMatchIsClearing &&
-      Boolean(selectedMatch.predictedWdl) &&
-      hasChanges(selectedMatch)
-    : false;
-  const canClearSelectedMatch = selectedMatch
-    ? !selectedMatchIsSaving &&
-      !selectedMatchIsClearing &&
-      (hasPersistedPrediction(selectedMatch) || hasChanges(selectedMatch))
-    : false;
 
   const requestNextPage = () => {
     if (!hasMoreMatches || matchesQuery.isFetching || loadMoreLockedRef.current) {
@@ -672,68 +623,29 @@ export function UserPredictionTable({ tournamentId, tournaments = [], className 
     setAppliedHotFilter(hotFilter);
   };
 
-  useEffect(() => {
-    if (!selectedMatchId) return;
-
-    const stillExists = matches.some((match) => match.id === selectedMatchId);
-    if (!stillExists) {
-      setSelectedMatchId(null);
-    }
-  }, [matches, selectedMatchId]);
-
   const renderScorePick = (match: MatchPrediction, pick: ScorePick) => {
     const locked = isRowLocked(match);
     const tone: 'neutral' | 'correct' | 'incorrect' =
       pick.isCorrect === true ? 'correct' : pick.isCorrect === false ? 'incorrect' : 'neutral';
 
-    if (locked) {
-      return (
-        <div key={pick.id} className="inline-flex items-center gap-1.5">
-          <span
-            className={cn(
-              'inline-flex h-10 w-[52px] items-center justify-center rounded-md border text-sm font-bold',
-              getScoreCellToneClasses(hasScoreResult(match) ? tone : 'neutral')
-            )}
-          >
-            {pick.home || '-'}
-          </span>
-          <span className="text-sm font-bold text-muted-foreground">:</span>
-          <span
-            className={cn(
-              'inline-flex h-10 w-[52px] items-center justify-center rounded-md border text-sm font-bold',
-              getScoreCellToneClasses(hasScoreResult(match) ? tone : 'neutral')
-            )}
-          >
-            {pick.away || '-'}
-          </span>
-        </div>
-      );
-    }
-
     return (
       <div key={pick.id} className="inline-flex items-center gap-1.5">
-        <Input
-          type="text"
-          inputMode="numeric"
-          pattern="[0-9]*"
-          maxLength={2}
+        <ScorePickBox
           value={pick.home}
-          onChange={(event) => handleScoreChange(match.id, pick.id, 'home', event.target.value)}
-          className="h-10 w-[52px] rounded-md border-border bg-white px-0 text-center text-sm font-bold text-foreground shadow-none focus-visible:ring-1"
-          placeholder="0"
+          tone={hasScoreResult(match) ? tone : 'neutral'}
           disabled={Boolean(rowActionState[match.id])}
+          onChange={
+            locked ? undefined : (nextValue) => handleScoreChange(match.id, pick.id, 'home', nextValue)
+          }
         />
-        <span className="text-sm font-bold text-muted-foreground">:</span>
-        <Input
-          type="text"
-          inputMode="numeric"
-          pattern="[0-9]*"
-          maxLength={2}
+        <span className="text-[11px] font-semibold text-muted-foreground">:</span>
+        <ScorePickBox
           value={pick.away}
-          onChange={(event) => handleScoreChange(match.id, pick.id, 'away', event.target.value)}
-          className="h-10 w-[52px] rounded-md border-border bg-white px-0 text-center text-sm font-bold text-foreground shadow-none focus-visible:ring-1"
-          placeholder="0"
+          tone={hasScoreResult(match) ? tone : 'neutral'}
           disabled={Boolean(rowActionState[match.id])}
+          onChange={
+            locked ? undefined : (nextValue) => handleScoreChange(match.id, pick.id, 'away', nextValue)
+          }
         />
       </div>
     );
@@ -750,28 +662,21 @@ export function UserPredictionTable({ tournamentId, tournaments = [], className 
 
     return (
       <div className="flex flex-col items-center gap-2">
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-1.5">
           {(['home', 'draw', 'away'] as const).map((option) => {
             const isSelected = match.predictedWdl === option;
             const locked = isRowLocked(match);
 
             return (
-              <button
+              <OutcomeOption
                 key={option}
-                type="button"
+                selected={isSelected}
+                locked={locked && hasScoreResult(match)}
+                tone={outcomeTone}
+                label={option === 'home' ? '1' : option === 'draw' ? 'X' : '2'}
                 onClick={() => handleWdlChange(match.id, option)}
                 disabled={locked || Boolean(rowActionState[match.id])}
-                className={cn(
-                  'inline-flex min-w-10 items-center justify-center rounded-md border px-3 py-1.5 text-sm font-semibold transition-colors',
-                  isSelected
-                    ? locked && hasScoreResult(match)
-                      ? getPickToneClasses(outcomeTone)
-                      : 'border-primary bg-primary/10 text-primary'
-                    : 'border-border bg-background text-muted-foreground hover:border-primary/40 hover:text-foreground'
-                )}
-              >
-                {option === 'home' ? '1' : option === 'draw' ? 'X' : '2'}
-              </button>
+              />
             );
           })}
         </div>
@@ -784,13 +689,6 @@ export function UserPredictionTable({ tournamentId, tournaments = [], className 
       </div>
     );
   };
-
-  const splitGridStyle =
-    selectedMatch && isDesktopLayout
-      ? {
-          gridTemplateColumns: `${(1 - detailPaneRatio) * 100}% 10px ${detailPaneRatio * 100}%`,
-        }
-      : undefined;
 
   return (
     <div className={cn('flex min-h-0 h-full w-full flex-col gap-3', className)}>
@@ -821,348 +719,150 @@ export function UserPredictionTable({ tournamentId, tournaments = [], className 
             {t('predictionDashboard.noMatchesFound')}
           </div>
         ) : (
-          <div
-            ref={splitContainerRef}
-            className={cn(
-              'grid h-full min-h-0 transition-[grid-template-columns] duration-300 ease-out',
-              selectedMatch ? 'grid-cols-1 xl:grid-cols-[minmax(0,1fr)_10px_minmax(0,1fr)]' : 'grid-cols-1'
-            )}
-            style={splitGridStyle}
-          >
-            <div className="min-h-0 overflow-hidden">
-              <div
-                ref={scrollContainerRef}
-                className="scrollbar-hidden min-h-0 h-full overflow-auto"
-                onScroll={handleTableScroll}
-              >
-                <Table className="w-full min-w-[980px] table-auto">
-                  <TableHeader>
-                    <TableRow className="hover:bg-transparent">
-                      <TableHead className="sticky top-0 z-10 min-w-[150px] bg-card px-4 py-3">
-                        {t('predictionDashboard.columns.dateStage', 'Date')}
-                      </TableHead>
-                      <TableHead className="sticky top-0 z-10 min-w-[170px] bg-card px-4 py-3">
-                        {t('predictionDashboard.columns.tournament', 'Tournament')}
-                      </TableHead>
-                      <TableHead className="sticky top-0 z-10 min-w-[260px] bg-card px-4 py-3">
-                        {t('predictionDashboard.columns.teams')}
-                      </TableHead>
-                      <TableHead className="sticky top-0 z-10 min-w-[200px] bg-card px-4 py-3 text-center">
-                        {t('predictionDashboard.columns.scorePick')}
-                      </TableHead>
-                      <TableHead className="sticky top-0 z-10 min-w-[150px] bg-card px-4 py-3 text-center">
-                        {t('predictionDashboard.columns.wdlPick')}
-                      </TableHead>
-                      <TableHead className="sticky top-0 z-10 min-w-[140px] bg-card px-4 py-3 text-center">
-                        {t('predictionDashboard.actions', 'Actions')}
-                      </TableHead>
-                    </TableRow>
-                  </TableHeader>
+          <div className="scrollbar-hidden min-h-0 h-full overflow-auto" onScroll={handleTableScroll}>
+            <Table className="w-full min-w-[860px] table-auto text-[12px]">
+              <TableHeader>
+                <TableRow className="hover:bg-transparent">
+                  <TableHead className="sticky top-0 z-10 min-w-[150px] bg-card px-3 py-2.5">
+                    {t('predictionDashboard.columns.dateStage', 'Date')}
+                  </TableHead>
+                  <TableHead className="sticky top-0 z-10 min-w-[220px] bg-card px-3 py-2.5">
+                    {t('predictionDashboard.columns.teams')}
+                  </TableHead>
+                  <TableHead className="sticky top-0 z-10 min-w-[170px] bg-card px-3 py-2.5 text-center">
+                    {t('predictionDashboard.columns.scorePick')}
+                  </TableHead>
+                  <TableHead className="sticky top-0 z-10 min-w-[120px] bg-card px-3 py-2.5 text-center">
+                    {t('predictionDashboard.columns.wdlPick', 'Outcome')}
+                  </TableHead>
+                  <TableHead className="sticky top-0 z-10 min-w-[120px] bg-card px-3 py-2.5 text-center">
+                    {t('predictionDashboard.actions', 'Actions')}
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
 
-                  <TableBody>
-                    {matches.map((match) => {
-                      const locked = isRowLocked(match);
-                      const isSaving = rowActionState[match.id] === 'saving';
-                      const isClearing = rowActionState[match.id] === 'clearing';
-                      const visibleScorePicks = locked
-                        ? match.scorePicks.filter((pick) => pick.home !== '' || pick.away !== '')
-                        : match.scorePicks;
-                      const canSave =
-                        !locked && !isSaving && !isClearing && Boolean(match.predictedWdl) && hasChanges(match);
-                      const canClear =
-                        !isSaving &&
-                        !isClearing &&
-                        (hasPersistedPrediction(match) || hasChanges(match));
+              <TableBody>
+                {matches.map((match) => {
+                  const locked = isRowLocked(match);
+                  const isSaving = rowActionState[match.id] === 'saving';
+                  const isClearing = rowActionState[match.id] === 'clearing';
+                  const visibleScorePicks = locked
+                    ? match.scorePicks.filter((pick) => pick.home !== '' || pick.away !== '')
+                    : match.scorePicks;
+                  const canSave =
+                    !locked && !isSaving && !isClearing && Boolean(match.predictedWdl) && hasChanges(match);
+                  const canClear =
+                    !isSaving &&
+                    !isClearing &&
+                    (hasPersistedPrediction(match) || hasChanges(match));
 
-                      return (
-                        <TableRow
-                          key={match.id}
-                          className={cn(
-                            'align-top cursor-pointer transition-colors hover:bg-muted/20',
-                            selectedMatchId === match.id && 'bg-primary/5'
-                          )}
-                          onClick={() => setSelectedMatchId(match.id)}
-                        >
-                          <TableCell className="px-4 py-4 align-top whitespace-normal">
-                            <div className="flex flex-col gap-2">
-                              <span className="inline-flex items-center gap-1.5 text-sm font-medium text-foreground">
-                                {formatKickoffLabel(match.kickoff)}
-                              </span>
-                              {getStatusBadge(
-                                match.status,
-                                match.status === 'upcoming'
-                                  ? t('predictionDashboard.statusUpcoming')
-                                  : match.status === 'live'
-                                    ? t('predictionDashboard.statusInProcess')
-                                    : t('predictionDashboard.statusClosed')
-                              )}
-                            </div>
-                          </TableCell>
-
-                          <TableCell className="px-4 py-4 align-top whitespace-normal">
-                            <div className="flex min-h-16 items-center">
-                              <span className="text-sm font-medium text-foreground">
-                                {match.tournamentName || tournamentNameMap.get(match.tournamentId) || '-'}
-                              </span>
-                            </div>
-                          </TableCell>
-
-                          <TableCell className="px-4 py-4 align-top whitespace-normal">
-                            <div className="flex flex-col gap-2">
-                              <div className="flex items-center gap-2">
-                                <FlagIcon
-                                  code={match.homeTeam.countryCode}
-                                  crest={match.homeTeam.crest}
-                                  name={match.homeTeam.name}
-                                />
-                                <span className="text-sm font-medium text-foreground">{match.homeTeam.name}</span>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <FlagIcon
-                                  code={match.awayTeam.countryCode}
-                                  crest={match.awayTeam.crest}
-                                  name={match.awayTeam.name}
-                                />
-                                <span className="text-sm font-medium text-foreground">{match.awayTeam.name}</span>
-                              </div>
-                              {hasScoreResult(match) && (
-                                <span className="inline-flex w-fit rounded-md border border-border bg-muted/50 px-2 py-1 text-xs font-semibold text-foreground">
-                                  {match.actualHomeScore} - {match.actualAwayScore}
-                                </span>
-                              )}
-                            </div>
-                          </TableCell>
-
-                          <TableCell className="px-4 py-4 align-top whitespace-normal text-center">
-                            <div className="flex flex-col items-center gap-2" onClick={(event) => event.stopPropagation()}>
-                              {match.scoreBettingEnabled ? (
-                                <>
-                                  {visibleScorePicks.length > 0 ? (
-                                    <div className="scrollbar-hidden flex w-full justify-center overflow-x-auto overflow-y-hidden pb-1">
-                                      <div className="inline-flex min-w-[132px] flex-col items-center gap-1.5">
-                                        {visibleScorePicks.map((pick) => renderScorePick(match, pick))}
-                                      </div>
-                                    </div>
-                                  ) : (
-                                    <span className="text-sm text-muted-foreground">
-                                      {locked
-                                        ? '-'
-                                        : t('predictionDashboard.noScorePicks', 'No score picks yet')}
-                                    </span>
-                                  )}
-                                </>
-                              ) : (
-                                <span className="text-sm text-muted-foreground">-</span>
-                              )}
-                            </div>
-                          </TableCell>
-
-                          <TableCell className="px-4 py-4 align-top whitespace-normal text-center">
-                            <div className="flex justify-center" onClick={(event) => event.stopPropagation()}>
-                              {renderOutcomePick(match)}
-                            </div>
-                          </TableCell>
-
-                          <TableCell className="px-4 py-4 align-top whitespace-normal text-center">
-                            <div
-                              className="flex items-center justify-center gap-2"
-                              onClick={(event) => event.stopPropagation()}
-                            >
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Button
-                                    type="button"
-                                    size="icon"
-                                    variant="outline"
-                                    onClick={() => void handleSaveRow(match)}
-                                    disabled={!canSave}
-                                    className="h-8 w-8 cursor-pointer"
-                                  >
-                                    {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                                  </Button>
-                                </TooltipTrigger>
-                                <TooltipContent side="top">{t('common.save', 'Save')}</TooltipContent>
-                              </Tooltip>
-
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Button
-                                    type="button"
-                                    size="icon"
-                                    variant="outline"
-                                    onClick={() => requestClearRow(match.id)}
-                                    disabled={!canClear}
-                                    className="h-8 w-8 cursor-pointer"
-                                  >
-                                    {isClearing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Eraser className="h-4 w-4" />}
-                                  </Button>
-                                </TooltipTrigger>
-                                <TooltipContent side="top">{t('common.clear', 'Clear')}</TooltipContent>
-                              </Tooltip>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-
-                {matchesQuery.isFetching && hasRows && (
-                  <div className="flex items-center justify-center py-4">
-                    <Loader2 className="h-5 w-5 animate-spin text-primary" />
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {selectedMatch && isDesktopLayout && (
-              <div
-                role="separator"
-                aria-orientation="vertical"
-                onMouseDown={() => setIsResizingSplit(true)}
-                className={cn(
-                  'relative cursor-col-resize bg-border/90 transition-colors hover:bg-primary/50',
-                  isResizingSplit && 'bg-primary/70'
-                )}
-              >
-                <span className="absolute left-1/2 top-1/2 h-12 w-1 -translate-x-1/2 -translate-y-1/2 rounded-full bg-background/80" />
-              </div>
-            )}
-
-            {selectedMatch && (
-              <div
-                className={cn(
-                  'scrollbar-hidden min-h-0 overflow-auto p-4 transition-all duration-300 ease-out',
-                  isDesktopLayout ? 'opacity-100' : 'border-t opacity-100'
-                )}
-              >
-                <div className="flex items-start justify-between gap-3 border-b pb-4">
-                  <div>
-                    <h3 className="text-base font-semibold text-foreground">
-                      {selectedMatch.homeTeam.name} vs {selectedMatch.awayTeam.name}
-                    </h3>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      {formatKickoffLabel(selectedMatch.kickoff)}
-                    </p>
-                  </div>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    onClick={() => setSelectedMatchId(null)}
-                  >
-                    {t('common.close', 'Close')}
-                  </Button>
-                </div>
-
-                <div className="mt-4 space-y-4">
-                  <div className="space-y-2">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                      {t('predictionDashboard.columns.tournament', 'Tournament')}
-                    </p>
-                    <p className="text-sm text-foreground">
-                      {selectedMatch.tournamentName || tournamentNameMap.get(selectedMatch.tournamentId) || '-'}
-                    </p>
-                    {getStatusBadge(
-                      selectedMatch.status,
-                      selectedMatch.status === 'upcoming'
-                        ? t('predictionDashboard.statusUpcoming')
-                        : selectedMatch.status === 'live'
-                          ? t('predictionDashboard.statusInProcess')
-                          : t('predictionDashboard.statusClosed')
-                    )}
-                  </div>
-
-                  <div className="space-y-2">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                      {t('predictionDashboard.columns.teams', 'Teams')}
-                    </p>
-                    <div className="space-y-2 rounded-md border bg-muted/10 p-3">
-                      <div className="flex items-center gap-2">
-                        <FlagIcon
-                          code={selectedMatch.homeTeam.countryCode}
-                          crest={selectedMatch.homeTeam.crest}
-                          name={selectedMatch.homeTeam.name}
-                        />
-                        <span className="text-sm font-medium text-foreground">{selectedMatch.homeTeam.name}</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <FlagIcon
-                          code={selectedMatch.awayTeam.countryCode}
-                          crest={selectedMatch.awayTeam.crest}
-                          name={selectedMatch.awayTeam.name}
-                        />
-                        <span className="text-sm font-medium text-foreground">{selectedMatch.awayTeam.name}</span>
-                      </div>
-                      {hasScoreResult(selectedMatch) && (
-                        <span className="inline-flex w-fit rounded-md border border-border bg-background px-2 py-1 text-xs font-semibold text-foreground">
-                          {selectedMatch.actualHomeScore} - {selectedMatch.actualAwayScore}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="space-y-2">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                      {t('predictionDashboard.columns.scorePick', 'Score Pick')}
-                    </p>
-                    <div className="rounded-md border bg-muted/10 p-3">
-                      {selectedMatch.scoreBettingEnabled ? (
-                        selectedMatchVisibleScorePicks.length > 0 ? (
-                          <div className="inline-flex min-w-[132px] flex-col items-start gap-1.5">
-                            {selectedMatchVisibleScorePicks.map((pick) => renderScorePick(selectedMatch, pick))}
-                          </div>
-                        ) : (
-                          <span className="text-sm text-muted-foreground">
-                            {selectedMatchLocked ? '-' : t('predictionDashboard.noScorePicks', 'No score picks yet')}
+                  return (
+                    <TableRow key={match.id} className="align-top hover:bg-muted/20">
+                      <TableCell className="px-3 py-2.5 align-top whitespace-normal">
+                        <div className="flex flex-col gap-1.5">
+                          <span className="inline-flex items-center gap-1.5 text-xs font-medium text-foreground">
+                            {formatKickoffLabel(match.kickoff)}
                           </span>
-                        )
-                      ) : (
-                        <span className="text-sm text-muted-foreground">-</span>
-                      )}
-                    </div>
-                  </div>
+                          {getStatusBadge(
+                            match.status,
+                            match.status === 'upcoming'
+                              ? t('predictionDashboard.statusUpcoming')
+                              : match.status === 'live'
+                                ? t('predictionDashboard.statusInProcess')
+                                : t('predictionDashboard.statusClosed')
+                          )}
+                        </div>
+                      </TableCell>
 
-                  <div className="space-y-2">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                      {t('predictionDashboard.columns.wdlPick', 'Outcome Pick')}
-                    </p>
-                    <div className="rounded-md border bg-muted/10 p-3">{renderOutcomePick(selectedMatch)}</div>
-                  </div>
+                      <TableCell className="px-3 py-2.5 align-top whitespace-normal">
+                        <div className="flex flex-col gap-1.5">
+                          <div className="flex items-center gap-1.5">
+                            <TeamFlag
+                              code={match.homeTeam.countryCode}
+                              crest={match.homeTeam.crest}
+                              name={match.homeTeam.name}
+                            />
+                            <span className="text-[12px] font-medium text-foreground">{match.homeTeam.name}</span>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <TeamFlag
+                              code={match.awayTeam.countryCode}
+                              crest={match.awayTeam.crest}
+                              name={match.awayTeam.name}
+                            />
+                            <span className="text-[12px] font-medium text-foreground">{match.awayTeam.name}</span>
+                          </div>
+                        </div>
+                      </TableCell>
 
-                  <div className="flex flex-wrap gap-2 pt-2">
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          type="button"
-                          size="icon"
-                          variant="outline"
-                          onClick={() => void handleSaveRow(selectedMatch)}
-                          disabled={!canSaveSelectedMatch}
-                          className="cursor-pointer"
-                        >
-                          {selectedMatchIsSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent side="top">{t('common.save', 'Save')}</TooltipContent>
-                    </Tooltip>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          type="button"
-                          size="icon"
-                          variant="outline"
-                          onClick={() => requestClearRow(selectedMatch.id)}
-                          disabled={!canClearSelectedMatch}
-                          className="cursor-pointer"
-                        >
-                          {selectedMatchIsClearing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Eraser className="h-4 w-4" />}
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent side="top">{t('common.clear', 'Clear')}</TooltipContent>
-                    </Tooltip>
-                  </div>
-                </div>
+                      <TableCell className="px-3 py-2.5 align-top whitespace-normal text-center">
+                        <div className="flex flex-col items-center gap-1.5">
+                          {match.scoreBettingEnabled ? (
+                            visibleScorePicks.length > 0 ? (
+                              <div className="scrollbar-hidden flex w-full justify-center overflow-x-auto overflow-y-hidden pb-1">
+                                <div className="inline-flex min-w-[112px] flex-col items-center gap-1">
+                                  {visibleScorePicks.map((pick) => renderScorePick(match, pick))}
+                                </div>
+                              </div>
+                            ) : (
+                              <span className="text-xs text-muted-foreground">
+                                {locked ? '-' : t('predictionDashboard.noScorePicks', 'No score picks yet')}
+                              </span>
+                            )
+                          ) : (
+                            <span className="text-xs text-muted-foreground">-</span>
+                          )}
+                        </div>
+                      </TableCell>
+
+                      <TableCell className="px-3 py-2.5 align-top whitespace-normal text-center">
+                        <div className="flex justify-center">{renderOutcomePick(match)}</div>
+                      </TableCell>
+
+                      <TableCell className="px-3 py-2.5 align-top whitespace-normal text-center">
+                        <div className="flex items-center justify-center gap-1.5">
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                type="button"
+                                size="icon"
+                                variant="outline"
+                                onClick={() => void handleSaveRow(match)}
+                                disabled={!canSave}
+                                className="h-7 w-7 cursor-pointer"
+                              >
+                                {isSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent side="top">{t('common.save', 'Save')}</TooltipContent>
+                          </Tooltip>
+
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                type="button"
+                                size="icon"
+                                variant="outline"
+                                onClick={() => requestClearRow(match.id)}
+                                disabled={!canClear}
+                                className="h-7 w-7 cursor-pointer"
+                              >
+                                {isClearing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Eraser className="h-3.5 w-3.5" />}
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent side="top">{t('common.clear', 'Clear')}</TooltipContent>
+                          </Tooltip>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+
+            {matchesQuery.isFetching && hasRows && (
+              <div className="flex items-center justify-center py-4">
+                <Loader2 className="h-5 w-5 animate-spin text-primary" />
               </div>
             )}
           </div>

@@ -216,14 +216,22 @@ export interface MatchResultResponse extends ActionResult {
   scoreBetsScored: number;
 }
 
+export type SandboxWorkzoneRole = 'User' | 'Admin';
+export type SandboxAppRole = 'PredictionUser' | 'PredictionAdmin';
+
 export interface SandboxUserProvisionInput {
   email: string;
+  userName?: string;
   givenName?: string;
   familyName?: string;
   displayName?: string;
-  appRole?: string;
+  workzoneRole?: SandboxWorkzoneRole;
+  workzoneRoles?: SandboxWorkzoneRole[];
+  appRole?: SandboxAppRole;
+  appRoles?: SandboxAppRole[];
   password?: string;
-  makeAdmin?: boolean;
+  identityOrigin?: string;
+  userType?: string;
 }
 
 export interface SandboxUserProvisionResult {

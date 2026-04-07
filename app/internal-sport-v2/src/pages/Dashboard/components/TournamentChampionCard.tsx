@@ -166,8 +166,8 @@ export function TournamentChampionCard({
 
       <CardContent className="min-h-0 flex-1 overflow-y-auto p-4">
         {tournamentsLoading || pickerQuery.isLoading ? (
-          <div className="flex h-36 items-center justify-center">
-            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          <div className="flex h-full min-h-[220px] items-center justify-center">
+            <Loader2 className="h-7 w-7 animate-spin text-primary" />
           </div>
         ) : !teams.length ? (
           <div className="flex h-36 items-center justify-center text-sm text-muted-foreground">

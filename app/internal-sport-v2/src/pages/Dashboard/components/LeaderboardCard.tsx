@@ -58,8 +58,8 @@ export function LeaderboardCard({ tournamentId, maxRows = 8, className }: Leader
         <Card className={cn('flex h-full w-full flex-col overflow-hidden border-border bg-card shadow-sm', className)}>
             <CardContent className="min-h-0 flex-1 p-0">
                 {isLoading ? (
-                    <div className="flex h-32 items-center justify-center">
-                        <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+                    <div className="flex h-full min-h-[220px] items-center justify-center">
+                        <Loader2 className="h-7 w-7 animate-spin text-primary" />
                     </div>
                 ) : error ? (
                     <div className="p-4 text-center text-sm text-destructive">

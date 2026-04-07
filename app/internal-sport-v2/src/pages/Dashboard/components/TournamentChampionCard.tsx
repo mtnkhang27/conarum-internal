@@ -7,13 +7,10 @@ import axiosInstance from '@/services/core/axiosInstance';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/utils/cn';
+import { getLandingTournamentId, type TournamentSelectionItem } from '../tournamentSelection';
 
-interface TournamentItem {
-  ID: string;
-  name: string;
-  status?: string | null;
+interface TournamentItem extends TournamentSelectionItem {
   championBettingStatus?: 'open' | 'locked' | null;
-  isDefault?: boolean | null;
 }
 
 interface ChampionPickerRow {
@@ -83,10 +80,7 @@ export function TournamentChampionCard({
 
   const effectiveTournamentId = useMemo(() => {
     if (tournamentId) return tournamentId;
-
-    const list = tournaments;
-    const fallback = list.find((item) => item.isDefault) || list.find((item) => item.status === 'active') || list[0];
-    return fallback?.ID || '';
+    return getLandingTournamentId(tournaments);
   }, [tournamentId, tournaments]);
 
   const effectiveTournamentName = useMemo(() => {
@@ -172,8 +166,8 @@ export function TournamentChampionCard({
 
       <CardContent className="min-h-0 flex-1 overflow-y-auto p-4">
         {tournamentsLoading || pickerQuery.isLoading ? (
-          <div className="flex h-36 items-center justify-center">
-            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          <div className="flex h-full min-h-[220px] items-center justify-center">
+            <Loader2 className="h-7 w-7 animate-spin text-primary" />
           </div>
         ) : !teams.length ? (
           <div className="flex h-36 items-center justify-center text-sm text-muted-foreground">

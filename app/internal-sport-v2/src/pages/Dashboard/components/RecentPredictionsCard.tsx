@@ -4,6 +4,7 @@ import axiosInstance from '@/services/core/axiosInstance';
 import { Loader2, Trophy } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from '@/utils/cn';
+import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import {
   determineOutcome,
@@ -193,40 +194,75 @@ export function RecentPredictionsCard({ tournamentId, className }: RecentPredict
                           <TeamFlag code={item.awayFlag} crest={item.awayCrest} name={item.awayTeam || 'TBD'} />
                           <span className="text-[12px] font-medium text-foreground">{item.awayTeam || 'TBD'}</span>
                         </div>
-                      </div>
-                    </TableCell>
+                      </TableCell>
 
-                    <TableCell className="px-3 py-2.5 align-top whitespace-normal text-center">
-                      {visibleScoreBets.length > 0 ? (
-                        <div className="scrollbar-hidden flex justify-center overflow-x-auto overflow-y-hidden pb-1">
-                          <div className="inline-flex min-w-[112px] flex-col items-center gap-1">
-                            {visibleScoreBets.map((scoreBet) => renderScorePick(scoreBet, hasResult))}
+                      <TableCell className="px-3 py-2.5 align-top whitespace-normal text-center">
+                        {visibleScoreBets.length > 0 ? (
+                          <div className="scrollbar-hidden flex justify-center overflow-x-auto overflow-y-hidden pb-1">
+                            <div className="inline-flex min-w-[112px] flex-col items-center gap-1">
+                              {visibleScoreBets.map((scoreBet) => renderScorePick(scoreBet, hasResult))}
+                            </div>
                           </div>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">-</span>
+                        )}
+                      </TableCell>
+
+                      <TableCell className="px-3 py-2.5 align-top whitespace-normal text-center">
+                        <div className="flex justify-center">
+                          <span
+                            className={cn(
+                              'inline-flex h-8 w-9 items-center justify-center rounded-md border text-[11px] font-semibold',
+                              getPickToneClasses(outcomeTone)
+                            )}
+                          >
+                            {pickLabel(item.pick)}
+                          </span>
                         </div>
-                      ) : (
-                        <span className="text-xs text-muted-foreground">-</span>
-                      )}
-                    </TableCell>
+                      </TableCell>
 
-                    <TableCell className="px-3 py-2.5 align-top whitespace-normal text-center">
-                      <div className="flex justify-center">
-                        <span
-                          className={cn(
-                            'inline-flex h-8 w-9 items-center justify-center rounded-md border text-[11px] font-semibold',
-                            getPickToneClasses(outcomeTone)
-                          )}
-                        >
-                          {pickLabel(item.pick)}
+                      <TableCell className="px-3 py-2.5 align-top whitespace-normal text-center">
+                        {hasResult ? (
+                          <div className="inline-flex items-center gap-1.5">
+                            <ScorePickBox value={String(item.homeScore)} tone={outcomeTone} />
+                            <span className="text-[11px] font-semibold text-muted-foreground">:</span>
+                            <ScorePickBox value={String(item.awayScore)} tone={outcomeTone} />
+                          </div>
+                        ) : (
+                          <span className="inline-flex h-8 min-w-14 items-center justify-center rounded-md border px-2 text-[11px] font-semibold">
+                            -
+                          </span>
+                        )}
+                      </TableCell>
+
+                      <TableCell className="px-3 py-2.5 align-top whitespace-normal text-center">
+                        <span className="text-xs font-medium text-foreground">
+                          {scoreBetSummary
+                            ? isScored
+                              ? `${earnedSummary} (${scoreBetSummary})`
+                              : `${t('predictionDashboard.pending', 'Pending')} (${scoreBetSummary})`
+                            : isScored
+                              ? earnedSummary
+                              : t('predictionDashboard.pending', 'Pending')}
                         </span>
-                      </div>
-                    </TableCell>
+                      </TableCell>
 
-                    <TableCell className="px-3 py-2.5 align-top whitespace-normal text-center">
-                      {hasResult ? (
-                        <div className="inline-flex items-center gap-1.5">
-                          <ScorePickBox value={String(item.homeScore)} tone={outcomeTone} />
-                          <span className="text-[11px] font-semibold text-muted-foreground">:</span>
-                          <ScorePickBox value={String(item.awayScore)} tone={outcomeTone} />
+                      <TableCell className="px-3 py-2.5 align-top whitespace-normal text-center">
+                        <div className="flex justify-center">
+                          <span
+                            className={cn(
+                              'text-xs font-medium',
+                              item.isCorrect === true
+                                ? 'text-emerald-700'
+                                : item.isCorrect === false
+                                  ? 'text-amber-700'
+                                  : 'text-muted-foreground'
+                            )}
+                          >
+                            {isScored && pointsEarned !== null
+                              ? `${pointsEarned.toFixed(2)} ${t('predictionDashboard.points', 'pts')}`
+                              : t('predictionDashboard.pending', 'Pending')}
+                          </span>
                         </div>
                       ) : (
                         <span className="inline-flex h-8 min-w-14 items-center justify-center rounded-md border px-2 text-[11px] font-semibold">

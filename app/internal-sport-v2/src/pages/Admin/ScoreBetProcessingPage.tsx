@@ -1,14 +1,31 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { toast } from 'sonner';
-import { CheckCheck, RefreshCcw, Search, Undo2 } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { scoreBetProcessingApi, tournamentsApi } from '@/services/adminApi';
-import type { AdminScoreBetProcessingView, AdminTournament } from '@/types/admin';
-import { cn } from '@/utils/cn';
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
+import {
+  ChevronDown,
+  ChevronRight,
+  Loader2,
+  RefreshCcw,
+  Search,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { scoreBetProcessingApi, tournamentsApi } from "@/services/adminApi";
+import type {
+  AdminScoreBetProcessingView,
+  AdminTournament,
+} from "@/types/admin";
+import { cn } from "@/utils/cn";
+import { ScorePickBox } from "@/pages/Dashboard/components/PredictionTableShared";
 import {
   EmptySelectionPanel,
   PlayerAvatar,
@@ -17,18 +34,32 @@ import {
   formatAuditTimestamp,
   formatCurrencyValue,
   formatStageLabel,
-} from './shared';
+  matchStatusTone,
+  pickToneClasses,
+} from "./shared";
 
 const FIELD_CLASSNAME =
-  'h-9 rounded-md border border-border bg-background px-3 text-sm text-foreground shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/20';
+  "h-8 rounded-md border border-border bg-background px-3 text-sm text-foreground shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/20";
 
-type ProcessingFilter = 'pending' | 'processed' | 'all';
-type ScoreTone = 'neutral' | 'correct' | 'incorrect';
+type ProcessingFilter = "pending" | "processed" | "all";
 
-type ScoreBetProcessingMatchGroup = {
+type PlayerProcessingGroup = {
+  playerId: string;
+  playerName: string;
+  playerAvatar?: string | null;
+  playerEmail?: string | null;
+  bets: AdminScoreBetProcessingView[];
+  totalReward: number;
+  pendingReward: number;
+  pendingCount: number;
+  processedCount: number;
+};
+
+type MatchProcessingGroup = {
   matchId: string;
+  tournamentId: string;
   kickoff?: string | null;
-  stage?: AdminScoreBetProcessingView['stage'];
+  stage?: AdminScoreBetProcessingView["stage"];
   homeTeamName?: string | null;
   homeTeamFlag?: string | null;
   homeTeamCrest?: string | null;
@@ -38,19 +69,7 @@ type ScoreBetProcessingMatchGroup = {
   actualHomeScore?: number | null;
   actualAwayScore?: number | null;
   status: string;
-  bets: AdminScoreBetProcessingView[];
-  totalReward: number;
-  pendingReward: number;
-  pendingCount: number;
-  processedCount: number;
-};
-
-type ScoreBetProcessingGroup = {
-  playerId: string;
-  playerName: string;
-  playerAvatar?: string | null;
-  playerEmail?: string | null;
-  matches: ScoreBetProcessingMatchGroup[];
+  players: PlayerProcessingGroup[];
   totalReward: number;
   pendingReward: number;
   pendingCount: number;
@@ -58,25 +77,25 @@ type ScoreBetProcessingGroup = {
   totalBets: number;
 };
 
-type GroupAccumulator = Omit<ScoreBetProcessingGroup, 'matches'> & {
-  matchMap: Map<string, ScoreBetProcessingMatchGroup>;
+type MatchAccumulator = Omit<MatchProcessingGroup, "players"> & {
+  playerMap: Map<string, PlayerProcessingGroup>;
 };
 
 function EmptyState({ filter }: { filter: ProcessingFilter }) {
-  if (filter === 'processed') {
+  if (filter === "processed") {
     return (
       <EmptySelectionPanel
         title="No processed score bets"
-        description="Processed exact-score rewards for the selected tournament will appear here once the admin marks them complete."
+        description="Processed exact-score payouts for the selected tournament will appear here after admin confirmation."
       />
     );
   }
 
-  if (filter === 'all') {
+  if (filter === "all") {
     return (
       <EmptySelectionPanel
         title="No winning score bets yet"
-        description="After match results are entered and exact-score winners exist, they will be grouped here by player for payout tracking."
+        description="After match results are entered, exact-score winners will be grouped here by match."
       />
     );
   }
@@ -84,103 +103,64 @@ function EmptyState({ filter }: { filter: ProcessingFilter }) {
   return (
     <EmptySelectionPanel
       title="No pending score-bet payouts"
-      description="Every correct score bet in the selected tournament has already been marked as processed."
+      description="Every winning exact-score bet in this tournament has already been processed."
     />
   );
 }
 
-function getScoreTone(
-  predictedHomeScore: number,
-  predictedAwayScore: number,
-  actualHomeScore?: number | null,
-  actualAwayScore?: number | null,
-): ScoreTone {
-  if (typeof actualHomeScore !== 'number' || typeof actualAwayScore !== 'number') {
-    return 'neutral';
-  }
-
-  if (predictedHomeScore === actualHomeScore && predictedAwayScore === actualAwayScore) {
-    return 'correct';
-  }
-
-  return 'incorrect';
-}
-
-function getScoreToneClasses(tone: ScoreTone) {
-  if (tone === 'correct') return 'border-emerald-300 bg-emerald-50 text-emerald-700';
-  if (tone === 'incorrect') return 'border-amber-300 bg-amber-50 text-amber-700';
-  return 'border-border bg-background text-foreground';
-}
-
-function ScoreBox({ value, tone = 'neutral' }: { value: string; tone?: ScoreTone }) {
+function ScorePill({
+  homeScore,
+  awayScore,
+}: {
+  homeScore: number;
+  awayScore: number;
+}) {
   return (
-    <span
-      className={cn(
-        'inline-flex h-8 w-9 items-center justify-center rounded-md border text-[11px] font-semibold',
-        getScoreToneClasses(tone),
-      )}
-    >
-      {value}
-    </span>
-  );
-}
-
-function renderScorePick(match: ScoreBetProcessingMatchGroup, bet: AdminScoreBetProcessingView) {
-  const tone = getScoreTone(
-    bet.predictedHomeScore,
-    bet.predictedAwayScore,
-    match.actualHomeScore,
-    match.actualAwayScore,
-  );
-
-  return (
-    <div key={bet.ID} className="inline-flex items-center gap-1.5">
-      <ScoreBox value={String(bet.predictedHomeScore)} tone={tone} />
+    <div className="inline-flex items-center gap-1.5 rounded-md border border-border/80 bg-card px-2 py-1">
+      <ScorePickBox value={String(homeScore)} tone="correct" />
       <span className="text-[11px] font-semibold text-muted-foreground">:</span>
-      <ScoreBox value={String(bet.predictedAwayScore)} tone={tone} />
+      <ScorePickBox value={String(awayScore)} tone="correct" />
     </div>
   );
 }
 
-function getMatchStatusBadges(match: ScoreBetProcessingMatchGroup) {
-  if (match.pendingCount > 0 && match.processedCount > 0) {
-    return [
-      {
-        label: `${match.pendingCount} pending`,
-        tone: 'border-amber-200 bg-amber-50 text-amber-700',
-      },
-      {
-        label: `${match.processedCount} processed`,
-        tone: 'border-emerald-200 bg-emerald-50 text-emerald-700',
-      },
-    ];
+function getWinningSideLabel(match: MatchProcessingGroup) {
+  if (
+    typeof match.actualHomeScore !== "number" ||
+    typeof match.actualAwayScore !== "number"
+  ) {
+    return "Pending result";
   }
 
-  if (match.pendingCount > 0) {
-    return [
-      {
-        label: 'Pending',
-        tone: 'border-amber-200 bg-amber-50 text-amber-700',
-      },
-    ];
+  if (match.actualHomeScore === match.actualAwayScore) {
+    return "Draw";
   }
 
-  return [
-    {
-      label: 'Processed',
-      tone: 'border-emerald-200 bg-emerald-50 text-emerald-700',
-    },
-  ];
+  return match.actualHomeScore > match.actualAwayScore
+    ? match.homeTeamName || "Home"
+    : match.awayTeamName || "Away";
+}
+
+function getActionLabel(pendingCount: number, entityLabel: string) {
+  return pendingCount > 0 ? `Process ${entityLabel}` : "Set pending";
+}
+
+function getActionVariant(pendingCount: number) {
+  return pendingCount > 0 ? "default" : "outline";
 }
 
 export function ScoreBetProcessingPage() {
   const [tournaments, setTournaments] = useState<AdminTournament[]>([]);
-  const [selectedTournamentId, setSelectedTournamentId] = useState('');
-  const [processingFilter, setProcessingFilter] = useState<ProcessingFilter>('pending');
-  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedTournamentId, setSelectedTournamentId] = useState("");
+  const [processingFilter, setProcessingFilter] =
+    useState<ProcessingFilter>("pending");
+  const [searchTerm, setSearchTerm] = useState("");
   const [scoreBets, setScoreBets] = useState<AdminScoreBetProcessingView[]>([]);
   const [loading, setLoading] = useState(true);
-  const [busyPlayerId, setBusyPlayerId] = useState<string | null>(null);
+  const [busyKey, setBusyKey] = useState<string | null>(null);
+  const [expandedMatches, setExpandedMatches] = useState<Set<string>>(
+    new Set(),
+  );
 
   const loadTournaments = useCallback(async () => {
     setLoading(true);
@@ -193,38 +173,50 @@ export function ScoreBetProcessingPage() {
 
         const preferredTournament =
           nextTournaments.find((item) => item.isDefault) ||
-          nextTournaments.find((item) => item.status === 'active') ||
+          nextTournaments.find((item) => item.status === "active") ||
           nextTournaments[0];
 
-        return preferredTournament?.ID || '';
+        return preferredTournament?.ID || "";
       });
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to load tournaments.');
+      toast.error(
+        error instanceof Error ? error.message : "Failed to load tournaments.",
+      );
     } finally {
       setLoading(false);
     }
   }, []);
 
-  const loadScoreBets = useCallback(async (tournamentId = selectedTournamentId, filter = processingFilter) => {
-    if (!tournamentId) {
-      setScoreBets([]);
-      setLoading(false);
-      return;
-    }
+  const loadScoreBets = useCallback(
+    async (tournamentId = selectedTournamentId, filter = processingFilter) => {
+      if (!tournamentId) {
+        setScoreBets([]);
+        setLoading(false);
+        return;
+      }
 
-    setLoading(true);
+      setLoading(true);
 
-    try {
-      const nextScoreBets = await scoreBetProcessingApi.listByTournament(tournamentId, {
-        processed: filter === 'all' ? undefined : filter === 'processed',
-      });
-      setScoreBets(nextScoreBets);
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to load score-bet processing data.');
-    } finally {
-      setLoading(false);
-    }
-  }, [processingFilter, selectedTournamentId]);
+      try {
+        const nextScoreBets = await scoreBetProcessingApi.listByTournament(
+          tournamentId,
+          {
+            processed: filter === "all" ? undefined : filter === "processed",
+          },
+        );
+        setScoreBets(nextScoreBets);
+      } catch (error) {
+        toast.error(
+          error instanceof Error
+            ? error.message
+            : "Failed to load score-bet processing data.",
+        );
+      } finally {
+        setLoading(false);
+      }
+    },
+    [processingFilter, selectedTournamentId],
+  );
 
   useEffect(() => {
     void loadTournaments();
@@ -235,43 +227,16 @@ export function ScoreBetProcessingPage() {
     void loadScoreBets(selectedTournamentId, processingFilter);
   }, [loadScoreBets, processingFilter, selectedTournamentId]);
 
-  const groupedUsers = useMemo<ScoreBetProcessingGroup[]>(() => {
-    const grouped = new Map<string, GroupAccumulator>();
+  const groupedMatches = useMemo<MatchProcessingGroup[]>(() => {
+    const grouped = new Map<string, MatchAccumulator>();
 
     for (const bet of scoreBets) {
-      let playerGroup = grouped.get(bet.player_ID);
+      let matchGroup = grouped.get(bet.match_ID);
 
-      if (!playerGroup) {
-        playerGroup = {
-          playerId: bet.player_ID,
-          playerName: bet.playerName || 'Unknown player',
-          playerAvatar: bet.playerAvatar,
-          playerEmail: bet.playerEmail,
-          matchMap: new Map<string, ScoreBetProcessingMatchGroup>(),
-          totalReward: 0,
-          pendingReward: 0,
-          pendingCount: 0,
-          processedCount: 0,
-          totalBets: 0,
-        };
-        grouped.set(bet.player_ID, playerGroup);
-      }
-
-      const prizeAmount = Number(bet.prizeAmount || 0);
-      playerGroup.totalReward += prizeAmount;
-      playerGroup.totalBets += 1;
-
-      if (bet.isProcessed) {
-        playerGroup.processedCount += 1;
-      } else {
-        playerGroup.pendingCount += 1;
-        playerGroup.pendingReward += prizeAmount;
-      }
-
-      let matchGroup = playerGroup.matchMap.get(bet.match_ID);
       if (!matchGroup) {
         matchGroup = {
           matchId: bet.match_ID,
+          tournamentId: bet.tournament_ID,
           kickoff: bet.kickoff,
           stage: bet.stage,
           homeTeamName: bet.homeTeamName,
@@ -283,21 +248,45 @@ export function ScoreBetProcessingPage() {
           actualHomeScore: bet.actualHomeScore,
           actualAwayScore: bet.actualAwayScore,
           status: bet.status,
+          playerMap: new Map<string, PlayerProcessingGroup>(),
+          totalReward: 0,
+          pendingReward: 0,
+          pendingCount: 0,
+          processedCount: 0,
+          totalBets: 0,
+        };
+        grouped.set(bet.match_ID, matchGroup);
+      }
+
+      let playerGroup = matchGroup.playerMap.get(bet.player_ID);
+      if (!playerGroup) {
+        playerGroup = {
+          playerId: bet.player_ID,
+          playerName: bet.playerName || "Unknown player",
+          playerAvatar: bet.playerAvatar,
+          playerEmail: bet.playerEmail,
           bets: [],
           totalReward: 0,
           pendingReward: 0,
           pendingCount: 0,
           processedCount: 0,
         };
-        playerGroup.matchMap.set(bet.match_ID, matchGroup);
+        matchGroup.playerMap.set(bet.player_ID, playerGroup);
       }
 
-      matchGroup.bets.push(bet);
+      const prizeAmount = Number(bet.prizeAmount || 0);
+
+      playerGroup.bets.push(bet);
+      playerGroup.totalReward += prizeAmount;
       matchGroup.totalReward += prizeAmount;
+      matchGroup.totalBets += 1;
 
       if (bet.isProcessed) {
+        playerGroup.processedCount += 1;
         matchGroup.processedCount += 1;
       } else {
+        playerGroup.pendingCount += 1;
+        playerGroup.pendingReward += prizeAmount;
         matchGroup.pendingCount += 1;
         matchGroup.pendingReward += prizeAmount;
       }
@@ -306,127 +295,183 @@ export function ScoreBetProcessingPage() {
     const normalizedSearch = searchTerm.trim().toLowerCase();
 
     return [...grouped.values()]
-      .map((group) => {
-        const allMatches = [...group.matchMap.values()]
-          .map((match) => ({
-            ...match,
-            bets: [...match.bets].sort((left, right) => {
-              const leftTime = left.submittedAt ? new Date(left.submittedAt).getTime() : 0;
-              const rightTime = right.submittedAt ? new Date(right.submittedAt).getTime() : 0;
+      .map((match) => {
+        const allPlayers = [...match.playerMap.values()]
+          .map((player) => ({
+            ...player,
+            bets: [...player.bets].sort((left, right) => {
+              const leftTime = left.submittedAt
+                ? new Date(left.submittedAt).getTime()
+                : 0;
+              const rightTime = right.submittedAt
+                ? new Date(right.submittedAt).getTime()
+                : 0;
               return rightTime - leftTime;
             }),
           }))
           .sort((left, right) => {
-            const leftKickoff = left.kickoff ? new Date(left.kickoff).getTime() : 0;
-            const rightKickoff = right.kickoff ? new Date(right.kickoff).getTime() : 0;
-            return rightKickoff - leftKickoff;
+            if (right.pendingCount !== left.pendingCount) {
+              return right.pendingCount - left.pendingCount;
+            }
+
+            return left.playerName.localeCompare(right.playerName);
           });
 
         if (!normalizedSearch) {
           return {
-            playerId: group.playerId,
-            playerName: group.playerName,
-            playerAvatar: group.playerAvatar,
-            playerEmail: group.playerEmail,
-            totalReward: group.totalReward,
-            pendingReward: group.pendingReward,
-            pendingCount: group.pendingCount,
-            processedCount: group.processedCount,
-            totalBets: group.totalBets,
-            matches: allMatches,
+            ...match,
+            players: allPlayers,
           };
         }
 
-        const playerMatchesSearch = [group.playerName, group.playerEmail].join(' ').toLowerCase();
-        const filteredMatches = allMatches.filter((match) =>
-          `${match.homeTeamName || ''} ${match.awayTeamName || ''}`.toLowerCase().includes(normalizedSearch),
-        );
-        const matches = playerMatchesSearch.includes(normalizedSearch) ? allMatches : filteredMatches;
+        const matchSearchText = [
+          match.homeTeamName,
+          match.awayTeamName,
+          match.stage,
+          // getWinningSideLabel(match),
+        ]
+          .join(" ")
+          .toLowerCase();
+
+        const filteredPlayers = allPlayers.filter((player) => {
+          const playerSearchText = [
+            player.playerName,
+            player.playerEmail,
+            ...player.bets.map(
+              (bet) => `${bet.predictedHomeScore}:${bet.predictedAwayScore}`,
+            ),
+          ]
+            .join(" ")
+            .toLowerCase();
+
+          return playerSearchText.includes(normalizedSearch);
+        });
+
+        const visiblePlayers = matchSearchText.includes(normalizedSearch)
+          ? allPlayers
+          : filteredPlayers;
 
         return {
-          playerId: group.playerId,
-          playerName: group.playerName,
-          playerAvatar: group.playerAvatar,
-          playerEmail: group.playerEmail,
-          totalReward: matches.reduce((sum, match) => sum + match.totalReward, 0),
-          pendingReward: matches.reduce((sum, match) => sum + match.pendingReward, 0),
-          pendingCount: matches.reduce((sum, match) => sum + match.pendingCount, 0),
-          processedCount: matches.reduce((sum, match) => sum + match.processedCount, 0),
-          totalBets: matches.reduce((sum, match) => sum + match.bets.length, 0),
-          matches,
+          ...match,
+          totalReward: visiblePlayers.reduce(
+            (sum, player) => sum + player.totalReward,
+            0,
+          ),
+          pendingReward: visiblePlayers.reduce(
+            (sum, player) => sum + player.pendingReward,
+            0,
+          ),
+          pendingCount: visiblePlayers.reduce(
+            (sum, player) => sum + player.pendingCount,
+            0,
+          ),
+          processedCount: visiblePlayers.reduce(
+            (sum, player) => sum + player.processedCount,
+            0,
+          ),
+          totalBets: visiblePlayers.reduce(
+            (sum, player) => sum + player.bets.length,
+            0,
+          ),
+          players: visiblePlayers,
         };
       })
-      .filter((group) => group.matches.length > 0)
+      .filter((match) => match.players.length > 0)
       .sort((left, right) => {
         if (right.pendingCount !== left.pendingCount) {
           return right.pendingCount - left.pendingCount;
         }
 
-        return left.playerName.localeCompare(right.playerName);
+        const leftKickoff = left.kickoff ? new Date(left.kickoff).getTime() : 0;
+        const rightKickoff = right.kickoff
+          ? new Date(right.kickoff).getTime()
+          : 0;
+        return rightKickoff - leftKickoff;
       });
   }, [scoreBets, searchTerm]);
 
-  const selectedTournament = useMemo(
-    () => tournaments.find((item) => item.ID === selectedTournamentId) ?? null,
-    [selectedTournamentId, tournaments],
-  );
-
   const stats = useMemo(() => {
-    const pendingUsers = groupedUsers.filter((group) => group.pendingCount > 0).length;
-    const pendingReward = groupedUsers.reduce((sum, group) => sum + group.pendingReward, 0);
+    const pendingMatches = groupedMatches.filter(
+      (match) => match.pendingCount > 0,
+    ).length;
+    const players = groupedMatches.reduce(
+      (sum, match) => sum + match.players.length,
+      0,
+    );
+    const pendingReward = groupedMatches.reduce(
+      (sum, match) => sum + match.pendingReward,
+      0,
+    );
 
     return {
-      players: groupedUsers.length,
-      scoreBets: scoreBets.length,
-      pendingUsers,
+      matches: groupedMatches.length,
+      players,
+      pendingMatches,
       pendingReward,
     };
-  }, [groupedUsers, scoreBets.length]);
+  }, [groupedMatches]);
 
   const handleRefresh = async () => {
     await loadScoreBets();
   };
 
-  const handleSetProcessed = async (group: ScoreBetProcessingGroup, processed: boolean) => {
+  const handleSetProcessed = async (
+    match: MatchProcessingGroup,
+    player?: PlayerProcessingGroup,
+  ) => {
     if (!selectedTournamentId) return;
 
-    setBusyPlayerId(group.playerId);
+    const actionKey = player
+      ? `player:${match.matchId}:${player.playerId}`
+      : `match:${match.matchId}`;
+    const processed = player ? player.pendingCount > 0 : match.pendingCount > 0;
+
+    setBusyKey(actionKey);
 
     try {
-      const result = await scoreBetProcessingApi.setPlayerProcessed(group.playerId, selectedTournamentId, processed);
+      const result = await scoreBetProcessingApi.setProcessed(
+        match.matchId,
+        selectedTournamentId,
+        processed,
+        player?.playerId,
+      );
       toast.success(result.message);
       await loadScoreBets(selectedTournamentId, processingFilter);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to update score-bet processing status.');
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : "Failed to update score-bet processing status.",
+      );
     } finally {
-      setBusyPlayerId(null);
+      setBusyKey(null);
     }
+  };
+
+  const toggleExpandedMatch = (matchId: string) => {
+    setExpandedMatches((current) => {
+      const next = new Set(current);
+      if (next.has(matchId)) {
+        next.delete(matchId);
+      } else {
+        next.add(matchId);
+      }
+      return next;
+    });
   };
 
   return (
     <div className="space-y-6">
       <Card className="border-border/80 shadow-sm">
         <CardHeader className="border-b border-border/80 bg-muted/20">
-          <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-            <div className="space-y-2">
-              <CardTitle className="text-xl">Score Bet Processing</CardTitle>
-              <p className="max-w-2xl text-sm text-muted-foreground">
-                Review correct exact-score bets in a compact table, grouped by user and match, then mark each player batch as processed after the admin finishes manual payout handling.
-              </p>
-            </div>
-
-            <Button variant="outline" onClick={() => void handleRefresh()} disabled={loading || !selectedTournamentId}>
-              <RefreshCcw className="h-4 w-4" />
-              Refresh
-            </Button>
-          </div>
-
           <div className="flex flex-col gap-3 pt-4 xl:flex-row xl:items-center xl:justify-between">
             <div className="flex flex-1 flex-wrap items-center gap-3">
               <select
-                className={cn(FIELD_CLASSNAME, 'min-w-[220px]')}
+                className={cn(FIELD_CLASSNAME, "min-w-[220px]")}
                 value={selectedTournamentId}
-                onChange={(event) => setSelectedTournamentId(event.target.value)}
+                onChange={(event) =>
+                  setSelectedTournamentId(event.target.value)
+                }
                 disabled={tournaments.length === 0}
               >
                 <option value="" disabled>
@@ -444,76 +489,98 @@ export function ScoreBetProcessingPage() {
                 <Input
                   value={searchTerm}
                   onChange={(event) => setSearchTerm(event.target.value)}
-                  placeholder="Search by player, email, or match"
+                  placeholder="Search by match, player, email, or score"
                   className="pl-9"
                 />
               </div>
             </div>
 
-            <Tabs value={processingFilter} onValueChange={(value) => setProcessingFilter(value as ProcessingFilter)}>
+            <Tabs
+              value={processingFilter}
+              onValueChange={(value) =>
+                setProcessingFilter(value as ProcessingFilter)
+              }
+            >
               <TabsList className="grid w-full grid-cols-3 xl:w-[360px]">
                 <TabsTrigger value="pending">Pending</TabsTrigger>
                 <TabsTrigger value="processed">Processed</TabsTrigger>
                 <TabsTrigger value="all">All</TabsTrigger>
               </TabsList>
             </Tabs>
+
+            <Button
+              variant="outline"
+              onClick={() => void handleRefresh()}
+              disabled={loading || !selectedTournamentId}
+            >
+              <RefreshCcw className="h-4 w-4" />
+              Refresh
+            </Button>
           </div>
         </CardHeader>
 
-        <CardContent className="space-y-4 p-6">
-          <div className="flex flex-wrap items-center gap-x-5 gap-y-2 rounded-xl border border-border/80 bg-muted/10 px-4 py-3 text-sm text-muted-foreground">
-            {selectedTournament ? (
-              <span>
-                Working tournament: <span className="font-semibold text-foreground">{selectedTournament.name}</span>
-                {selectedTournament.season ? ` - ${selectedTournament.season}` : ''}
-              </span>
-            ) : (
-              <span>Select a tournament to review score-bet payouts.</span>
-            )}
-            <span>Players: <span className="font-semibold text-foreground">{stats.players}</span></span>
-            <span>Winning bets: <span className="font-semibold text-foreground">{stats.scoreBets}</span></span>
-            <span>Pending users: <span className="font-semibold text-foreground">{stats.pendingUsers}</span></span>
-            <span>Pending reward: <span className="font-semibold text-foreground">{formatCurrencyValue(stats.pendingReward)}</span></span>
+        <CardContent className="space-y-4 p-4">
+          <div className="grid gap-3 md:grid-cols-4">
+            <div className="rounded-lg border border-border/80 bg-muted/10 p-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Matches
+              </p>
+              <p className="mt-2 text-2xl font-semibold text-foreground">
+                {stats.matches}
+              </p>
+            </div>
+            <div className="rounded-lg border border-border/80 bg-muted/10 p-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Winning players
+              </p>
+              <p className="mt-2 text-2xl font-semibold text-foreground">
+                {stats.players}
+              </p>
+            </div>
+            <div className="rounded-lg border border-border/80 bg-muted/10 p-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Pending matches
+              </p>
+              <p className="mt-2 text-2xl font-semibold text-foreground">
+                {stats.pendingMatches}
+              </p>
+            </div>
+            <div className="rounded-lg border border-border/80 bg-muted/10 p-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Pending reward
+              </p>
+              <p className="mt-2 text-2xl font-semibold text-foreground">
+                {formatCurrencyValue(stats.pendingReward)}
+              </p>
+            </div>
           </div>
 
           {loading ? (
             <EmptySelectionPanel
               title="Loading score-bet processing data"
-              description="Fetching correct exact-score bets for the selected tournament."
+              description="Fetching winning exact-score bets for the selected tournament."
             />
           ) : !selectedTournamentId ? (
             <EmptySelectionPanel
               title="Select a tournament"
               description="Choose a tournament first to review exact-score payouts."
             />
-          ) : groupedUsers.length === 0 ? (
+          ) : groupedMatches.length === 0 ? (
             <EmptyState filter={processingFilter} />
           ) : (
-            <div className="overflow-hidden rounded-xl border border-border/80">
+            <div className="overflow-hidden rounded-lg border border-border/80">
               <div className="scrollbar-hidden max-h-[70vh] overflow-auto">
-                <Table className="w-full min-w-[1240px] table-auto text-[12px]">
+                <Table className="w-full min-w-[1180px] table-auto text-sm">
                   <TableHeader>
                     <TableRow className="hover:bg-transparent">
-                      <TableHead className="sticky top-0 z-10 min-w-[220px] bg-card px-3 py-2.5">
-                        Player
+                      <TableHead className="sticky top-0 z-10 min-w-[360px] bg-card px-3 py-2.5">
+                        Match
                       </TableHead>
-                      <TableHead className="sticky top-0 z-10 min-w-[150px] bg-card px-3 py-2.5">
-                        Date
-                      </TableHead>
-                      <TableHead className="sticky top-0 z-10 min-w-[220px] bg-card px-3 py-2.5">
-                        Teams
-                      </TableHead>
-                      <TableHead className="sticky top-0 z-10 min-w-[180px] bg-card px-3 py-2.5 text-center">
-                        Score picks
-                      </TableHead>
-                      <TableHead className="sticky top-0 z-10 min-w-[110px] bg-card px-3 py-2.5 text-center">
+                      <TableHead className="sticky top-0 z-10 min-w-[170px] bg-card px-3 py-2.5 text-center">
                         Result
                       </TableHead>
-                      <TableHead className="sticky top-0 z-10 min-w-[150px] bg-card px-3 py-2.5 text-center">
-                        Reward
-                      </TableHead>
-                      <TableHead className="sticky top-0 z-10 min-w-[140px] bg-card px-3 py-2.5 text-center">
-                        Status
+                      <TableHead className="sticky top-0 z-10 min-w-[180px] bg-card px-3 py-2.5 text-center">
+                        Winner
                       </TableHead>
                       <TableHead className="sticky top-0 z-10 min-w-[190px] bg-card px-3 py-2.5 text-center">
                         Action
@@ -522,153 +589,286 @@ export function ScoreBetProcessingPage() {
                   </TableHeader>
 
                   <TableBody>
-                    {groupedUsers.flatMap((group) => {
-                      const canMarkProcessed = group.pendingCount > 0;
-                      const showProcessedToggle = !canMarkProcessed && group.processedCount > 0;
-                      const actionLabel = canMarkProcessed ? 'Mark all processed' : 'Set all to pending';
+                    {groupedMatches.flatMap((match) => {
+                      const isExpanded = expandedMatches.has(match.matchId);
+                      const actionKey = `match:${match.matchId}`;
+                      const canTogglePending =
+                        match.pendingCount > 0 || match.processedCount > 0;
 
-                      return group.matches.map((match, index) => (
-                        <TableRow key={`${group.playerId}-${match.matchId}`} className="align-top">
-                          {index === 0 ? (
-                            <TableCell rowSpan={group.matches.length} className="px-3 py-3 align-top whitespace-normal">
-                              <div className="flex min-w-0 items-start gap-3">
-                                <PlayerAvatar name={group.playerName} avatar={group.playerAvatar} className="h-10 w-10" />
-                                <div className="min-w-0 space-y-1.5">
-                                  <p className="truncate text-sm font-semibold text-foreground">{group.playerName}</p>
-                                  <p className="truncate text-xs text-muted-foreground">{group.playerEmail || 'No email recorded'}</p>
-                                  <div className="flex flex-wrap gap-1.5 pt-1">
+                      const rows = [
+                        <TableRow
+                          key={match.matchId}
+                          className="cursor-pointer align-top"
+                          onClick={() => toggleExpandedMatch(match.matchId)}
+                        >
+                          <TableCell className="px-3 py-3 whitespace-normal">
+                            <div className="flex items-start gap-3">
+                              <button
+                                type="button"
+                                className="mt-0.5 rounded-sm p-0.5 text-muted-foreground transition-colors hover:text-foreground"
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  toggleExpandedMatch(match.matchId);
+                                }}
+                                aria-label={
+                                  isExpanded
+                                    ? "Collapse match row"
+                                    : "Expand match row"
+                                }
+                              >
+                                {isExpanded ? (
+                                  <ChevronDown className="h-4 w-4" />
+                                ) : (
+                                  <ChevronRight className="h-4 w-4" />
+                                )}
+                              </button>
+
+                              <div className="min-w-0 flex-1 space-y-2">
+                                {/* <div className="flex flex-wrap items-center gap-2">
+                                  <StatusBadge
+                                    label={match.status}
+                                    tone={matchStatusTone(match.status)}
+                                  />
+                                  <StatusBadge
+                                    label={formatStageLabel(match.stage)}
+                                    tone="border-border bg-card text-foreground"
+                                  />
+                                  {match.pendingCount > 0 ? (
                                     <StatusBadge
-                                      label={`${group.matches.length} match${group.matches.length === 1 ? '' : 'es'}`}
-                                      tone="border-border bg-card text-foreground"
+                                      label={`${match.pendingCount} pending`}
+                                      tone="border-amber-200 bg-amber-50 text-amber-700"
                                     />
+                                  ) : null}
+                                  {match.processedCount > 0 ? (
                                     <StatusBadge
-                                      label={`${group.totalBets} pick${group.totalBets === 1 ? '' : 's'}`}
-                                      tone="border-border bg-card text-foreground"
+                                      label={`${match.processedCount} processed`}
+                                      tone="border-emerald-200 bg-emerald-50 text-emerald-700"
                                     />
-                                    {group.pendingCount > 0 ? (
-                                      <StatusBadge
-                                        label={`${group.pendingCount} pending`}
-                                        tone="border-amber-200 bg-amber-50 text-amber-700"
-                                      />
-                                    ) : null}
+                                  ) : null}
+                                </div> */}
+
+                                <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3">
+                                  <div className="flex min-w-0 items-center gap-2">
+                                    <span className="truncate font-medium text-foreground">
+                                      {match.homeTeamName || "Home TBD"}
+                                    </span>
+                                  </div>
+                                  <span className="rounded-full border border-primary/20 bg-primary/10 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-primary">
+                                    VS
+                                  </span>
+                                  <div className="flex min-w-0 items-center justify-end gap-2">
+                                    <span className="truncate text-right font-medium text-foreground">
+                                      {match.awayTeamName || "Away TBD"}
+                                    </span>{" "}
                                   </div>
                                 </div>
-                              </div>
-                            </TableCell>
-                          ) : null}
 
-                          <TableCell className="px-3 py-2.5 align-top whitespace-normal">
-                            <div className="flex flex-col gap-1">
-                              <span className="text-xs font-medium text-foreground">
-                                {match.kickoff ? formatAuditTimestamp(match.kickoff) : 'Kickoff not recorded'}
-                              </span>
-                              <span className="text-xs text-muted-foreground">
-                                {formatStageLabel(match.stage)}
-                              </span>
-                            </div>
-                          </TableCell>
-
-                          <TableCell className="px-3 py-2.5 align-top whitespace-normal">
-                            <div className="flex flex-col gap-1.5">
-                              <div className="flex items-center gap-1.5">
-                                <TeamAvatar
-                                  name={match.homeTeamName || 'Home'}
-                                  crest={match.homeTeamCrest}
-                                  flagCode={match.homeTeamFlag}
-                                  className="h-7 w-11"
-                                />
-                                <span className="text-[12px] font-medium text-foreground">
-                                  {match.homeTeamName || 'Home TBD'}
-                                </span>
-                              </div>
-                              <div className="flex items-center gap-1.5">
-                                <TeamAvatar
-                                  name={match.awayTeamName || 'Away'}
-                                  crest={match.awayTeamCrest}
-                                  flagCode={match.awayTeamFlag}
-                                  className="h-7 w-11"
-                                />
-                                <span className="text-[12px] font-medium text-foreground">
-                                  {match.awayTeamName || 'Away TBD'}
-                                </span>
+                                <p className="text-xs text-muted-foreground">
+                                  {/* {formatAuditTimestamp(match.kickoff)} •{' '} */}
+                                  {/* {match.players.length} player
+                                  {match.players.length === 1 ? '' : 's'} •{' '}
+                                  {match.totalBets} winning score
+                                  {match.totalBets === 1 ? '' : 's'} */}
+                                </p>
                               </div>
                             </div>
                           </TableCell>
 
-                          <TableCell className="px-3 py-2.5 align-top whitespace-normal text-center">
-                            <div className="scrollbar-hidden flex justify-center overflow-x-auto overflow-y-hidden pb-1">
-                              <div className="inline-flex min-w-[112px] flex-col items-center gap-1">
-                                {match.bets.map((bet) => renderScorePick(match, bet))}
-                              </div>
-                            </div>
-                          </TableCell>
-
-                          <TableCell className="px-3 py-2.5 align-top whitespace-normal text-center">
-                            {typeof match.actualHomeScore === 'number' && typeof match.actualAwayScore === 'number' ? (
-                              <div className="inline-flex items-center gap-1.5">
-                                <ScoreBox value={String(match.actualHomeScore)} tone="correct" />
-                                <span className="text-[11px] font-semibold text-muted-foreground">:</span>
-                                <ScoreBox value={String(match.actualAwayScore)} tone="correct" />
+                          <TableCell className="px-3 py-3 text-center">
+                            {typeof match.actualHomeScore === "number" &&
+                            typeof match.actualAwayScore === "number" ? (
+                              <div className="inline-flex items-center gap-2 rounded-lg border border-border/80 bg-muted/10 px-3 py-1.5 text-sm font-semibold text-foreground">
+                                <span>{match.actualHomeScore}</span>
+                                <span className="text-muted-foreground">:</span>
+                                <span>{match.actualAwayScore}</span>
                               </div>
                             ) : (
-                              <span className="inline-flex h-8 min-w-14 items-center justify-center rounded-md border px-2 text-[11px] font-semibold">
-                                -
+                              <span className="inline-flex rounded-lg border border-border/80 px-3 py-1.5 text-sm text-muted-foreground">
+                                Pending
                               </span>
                             )}
                           </TableCell>
 
-                          <TableCell className="px-3 py-2.5 align-top whitespace-normal text-center">
-                            <div className="flex flex-col items-center gap-1">
-                              <span className="text-xs font-semibold text-foreground">
+                          <TableCell className="px-3 py-3 text-center">
+                            <div className="space-y-1">
+                              <p className="font-semibold text-foreground">
+                                {getWinningSideLabel(match)}
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                Total reward{" "}
                                 {formatCurrencyValue(match.totalReward)}
-                              </span>
-                              <span className="text-[11px] text-muted-foreground">
-                                {match.bets.length} pick{match.bets.length === 1 ? '' : 's'}
-                              </span>
-                              {match.pendingCount > 0 && match.pendingCount !== match.bets.length ? (
-                                <span className="text-[11px] text-amber-700">
-                                  Pending {formatCurrencyValue(match.pendingReward)}
-                                </span>
-                              ) : null}
+                              </p>
                             </div>
                           </TableCell>
 
-                          <TableCell className="px-3 py-2.5 align-top whitespace-normal text-center">
-                            <div className="flex flex-wrap justify-center gap-1.5">
-                              {getMatchStatusBadges(match).map((badge) => (
-                                <StatusBadge key={badge.label} label={badge.label} tone={badge.tone} />
-                              ))}
-                            </div>
+                          <TableCell
+                            className="px-3 py-3 text-center"
+                            onClick={(event) => event.stopPropagation()}
+                          >
+                            {canTogglePending ? (
+                              <Button
+                                type="button"
+                                variant={getActionVariant(match.pendingCount)}
+                                disabled={busyKey === actionKey}
+                                onClick={() => void handleSetProcessed(match)}
+                              >
+                                {busyKey === actionKey ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : null}
+                                {getActionLabel(match.pendingCount, "all")}
+                              </Button>
+                            ) : (
+                              <span className="text-xs text-muted-foreground">
+                                No action available
+                              </span>
+                            )}
                           </TableCell>
+                        </TableRow>,
+                      ];
 
-                          {index === 0 ? (
-                            <TableCell rowSpan={group.matches.length} className="px-3 py-3 align-top whitespace-normal text-center">
-                              <div className="flex flex-col items-center gap-2">
-                                <p className="text-[11px] text-muted-foreground">
-                                  Pending reward{' '}
-                                  <span className="font-semibold text-foreground">
-                                    {formatCurrencyValue(group.pendingReward)}
-                                  </span>
-                                </p>
-                                {(canMarkProcessed || showProcessedToggle) ? (
-                                  <Button
-                                    type="button"
-                                    variant={canMarkProcessed ? 'default' : 'outline'}
-                                    disabled={busyPlayerId === group.playerId}
-                                    onClick={() => void handleSetProcessed(group, canMarkProcessed)}
-                                    className="w-full"
-                                  >
-                                    {canMarkProcessed ? <CheckCheck className="h-4 w-4" /> : <Undo2 className="h-4 w-4" />}
-                                    {actionLabel}
-                                  </Button>
-                                ) : (
-                                  <span className="text-xs text-muted-foreground">No action available</span>
-                                )}
+                      if (isExpanded) {
+                        rows.push(
+                          <TableRow
+                            key={`${match.matchId}-players`}
+                            className="bg-muted/10"
+                          >
+                            <TableCell colSpan={4} className="px-4 py-3">
+                              <div className="overflow-hidden rounded-lg border border-border/80 bg-card">
+                                <Table className="w-full table-auto text-xs">
+                                  <TableHeader>
+                                    <TableRow className="hover:bg-transparent">
+                                      <TableHead className="px-3 py-2">
+                                        Player
+                                      </TableHead>
+                                      <TableHead className="px-3 py-2 text-center">
+                                        Winning scores
+                                      </TableHead>
+                                      <TableHead className="px-3 py-2 text-center">
+                                        Total reward
+                                      </TableHead>
+                                      <TableHead className="px-3 py-2 text-center">
+                                        Action
+                                      </TableHead>
+                                    </TableRow>
+                                  </TableHeader>
+
+                                  <TableBody>
+                                    {match.players.map((player) => {
+                                      const playerActionKey = `player:${match.matchId}:${player.playerId}`;
+                                      const canTogglePlayer =
+                                        player.pendingCount > 0 ||
+                                        player.processedCount > 0;
+
+                                      return (
+                                        <TableRow key={player.playerId}>
+                                          <TableCell className="px-3 py-3 whitespace-normal">
+                                            <div className="flex min-w-0 items-center gap-3">
+                                              {/* <PlayerAvatar
+                                                name={player.playerName}
+                                                avatar={player.playerAvatar}
+                                                className="h-10 w-10"
+                                              /> */}
+                                              <div className="min-w-0 space-y-1">
+                                                <p className="truncate text-sm font-semibold text-foreground">
+                                                  {player.playerName}
+                                                </p>
+                                                <p className="truncate text-xs text-muted-foreground">
+                                                  {player.playerEmail ||
+                                                    "No email recorded"}
+                                                </p>
+                                                {/* <div className="flex flex-wrap gap-1.5 pt-1">
+                                                  {player.pendingCount > 0 ? (
+                                                    <StatusBadge
+                                                      label={`${player.pendingCount} pending`}
+                                                      tone="border-amber-200 bg-amber-50 text-amber-700"
+                                                    />
+                                                  ) : null}
+                                                  {player.processedCount > 0 ? (
+                                                    <StatusBadge
+                                                      label={`${player.processedCount} processed`}
+                                                      tone="border-emerald-200 bg-emerald-50 text-emerald-700"
+                                                    />
+                                                  ) : null}
+                                                </div> */}
+                                              </div>
+                                            </div>
+                                          </TableCell>
+
+                                          <TableCell className="px-3 py-3 text-center align-middle">
+                                            <div className="flex flex-wrap items-center justify-center gap-2">
+                                              {player.bets.map((bet) => (
+                                                <ScorePill
+                                                  key={bet.ID}
+                                                  homeScore={
+                                                    bet.predictedHomeScore
+                                                  }
+                                                  awayScore={
+                                                    bet.predictedAwayScore
+                                                  }
+                                                />
+                                              ))}
+                                            </div>
+                                          </TableCell>
+
+                                          <TableCell className="px-3 py-3 text-center">
+                                            <div className="space-y-1">
+                                              <p className="text-sm font-semibold text-foreground">
+                                                {formatCurrencyValue(
+                                                  player.totalReward,
+                                                )}
+                                              </p>
+                                              <p className="text-[11px] text-muted-foreground">
+                                                {player.bets.length} score
+                                                {player.bets.length === 1
+                                                  ? ""
+                                                  : "s"}
+                                              </p>
+                                            </div>
+                                          </TableCell>
+
+                                          <TableCell className="px-3 py-3 text-center">
+                                            {canTogglePlayer ? (
+                                              <Button
+                                                type="button"
+                                                variant={getActionVariant(
+                                                  player.pendingCount,
+                                                )}
+                                                disabled={
+                                                  busyKey === playerActionKey
+                                                }
+                                                onClick={() =>
+                                                  void handleSetProcessed(
+                                                    match,
+                                                    player,
+                                                  )
+                                                }
+                                              >
+                                                {busyKey === playerActionKey ? (
+                                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                                ) : null}
+                                                {getActionLabel(
+                                                  player.pendingCount,
+                                                  "player",
+                                                )}
+                                              </Button>
+                                            ) : (
+                                              <span className="text-xs text-muted-foreground">
+                                                No action available
+                                              </span>
+                                            )}
+                                          </TableCell>
+                                        </TableRow>
+                                      );
+                                    })}
+                                  </TableBody>
+                                </Table>
                               </div>
                             </TableCell>
-                          ) : null}
-                        </TableRow>
-                      ));
+                          </TableRow>,
+                        );
+                      }
+
+                      return rows;
                     })}
                   </TableBody>
                 </Table>

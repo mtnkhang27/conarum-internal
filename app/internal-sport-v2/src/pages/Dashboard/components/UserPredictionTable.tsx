@@ -140,8 +140,25 @@ function cloneScorePicks(scorePicks: ScorePick[]) {
   return scorePicks.map((pick) => ({ ...pick }));
 }
 
+function normalizeScorePick(pick: ScorePick) {
+  if (pick.home !== '' && pick.away !== '') {
+    return { ...pick };
+  }
+
+  return {
+    ...pick,
+    home: '',
+    away: '',
+  };
+}
+
 function serializeScorePicks(scorePicks: ScorePick[]) {
-  return scorePicks.map((pick) => `${pick.home}:${pick.away}`).join('|');
+  return scorePicks
+    .map((pick) => {
+      const normalizedPick = normalizeScorePick(pick);
+      return `${normalizedPick.home}:${normalizedPick.away}`;
+    })
+    .join('|');
 }
 
 function matchHasPendingChanges(
@@ -154,28 +171,14 @@ function matchHasPendingChanges(
 }
 
 function hasAnyFilledScorePick(scorePicks: ScorePick[]) {
-  return scorePicks.some((pick) => pick.home !== '' || pick.away !== '');
+  return scorePicks.some((pick) => {
+    const normalizedPick = normalizeScorePick(pick);
+    return normalizedPick.home !== '' && normalizedPick.away !== '';
+  });
 }
 
 function normalizeScorePicksForSave(scorePicks: ScorePick[]) {
-  return scorePicks.map((pick) => {
-    const hasHome = pick.home !== '';
-    const hasAway = pick.away !== '';
-
-    if (hasHome && hasAway) {
-      return { ...pick };
-    }
-
-    if (!hasHome && !hasAway) {
-      return { ...pick };
-    }
-
-    return {
-      ...pick,
-      home: pick.home || '0',
-      away: pick.away || '0',
-    };
-  });
+  return scorePicks.map(normalizeScorePick);
 }
 
 function hasScoreResult(match: MatchPrediction) {
@@ -507,6 +510,7 @@ export function UserPredictionTable({ tournamentId, className }: UserPredictionT
 
   const getValidScores = (scorePicks: ScorePick[]) =>
     scorePicks
+      .map(normalizeScorePick)
       .filter((pick) => pick.home !== '' && pick.away !== '')
       .map((pick) => ({
         homeScore: Number(pick.home),
@@ -767,7 +771,9 @@ export function UserPredictionTable({ tournamentId, className }: UserPredictionT
     const isSaving = rowActionState[match.id] === 'saving';
     const isClearing = rowActionState[match.id] === 'clearing';
     const visibleScorePicks = locked
-      ? match.scorePicks.filter((pick) => pick.home !== '' || pick.away !== '')
+      ? match.scorePicks.map(normalizeScorePick).filter(
+          (pick) => pick.home !== '' && pick.away !== ''
+        )
       : match.scorePicks;
     const canSave =
       !locked && !isSaving && !isClearing && Boolean(match.predictedWdl) && hasChanges(match);
@@ -821,11 +827,9 @@ export function UserPredictionTable({ tournamentId, className }: UserPredictionT
                 {visibleScorePicks.map((pick) => renderScorePick(match, pick))}
               </div>
             ) : (
-              !locked && (
-                <span className="text-xs text-muted-foreground">
-                  {t('predictionDashboard.noScorePicks', 'No score picks yet')}
-                </span>
-              )
+              <span className="text-xs text-muted-foreground">
+                {locked ? '-' : t('predictionDashboard.noScorePicks', 'No score picks yet')}
+              </span>
             )}
           </div>
         )}
@@ -931,7 +935,9 @@ export function UserPredictionTable({ tournamentId, className }: UserPredictionT
                     const isSaving = rowActionState[match.id] === 'saving';
                     const isClearing = rowActionState[match.id] === 'clearing';
                     const visibleScorePicks = locked
-                      ? match.scorePicks.filter((pick) => pick.home !== '' || pick.away !== '')
+                      ? match.scorePicks.map(normalizeScorePick).filter(
+                          (pick) => pick.home !== '' && pick.away !== ''
+                        )
                       : match.scorePicks;
                     const canSave =
                       !locked && !isSaving && !isClearing && Boolean(match.predictedWdl) && hasChanges(match);

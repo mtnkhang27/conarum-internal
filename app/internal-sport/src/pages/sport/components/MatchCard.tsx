@@ -14,6 +14,8 @@ import {
     AlertDialogHeader,
     AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
 type PickKey = "" | "home" | "draw" | "away";
 const MAX_SCORE = 99;
@@ -211,12 +213,12 @@ export function MatchCard({ match, isCompleted = false, onPredictionChange }: Ma
 
     /* ── Team logo/flag render helper ── */
     const renderTeamBadge = (team: Match["home"], size: "lg" | "sm" = "lg") => {
-        const dim = size === "lg" ? "h-10 w-10 sm:h-12 sm:w-12" : "h-8 w-8";
+        const dim = size === "lg" ? "h-9 w-9 sm:h-10 sm:w-10" : "h-7 w-7";
         if (team.crest) {
             return <img src={team.crest} alt={team.name} className={`${dim} object-contain drop-shadow-lg`} />;
         }
         if (team.flag) {
-            return <span className={`fi fi-${team.flag} ${size === "lg" ? "!w-12 text-4xl" : "!w-8 text-2xl"} rounded-sm shadow-md`} />;
+            return <span className={`fi fi-${team.flag} ${size === "lg" ? "!w-10 text-3xl" : "!w-7 text-xl"} rounded-sm shadow-md`} />;
         }
         return (
             <span className={`inline-flex ${dim} items-center justify-center rounded-full bg-white/5 border border-white/10 text-xs font-black text-muted-foreground`}>
@@ -225,23 +227,22 @@ export function MatchCard({ match, isCompleted = false, onPredictionChange }: Ma
         );
     };
 
-    /* ── Pick button helper ── */
-    const renderPickButton = (optionKey: PickKey, label: string) => {
+    /* ── Pick Button helper ── */
+    const renderPickButton = (optionKey: PickKey) => {
         const isSelected = selectedOption === optionKey;
         const isDraw = optionKey === "draw";
         const displayLabel = optionKey === "home"
-            ? match.home.name
+            ? t("common.home")
             : optionKey === "away"
-                ? match.away.name
-                : label;
+                ? t("common.away")
+                : t("common.draw");
 
         return (
-            <button
-                type="button"
+            <Button
                 onClick={() => onPickOption(optionKey)}
                 disabled={isSaving || isCompleted || !optionKey}
                 className={`
-                    mc-pick-btn relative flex h-full min-h-[72px] w-full items-center justify-center overflow-visible rounded-xl px-3 py-2.5 text-xs font-bold
+                    mc-pick-btn relative flex h-full w-full items-center justify-center overflow-visible rounded-lg px-2 py-2 text-[11px] font-bold
                     transition-all duration-200 ease-out
                     disabled:pointer-events-none disabled:opacity-50
                     ${isSelected
@@ -254,7 +255,7 @@ export function MatchCard({ match, isCompleted = false, onPredictionChange }: Ma
             >
                 {isSelected && (
                     <span
-                        className={`mc-pick-check absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full text-[8px] font-bold shadow-lg ring-2 ring-card ${
+                        className={`mc-pick-check absolute -top-1 -right-1 flex h-3.5 w-3.5 items-center justify-center rounded-full text-[7px] font-bold shadow-lg ring-2 ring-card ${
                             isDraw ? "bg-amber-400 text-[#2f2300]" : "bg-primary text-white"
                         }`}
                     >
@@ -264,13 +265,13 @@ export function MatchCard({ match, isCompleted = false, onPredictionChange }: Ma
                 <span className="relative z-[1] flex w-full items-center justify-center text-center leading-tight whitespace-normal break-words">
                     {displayLabel}
                 </span>
-            </button>
+            </Button>
         );
     };
 
     return (
         <>
-            <div className={`mc-card group relative overflow-visible rounded-2xl border transition-all duration-300
+            <div className={`mc-card group relative overflow-visible rounded-2xl border transition-all duration-300 p-2
                 ${isHotMatch
                     ? hasCurrentSelection
                         ? "border-amber-400/75 shadow-[0_0_0_1px_rgba(251,191,36,0.16)_inset,0_12px_34px_rgba(251,146,60,0.16)]"
@@ -300,10 +301,9 @@ export function MatchCard({ match, isCompleted = false, onPredictionChange }: Ma
                 )}
 
                 {/* Card header — points + stage + time */}
-                <div className="mc-header flex items-center justify-between px-5 pt-4 pb-2">
+                <div className="mc-header flex items-center justify-between px-4 pt-3 pb-1.5">
                     <div className="flex items-center gap-2">
                         <span className="mc-pts-badge inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2.5 py-1 text-[10px] font-bold text-emerald-400 ring-1 ring-emerald-500/25">
-                            <svg className="h-3 w-3" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" /></svg>
                             {match.outcomePoints} {t("common.pts")}
                         </span>
                         {match.stage && (
@@ -318,7 +318,7 @@ export function MatchCard({ match, isCompleted = false, onPredictionChange }: Ma
                 </div>
 
                 {/* ── Team matchup section ── */}
-                <div className="mc-matchup relative px-5 py-4">
+                <div className="mc-matchup relative px-4 py-2.5">
                     <div className="flex justify-center">
                         <div
                             className={`grid w-fit max-w-full items-start ${
@@ -328,7 +328,7 @@ export function MatchCard({ match, isCompleted = false, onPredictionChange }: Ma
                             }`}
                         >
                         {/* Home team */}
-                        <div className="mc-team flex min-w-0 w-full flex-col items-center gap-2">
+                        <div className="mc-team flex min-w-0 w-full flex-col items-center gap-1.5">
                             <div className="mc-team-badge relative z-10 overflow-visible">
                                 {renderTeamBadge(match.home)}
                                 {selectedOption === "home" && (
@@ -337,17 +337,17 @@ export function MatchCard({ match, isCompleted = false, onPredictionChange }: Ma
                                     </span>
                                 )}
                             </div>
-                            <span className="w-full text-center text-[11px] font-bold leading-tight text-white/90">
+                            <span className="w-full text-center text-[10px] font-bold leading-tight text-white/90">
                                 {match.home.name}
                             </span>
                         </div>
 
                         {/* Score section */}
-                        <div className="mc-scores flex shrink-0 flex-col items-center gap-1.5 justify-self-center">
+                        <div className="mc-scores flex shrink-0 flex-col items-center gap-1 justify-self-center">
                             {match.scoreBettingEnabled ? (
                                 scores.map((row, i) => (
-                                    <div key={i} className="mc-score-row flex items-center gap-1.5">
-                                        <input
+                                    <div key={i} className="mc-score-row flex items-center gap-1">
+                                        <Input
                                             type="text"
                                             min={0}
                                             max={MAX_SCORE}
@@ -359,10 +359,10 @@ export function MatchCard({ match, isCompleted = false, onPredictionChange }: Ma
                                             onFocus={onScoreFocus}
                                             onPointerUp={onScorePointerUp}
                                             disabled={isCompleted || isSaving}
-                                            className="mc-score-input h-9 w-11 rounded-lg border border-white/10 bg-white/[0.06] text-center text-sm font-bold text-white outline-none transition-all focus:border-primary focus:bg-primary/10 focus:ring-1 focus:ring-primary/30 disabled:opacity-40"
+                                            className="mc-score-input h-8 w-10 rounded-lg border border-white/10 bg-white/[0.06] text-center text-sm font-bold text-white outline-none transition-all focus:border-primary focus:bg-primary/10 focus:ring-1 focus:ring-primary/30 disabled:opacity-40"
                                         />
                                         <span className="text-white/25 text-sm font-bold select-none">:</span>
-                                        <input
+                                        <Input
                                             type="text"
                                             min={0}
                                             max={MAX_SCORE}
@@ -374,7 +374,7 @@ export function MatchCard({ match, isCompleted = false, onPredictionChange }: Ma
                                             onFocus={onScoreFocus}
                                             onPointerUp={onScorePointerUp}
                                             disabled={isCompleted || isSaving}
-                                            className="mc-score-input h-9 w-11 rounded-lg border border-white/10 bg-white/[0.06] text-center text-sm font-bold text-white outline-none transition-all focus:border-primary focus:bg-primary/10 focus:ring-1 focus:ring-primary/30 disabled:opacity-40"
+                                            className="mc-score-input h-8 w-10 rounded-lg border border-white/10 bg-white/[0.06] text-center text-sm font-bold text-white outline-none transition-all focus:border-primary focus:bg-primary/10 focus:ring-1 focus:ring-primary/30 disabled:opacity-40"
                                         />
                                     </div>
                                 ))
@@ -388,7 +388,7 @@ export function MatchCard({ match, isCompleted = false, onPredictionChange }: Ma
                         </div>
 
                         {/* Away team */}
-                        <div className="mc-team flex min-w-0 w-full flex-col items-center gap-2">
+                        <div className="mc-team flex min-w-0 w-full flex-col items-center gap-1.5">
                             <div className="mc-team-badge relative z-10 overflow-visible">
                                 {renderTeamBadge(match.away)}
                                 {selectedOption === "away" && (
@@ -397,7 +397,7 @@ export function MatchCard({ match, isCompleted = false, onPredictionChange }: Ma
                                     </span>
                                 )}
                             </div>
-                            <span className="w-full text-center text-[11px] font-bold leading-tight text-white/90">
+                            <span className="w-full text-center text-[10px] font-bold leading-tight text-white/90">
                                 {match.away.name}
                             </span>
                         </div>
@@ -406,11 +406,11 @@ export function MatchCard({ match, isCompleted = false, onPredictionChange }: Ma
                 </div>
 
                 {/* Divider */}
-                <div className="mx-5 h-px bg-gradient-to-r from-transparent via-white/[0.08] to-transparent" />
+                <div className="mx-4 h-px bg-gradient-to-r from-transparent via-white/[0.08] to-transparent" />
 
                 {/* ── Pick outcome section ── */}
-                <div className="mc-actions px-5 py-4 space-y-3">
-                    <div className="flex items-center gap-2">
+                <div className="mc-actions px-4 py-2.5 space-y-2.5">
+                    {/* <div className="flex items-center gap-2">
                         <span className="text-[10px] font-semibold uppercase tracking-[0.15em] text-white/35">
                             {isCompleted
                                 ? t("matchCard.finalPick")
@@ -421,35 +421,33 @@ export function MatchCard({ match, isCompleted = false, onPredictionChange }: Ma
                         {hasCurrentSelection && (
                             <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
                         )}
-                    </div>
+                    </div> */}
 
                     <div className="grid grid-cols-3 items-stretch gap-2">
                         {match.options.map((option, idx) => {
                             const optionKey = optionKeyAt(idx);
                             return (
                                 <div key={`${option}-${idx}`} className="flex overflow-visible">
-                                    {renderPickButton(optionKey, option)}
+                                    {renderPickButton(optionKey)}
                                 </div>
                             );
                         })}
                     </div>
 
-                    {/* Action buttons */}
+                    {/* Action Buttons */}
                     {!isCompleted && (
                         <div className="mc-btn-row flex gap-2 pt-1">
-                            <button
-                                type="button"
+                            <Button
                                 onClick={onCancel}
                                 disabled={cancelDisabled}
-                                className="mc-btn-cancel flex-1 rounded-xl border border-white/[0.08] bg-white/[0.03] px-3 py-2.5 text-xs font-semibold text-white/40 transition-all hover:border-red-500/50 hover:text-red-400 hover:bg-red-500/5 disabled:opacity-30 disabled:pointer-events-none"
+                                className="mc-btn-cancel flex-1 rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-xs font-semibold text-white/40 transition-all hover:border-red-500/50 hover:text-red-400 hover:bg-red-500/5 disabled:opacity-30 disabled:pointer-events-none"
                             >
                                 {t("matchCard.cancelSubmission")}
-                            </button>
-                            <button
-                                type="button"
+                            </Button>
+                            <Button
                                 onClick={onSubmit}
                                 disabled={submitDisabled}
-                                className={`mc-btn-submit flex-1 rounded-xl px-3 py-2.5 text-xs font-bold text-white transition-all duration-200 disabled:opacity-30 disabled:pointer-events-none
+                                className={`mc-btn-submit flex-1 rounded-lg px-3 py-2 text-xs font-bold text-white transition-all duration-200 disabled:opacity-30 disabled:pointer-events-none
                                     ${hasCurrentSelection || justCancelled
                                         ? "bg-gradient-to-r from-primary to-secondary shadow-[0_4px_15px_rgba(109,63,199,0.4)] hover:shadow-[0_6px_25px_rgba(109,63,199,0.5)] hover:scale-[1.02] active:scale-[0.98]"
                                         : "bg-white/[0.06] text-white/30"
@@ -463,7 +461,7 @@ export function MatchCard({ match, isCompleted = false, onPredictionChange }: Ma
                                 ) : (
                                     t("matchCard.submitPrediction")
                                 )}
-                            </button>
+                            </Button>
                         </div>
                     )}
                 </div>

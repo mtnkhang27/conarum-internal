@@ -85,6 +85,7 @@ export interface AdminMatch {
   isHotMatch: boolean;
   bracketSlot_ID: string | null;
   leg: number | null;
+  scoreBetConfig?: MatchScoreBetConfig | null;
 }
 
 export interface AdminMatchListItem {
@@ -118,6 +119,9 @@ export interface AdminMatchListItem {
   isHotMatch: boolean;
   bracketSlot_ID: string | null;
   leg: number | null;
+  scoreBettingEnabled: boolean;
+  scoreBetMaxBets: number | null;
+  scoreBetPrize: number;
 }
 
 export interface MatchScoreBetConfig {

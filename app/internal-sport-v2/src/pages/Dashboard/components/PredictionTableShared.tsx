@@ -91,7 +91,7 @@ export function ScorePickBox({ value, tone = 'neutral', disabled, onChange }: Sc
         value={value}
         onChange={(event) => onChange(event.target.value.replace(/\D/g, '').slice(0, 2))}
         className="h-8 w-9 rounded-md border-border bg-white px-0 text-center text-[11px] font-semibold text-foreground shadow-none focus-visible:ring-1"
-        placeholder="0"
+        placeholder="-"
         disabled={disabled}
       />
     );

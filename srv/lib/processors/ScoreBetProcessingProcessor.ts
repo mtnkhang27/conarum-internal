@@ -3,19 +3,23 @@ import cds from '@sap/cds';
 type QueryRunner = Pick<cds.Service, 'run'>;
 
 type ScoreBetProcessingInput = {
-    playerId: string;
+    matchId: string;
     tournamentId: string;
+    playerId?: string;
     processed: boolean;
 };
 
 type ScoreBetScopeRow = {
     ID?: string | null;
-    match_ID?: string | null;
-    isProcessed?: boolean | null;
 };
 
 type MatchScopeRow = {
-    ID?: string | null;
+    homeTeam_ID?: string | null;
+    awayTeam_ID?: string | null;
+};
+
+type TeamLabelRow = {
+    name?: string | null;
 };
 
 type PlayerLabelRow = {
@@ -30,6 +34,7 @@ export type ScoreBetProcessingSummary = {
     processedCount: number;
     playerName: string | null;
     tournamentName: string | null;
+    matchLabel: string | null;
     processed: boolean;
 };
 
@@ -38,46 +43,36 @@ export type ScoreBetProcessingSummary = {
  * focused on request validation and response shaping.
  */
 export class ScoreBetProcessingProcessor {
-    async setPlayerScoreBetsProcessed(
+    async setScoreBetProcessingStatus(
         tx: QueryRunner,
         input: ScoreBetProcessingInput
     ): Promise<ScoreBetProcessingSummary> {
-        const { ScoreBet, Match, Player, Tournament } = cds.entities('cnma.prediction');
+        const { Match, Player, ScoreBet, Team, Tournament } = cds.entities('cnma.prediction');
+
+        const match = await tx.run(
+            SELECT.one.from(Match)
+                .columns('homeTeam_ID', 'awayTeam_ID')
+                .where({ ID: input.matchId })
+        ) as MatchScopeRow | null;
+
+        const whereClause: Record<string, string | boolean> = {
+            match_ID: input.matchId,
+            isCorrect: true,
+        };
+
+        if (input.playerId) {
+            whereClause.player_ID = input.playerId;
+        }
 
         const scopedBets = await tx.run(
             SELECT.from(ScoreBet)
-                .columns('ID', 'match_ID', 'isProcessed')
-                .where({
-                    player_ID: input.playerId,
-                    isCorrect: true,
-                })
+                .columns('ID')
+                .where(whereClause)
         ) as ScoreBetScopeRow[];
 
-        const candidateMatchIds = scopedBets
-            .map((bet) => bet.match_ID)
-            .filter((matchId): matchId is string => Boolean(matchId));
-
-        let scopedMatchIds = new Set<string>();
-        if (candidateMatchIds.length > 0) {
-            const tournamentMatches = await tx.run(
-                SELECT.from(Match)
-                    .columns('ID')
-                    .where({
-                        ID: { in: candidateMatchIds },
-                        tournament_ID: input.tournamentId,
-                    })
-            ) as MatchScopeRow[];
-
-            scopedMatchIds = new Set(
-                tournamentMatches
-                    .map((match) => match.ID)
-                    .filter((matchId): matchId is string => Boolean(matchId))
-            );
-        }
-
         const targetIds = scopedBets
-            .filter((bet) => Boolean(bet.ID) && Boolean(bet.match_ID) && scopedMatchIds.has(bet.match_ID as string))
-            .map((bet) => bet.ID as string);
+            .map((bet) => bet.ID)
+            .filter((betId): betId is string => Boolean(betId));
 
         if (targetIds.length > 0) {
             await tx.run(
@@ -87,23 +82,45 @@ export class ScoreBetProcessingProcessor {
             );
         }
 
-        const [player, tournament] = await Promise.all([
-            tx.run(
-                SELECT.one.from(Player)
-                    .columns('displayName')
-                    .where({ ID: input.playerId })
-            ) as Promise<PlayerLabelRow | null>,
+        const [player, tournament, homeTeam, awayTeam] = await Promise.all([
+            input.playerId
+                ? tx.run(
+                    SELECT.one.from(Player)
+                        .columns('displayName')
+                        .where({ ID: input.playerId })
+                ) as Promise<PlayerLabelRow | null>
+                : Promise.resolve(null),
             tx.run(
                 SELECT.one.from(Tournament)
                     .columns('name')
                     .where({ ID: input.tournamentId })
             ) as Promise<TournamentLabelRow | null>,
+            match?.homeTeam_ID
+                ? tx.run(
+                    SELECT.one.from(Team)
+                        .columns('name')
+                        .where({ ID: match.homeTeam_ID })
+                ) as Promise<TeamLabelRow | null>
+                : Promise.resolve(null),
+            match?.awayTeam_ID
+                ? tx.run(
+                    SELECT.one.from(Team)
+                        .columns('name')
+                        .where({ ID: match.awayTeam_ID })
+                ) as Promise<TeamLabelRow | null>
+                : Promise.resolve(null),
         ]);
+
+        const homeTeamName = homeTeam?.name?.trim();
+        const awayTeamName = awayTeam?.name?.trim();
 
         return {
             processedCount: targetIds.length,
             playerName: player?.displayName ?? null,
             tournamentName: tournament?.name ?? null,
+            matchLabel: homeTeamName && awayTeamName
+                ? `${homeTeamName} vs ${awayTeamName}`
+                : null,
             processed: input.processed,
         };
     }

@@ -58,6 +58,43 @@ type SandboxProvisionResultRow = {
     passwordSource: SandboxProvisionPasswordSource | null;
 };
 
+type LeaderboardPlayerRow = {
+    ID: string;
+    displayName: string | null;
+};
+
+type LeaderboardPredictionRow = {
+    player_ID: string | null;
+    pointsEarned: number | null;
+    isCorrect: boolean | null;
+    scoredAt: string | null;
+};
+
+type RankedLeaderboardRow = {
+    id: string;
+    displayName: string;
+    totalPoints: number;
+    totalCorrect: number;
+    totalPredictions: number;
+    currentStreak: number;
+    bestStreak: number;
+};
+
+type TournamentStatRow = {
+    ID: string;
+    player_ID: string | null;
+};
+
+type RankedTournamentStatRow = {
+    id: string;
+    totalPoints: number;
+    totalCorrect: number;
+    totalPredictions: number;
+    currentStreak: number;
+    bestStreak: number;
+    displayName: string;
+};
+
 /**
  * AdminHandler — Handles admin operations.
  * Match result entry, scoring, leaderboard recalculation.
@@ -401,27 +438,45 @@ export class AdminHandler {
     }
 
     /**
-     * Mark all correct score bets for one player+tournament batch as processed.
-     * This keeps admin payout tracking on a single screen grouped by user.
+     * Mark correct score bets as processed for a match or for one player inside a match.
      */
-    async setPlayerScoreBetsProcessed(req: Request) {
-        const playerId = typeof req.data?.playerId === 'string' ? req.data.playerId.trim() : '';
+    async setScoreBetProcessingStatus(req: Request) {
+        const matchId = typeof req.data?.matchId === 'string' ? req.data.matchId.trim() : '';
         const tournamentId = typeof req.data?.tournamentId === 'string' ? req.data.tournamentId.trim() : '';
+        const playerId = typeof req.data?.playerId === 'string' ? req.data.playerId.trim() : '';
         const processed = req.data?.processed !== false;
 
-        if (!playerId) return req.error(400, 'playerId is required');
+        if (!matchId) return req.error(400, 'matchId is required');
         if (!tournamentId) return req.error(400, 'tournamentId is required');
 
+        const { Match } = cds.entities('cnma.prediction');
+        const match = await SELECT.one.from(Match)
+            .columns('ID', 'tournament_ID')
+            .where({ ID: matchId });
+
+        if (!match) {
+            return req.error(404, `Match ${matchId} not found`);
+        }
+
+        if (match.tournament_ID !== tournamentId) {
+            return req.error(400, `Match ${matchId} does not belong to tournament ${tournamentId}`);
+        }
+
         const tx = cds.tx(req);
-        const result = await this.scoreBetProcessingProcessor.setPlayerScoreBetsProcessed(tx, {
-            playerId,
+        const result = await this.scoreBetProcessingProcessor.setScoreBetProcessingStatus(tx, {
+            matchId,
             tournamentId,
+            playerId: playerId || undefined,
             processed,
         });
 
-        const scopeLabel = result.tournamentName
-            ? `${result.playerName ?? playerId} in ${result.tournamentName}`
-            : (result.playerName ?? playerId);
+        const scopeLabelParts = [
+            playerId ? (result.playerName ?? playerId) : 'All winning players',
+            result.matchLabel ?? matchId,
+            result.tournamentName ? `in ${result.tournamentName}` : null,
+        ].filter(Boolean);
+
+        const scopeLabel = scopeLabelParts.join(' ');
 
         return {
             success: true,
@@ -479,33 +534,53 @@ export class AdminHandler {
 
         // Global recalculation
         const { Player, Prediction } = cds.entities('cnma.prediction');
-        const players = await SELECT.from(Player);
+        const players = await SELECT.from(Player).columns('ID', 'displayName') as LeaderboardPlayerRow[];
+        const scoredPredictions = await SELECT.from(Prediction)
+            .columns('player_ID', 'pointsEarned', 'isCorrect', 'scoredAt')
+            .where({ status: 'scored' }) as LeaderboardPredictionRow[];
 
-        for (const player of players) {
-            const preds = await SELECT.from(Prediction)
-                .where({ player_ID: player.ID, status: 'scored' });
+        const predictionsByPlayer = new Map<string, LeaderboardPredictionRow[]>();
+        for (const prediction of scoredPredictions) {
+            if (!prediction.player_ID) continue;
+            const bucket = predictionsByPlayer.get(prediction.player_ID) ?? [];
+            bucket.push(prediction);
+            predictionsByPlayer.set(prediction.player_ID, bucket);
+        }
 
-            const totalPoints = preds.reduce((sum: number, p: any) => sum + (Number(p.pointsEarned) || 0), 0);
-            const totalCorrect = preds.filter((p: any) => p.isCorrect).length;
+        const rankedPlayers: RankedLeaderboardRow[] = players.map((player) => {
+            const preds = predictionsByPlayer.get(player.ID) ?? [];
+            const totalPoints = preds.reduce((sum: number, prediction: LeaderboardPredictionRow) => sum + (Number(prediction.pointsEarned) || 0), 0);
+            const totalCorrect = preds.filter((prediction: LeaderboardPredictionRow) => prediction.isCorrect).length;
             const totalPredictions = preds.length;
             const { currentStreak, bestStreak } = this.scoringEngine.calculateStreaks(preds);
 
-            await UPDATE(Player).where({ ID: player.ID }).set({
+            return {
+                id: player.ID,
+                displayName: (player.displayName ?? '').toLowerCase(),
                 totalPoints,
                 totalCorrect,
                 totalPredictions,
                 currentStreak,
-                bestStreak
-            });
-        }
+                bestStreak,
+            };
+        }).sort((left: RankedLeaderboardRow, right: RankedLeaderboardRow) => {
+            if (right.totalPoints !== left.totalPoints) {
+                return right.totalPoints - left.totalPoints;
+            }
 
-        // Assign global ranks based on total points (descending)
-        const rankedPlayers = await SELECT.from(Player).orderBy('totalPoints desc');
-        for (let i = 0; i < rankedPlayers.length; i++) {
-            await UPDATE(Player).where({ ID: rankedPlayers[i].ID }).set({
-                rank: i + 1
-            });
-        }
+            return left.displayName.localeCompare(right.displayName);
+        });
+
+        await Promise.all(rankedPlayers.map((rankedPlayer, index) =>
+            UPDATE(Player).where({ ID: rankedPlayer.id }).set({
+                totalPoints: rankedPlayer.totalPoints,
+                totalCorrect: rankedPlayer.totalCorrect,
+                totalPredictions: rankedPlayer.totalPredictions,
+                currentStreak: rankedPlayer.currentStreak,
+                bestStreak: rankedPlayer.bestStreak,
+                rank: index + 1,
+            })
+        ));
 
         return {
             success: true,
@@ -614,49 +689,76 @@ export class AdminHandler {
         const { Player, Prediction, PlayerTournamentStats } = cds.entities('cnma.prediction');
 
         const stats = await SELECT.from(PlayerTournamentStats)
-            .where({ tournament_ID: tournamentId });
+            .columns('ID', 'player_ID')
+            .where({ tournament_ID: tournamentId }) as TournamentStatRow[];
 
-        for (const stat of stats) {
-            const preds = await SELECT.from(Prediction)
-                .where({ player_ID: stat.player_ID, tournament_ID: tournamentId, status: 'scored' });
+        if (stats.length === 0) {
+            return 0;
+        }
 
-            const totalPoints = preds.reduce((sum: number, p: any) => sum + (Number(p.pointsEarned) || 0), 0);
-            const totalCorrect = preds.filter((p: any) => p.isCorrect).length;
+        const playerIds = stats
+            .map((stat: TournamentStatRow) => stat.player_ID)
+            .filter((playerId: string | null): playerId is string => Boolean(playerId));
+        const playersQuery = SELECT.from(Player)
+            .columns('ID', 'displayName')
+            .where({ ID: { in: playerIds } });
+        const scoredPredictionsQuery = SELECT.from(Prediction)
+            .columns('player_ID', 'pointsEarned', 'isCorrect', 'scoredAt')
+            .where({ tournament_ID: tournamentId, status: 'scored', player_ID: { in: playerIds } });
+
+        const [players, scoredPredictions] = await Promise.all([
+            cds.run(playersQuery) as Promise<LeaderboardPlayerRow[]>,
+            cds.run(scoredPredictionsQuery) as Promise<LeaderboardPredictionRow[]>,
+        ]);
+
+        const playerNameById = new Map(
+            players.map((player: LeaderboardPlayerRow) => [player.ID, (player.displayName ?? '').toLowerCase()] as const)
+        );
+        const predictionsByPlayer = new Map<string, LeaderboardPredictionRow[]>();
+
+        for (const prediction of scoredPredictions) {
+            if (!prediction.player_ID) continue;
+            const bucket = predictionsByPlayer.get(prediction.player_ID) ?? [];
+            bucket.push(prediction);
+            predictionsByPlayer.set(prediction.player_ID, bucket);
+        }
+
+        const rankedStats: RankedTournamentStatRow[] = stats.map((stat: TournamentStatRow) => {
+            const preds = stat.player_ID
+                ? (predictionsByPlayer.get(stat.player_ID) ?? [])
+                : [];
+            const totalPoints = preds.reduce((sum: number, prediction: LeaderboardPredictionRow) => sum + (Number(prediction.pointsEarned) || 0), 0);
+            const totalCorrect = preds.filter((prediction: LeaderboardPredictionRow) => prediction.isCorrect).length;
             const totalPredictions = preds.length;
             const { currentStreak, bestStreak } = this.scoringEngine.calculateStreaks(preds);
 
-            await UPDATE(PlayerTournamentStats).where({ ID: stat.ID }).set({
+            return {
+                id: stat.ID,
                 totalPoints,
                 totalCorrect,
                 totalPredictions,
                 currentStreak,
-                bestStreak
-            });
-        }
-
-        // Assign ranks — sort by points desc then name asc
-        const updatedStats = await SELECT.from(PlayerTournamentStats)
-            .where({ tournament_ID: tournamentId });
-
-        const enriched = [];
-        for (const s of updatedStats) {
-            const player = await SELECT.one.from(Player).where({ ID: s.player_ID });
-            enriched.push({
-                id: s.ID,
-                totalPoints: Number(s.totalPoints),
-                name: (player?.displayName ?? '').toLowerCase(),
-            });
-        }
-        enriched.sort((a, b) => {
-            if (b.totalPoints !== a.totalPoints) return b.totalPoints - a.totalPoints;
-            return a.name.localeCompare(b.name);
+                bestStreak,
+                displayName: stat.player_ID
+                    ? (playerNameById.get(stat.player_ID) ?? '')
+                    : '',
+            };
+        }).sort((left: RankedTournamentStatRow, right: RankedTournamentStatRow) => {
+            if (right.totalPoints !== left.totalPoints) return right.totalPoints - left.totalPoints;
+            return left.displayName.localeCompare(right.displayName);
         });
 
-        for (let i = 0; i < enriched.length; i++) {
-            await UPDATE(PlayerTournamentStats).where({ ID: enriched[i].id }).set({
-                rank: i + 1
-            });
-        }
+        // Assign ranks — sort by points desc then name asc
+        await Promise.all(rankedStats.map((rankedStat, index) =>
+            UPDATE(PlayerTournamentStats).where({ ID: rankedStat.id }).set({
+                totalPoints: rankedStat.totalPoints,
+                totalCorrect: rankedStat.totalCorrect,
+                totalPredictions: rankedStat.totalPredictions,
+                currentStreak: rankedStat.currentStreak,
+                bestStreak: rankedStat.bestStreak,
+                rank: index + 1,
+            })
+        ));
 
         return stats.length;
     }

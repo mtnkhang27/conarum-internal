@@ -4,14 +4,26 @@ import { Home, Menu, Settings, Trophy, User, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { playerProfileApi } from "@/services/playerApi";
 import { isLocalDevAuthBypass } from "@/lib/authMode";
+import { TournamentSelector } from "@/components/shared/TournamentSelector";
+
+const MOBILE_HEADER_TOURNAMENT_KEY = "mobileHeaderTournamentId";
 
 export function Header() {
     const { pathname } = useLocation();
     const [isCompactNavOpen, setIsCompactNavOpen] = useState(false);
+    const [mobileTournamentId, setMobileTournamentId] = useState(() => {
+        if (typeof window === "undefined") return "";
+        return window.localStorage.getItem(MOBILE_HEADER_TOURNAMENT_KEY) ?? "";
+    });
     const [isAdmin, setIsAdmin] = useState(() => {
         if (isLocalDevAuthBypass()) return true;
         return playerProfileApi.getCachedProfile()?.isAdmin ?? false;
     });
+
+    useEffect(() => {
+        if (typeof window === "undefined") return;
+        window.localStorage.setItem(MOBILE_HEADER_TOURNAMENT_KEY, mobileTournamentId);
+    }, [mobileTournamentId]);
 
     useEffect(() => {
         if (isLocalDevAuthBypass()) {
@@ -147,6 +159,15 @@ export function Header() {
                                 </NavLink>
                             ))}
                         </nav>
+                    </div>
+
+                    <div className="min-w-0 flex-1 sm:hidden">
+                        <TournamentSelector
+                            selectedId={mobileTournamentId}
+                            onSelect={setMobileTournamentId}
+                            allowAll
+                            preferDefault
+                        />
                     </div>
 
                     <div className="flex items-center gap-2 sm:gap-3">

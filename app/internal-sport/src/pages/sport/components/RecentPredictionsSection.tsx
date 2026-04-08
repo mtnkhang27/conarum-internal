@@ -3,6 +3,8 @@ import { useTranslation } from "react-i18next";
 import {
   Clock,
   CheckCircle2,
+  ChevronDown,
+  ChevronRight,
   XCircle,
   MinusCircle,
   Trophy,
@@ -183,9 +185,13 @@ export function RecentPredictionsSection({
   const { t } = useTranslation();
   const [page, setPage] = useState(1);
   const [predictions, setPredictions] = useState<RecentPredictionItem[]>([]);
+  const [allPredictions, setAllPredictions] = useState<RecentPredictionItem[]>([]);
   const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [loadingStats, setLoadingStats] = useState(true);
+  const [expandedScoreRows, setExpandedScoreRows] = useState<Record<string, boolean>>({});
   const requestSequence = useRef(0);
+  const statsRequestSequence = useRef(0);
 
   const loadPage = useCallback(async (tid: string, nextPage: number) => {
     const requestId = ++requestSequence.current;
@@ -211,13 +217,55 @@ export function RecentPredictionsSection({
     }
   }, []);
 
+  const loadAllForStats = useCallback(async (tid: string) => {
+    const requestId = ++statsRequestSequence.current;
+    setLoadingStats(true);
+
+    try {
+      const firstPage = await playerTournamentQueryApi.getMyRecentPredictionsPaged(
+        tid || undefined,
+        1,
+        100,
+      );
+
+      if (statsRequestSequence.current !== requestId) return;
+
+      const aggregatedItems = [...(firstPage.items ?? [])];
+      const total = Math.max(firstPage.totalCount || 0, aggregatedItems.length);
+      const totalPages = Math.max(1, Math.ceil(total / 100));
+
+      for (let nextPage = 2; nextPage <= totalPages; nextPage++) {
+        const pageData = await playerTournamentQueryApi.getMyRecentPredictionsPaged(
+          tid || undefined,
+          nextPage,
+          100,
+        );
+        if (statsRequestSequence.current !== requestId) return;
+        aggregatedItems.push(...(pageData.items ?? []));
+      }
+
+      if (statsRequestSequence.current !== requestId) return;
+      setAllPredictions(aggregatedItems);
+    } catch {
+      if (statsRequestSequence.current !== requestId) return;
+      setAllPredictions([]);
+    } finally {
+      if (statsRequestSequence.current === requestId) {
+        setLoadingStats(false);
+      }
+    }
+  }, []);
+
   useEffect(() => {
     if (!enabled) return;
     setPage(1);
     setPredictions([]);
+    setAllPredictions([]);
+    setExpandedScoreRows({});
     setTotalCount(0);
     void loadPage(tournamentId, 1);
-  }, [enabled, tournamentId, refreshKey, loadPage]);
+    void loadAllForStats(tournamentId);
+  }, [enabled, tournamentId, refreshKey, loadAllForStats, loadPage]);
 
   const totalPages = Math.max(1, Math.ceil(totalCount / ITEMS_PER_PAGE));
   const currentPage = Math.min(page, totalPages);
@@ -231,17 +279,21 @@ export function RecentPredictionsSection({
     [loadPage, totalPages, tournamentId],
   );
 
+  const metricSource = allPredictions.length > 0 || !loadingStats
+    ? allPredictions
+    : predictions;
+
   const total = totalCount;
-  const correct = predictions.filter((p) => p.isCorrect === true).length;
-  const pending = predictions.filter(
+  const correct = metricSource.filter((p) => p.isCorrect === true).length;
+  const pending = metricSource.filter(
     (p) => p.status === "submitted" || p.status === "locked",
   ).length;
   const accuracy =
-    predictions.length > 0
-      ? Math.round((correct / Math.max(predictions.length - pending, 1)) * 100)
+    metricSource.length > 0
+      ? Math.round((correct / Math.max(metricSource.length - pending, 1)) * 100)
       : 0;
 
-  const allScoreBets = predictions.flatMap((p) => p.scoreBets ?? []);
+  const allScoreBets = metricSource.flatMap((p) => p.scoreBets ?? []);
   const settledBets = allScoreBets.filter((b) => b.isCorrect !== null);
   const correctBets = allScoreBets.filter((b) => b.isCorrect === true);
 
@@ -292,79 +344,47 @@ export function RecentPredictionsSection({
     return <LoadingOverlay />;
   }
 
+  const toggleScoreRow = (predictionId: string) => {
+    setExpandedScoreRows((current) => ({
+      ...current,
+      [predictionId]: !current[predictionId],
+    }));
+  };
+
   return (
     <div className="relative">
-      {/* Quick stats */}
-      <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        {[
-          { label: t("common.total"), value: total, color: "text-white" },
-          {
-            label: t("sport.correctPicks"),
-            value: correct,
-            color: "text-success",
-          },
-          {
-            label: t("sport.status.pending"),
-            value: pending,
-            color: "text-primary",
-          },
-          {
-            label: t("sport.pickAccuracy"),
-            value: `${accuracy}%`,
-            color: "text-secondary",
-          },
-        ].map((card) => (
-          <div
-            key={card.label}
-            className="rounded-lg border border-border bg-card px-4 py-4 transition-colors hover:border-primary/30"
-          >
-            <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
-              {card.label}
-            </p>
-            <p className={`mt-1 text-2xl font-extrabold ${card.color}`}>
-              {card.value}
-            </p>
-          </div>
-        ))}
-      </div>
-
-      {/* Score bet stats strip (only if player has any score bets) */}
-      {allScoreBets.length > 0 && (
-        <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+      {/* Unified compact stats (mobile-first) */}
+      <div className="mb-4 rounded-xl border border-border/80 bg-card/90 p-3">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-7">
           {[
-            {
-              label: t("sport.scoreBets"),
-              value: allScoreBets.length,
-              color: "text-white",
-            },
-            {
-              label: t("sport.correctScores"),
-              value: correctBets.length,
-              color: "text-success",
-            },
+            { label: t("common.total"), value: total, tone: "text-foreground" },
+            { label: t("sport.correctPicks"), value: correct, tone: "text-success" },
+            { label: t("sport.status.pending"), value: pending, tone: "text-primary" },
+            { label: t("sport.pickAccuracy"), value: `${accuracy}%`, tone: "text-secondary" },
+            { label: t("sport.scoreBets"), value: allScoreBets.length, tone: "text-foreground" },
+            { label: t("sport.correctScores"), value: correctBets.length, tone: "text-success" },
             {
               label: t("sport.scoreAccuracy"),
-              value:
-                settledBets.length > 0
-                  ? `${Math.round((correctBets.length / settledBets.length) * 100)}%`
-                  : "—",
-              color: "text-secondary",
+              value: settledBets.length > 0
+                ? `${Math.round((correctBets.length / settledBets.length) * 100)}%`
+                : "—",
+              tone: "text-secondary",
             },
-          ].map((card) => (
+          ].map((stat) => (
             <div
-              key={card.label}
-              className="rounded-lg border border-border bg-card px-4 py-4 transition-colors hover:border-secondary/30"
+              key={stat.label}
+              className="rounded-lg border border-border/70 bg-surface/40 px-2.5 py-2"
             >
-              <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
-                {card.label}
+              <p className="truncate text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
+                {stat.label}
               </p>
-              <p className={`mt-1 text-2xl font-extrabold ${card.color}`}>
-                {card.value}
+              <p className={`mt-1 text-xl font-extrabold leading-none ${stat.tone}`}>
+                {stat.value}
               </p>
             </div>
           ))}
         </div>
-      )}
+      </div>
 
       {predictions.length === 0 ? (
         <div className="flex h-48 flex-col items-center justify-center gap-2 text-muted-foreground">
@@ -386,16 +406,16 @@ export function RecentPredictionsSection({
                 </span>
               </div>
 
-              <div className="space-y-3">
+              <div className="space-y-2.5">
                 {items.map((item) => (
                   <div
                     key={item.predictionId}
-                    className="group rounded-lg border border-border bg-card p-4 transition-all hover:border-primary/40 hover:shadow-lg hover:shadow-primary/5"
+                    className="group rounded-lg border border-border bg-card p-3 transition-all hover:border-primary/40 hover:shadow-lg hover:shadow-primary/5"
                   >
-                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="flex flex-col gap-2.5">
                       {/* Match info */}
                       <div className="flex-1">
-                        <div className="flex flex-wrap items-center gap-2">
+                        <div className="flex flex-wrap items-center gap-1.5">
                           <span className="flex items-center gap-1.5 text-sm font-bold text-white">
                             {item.homeCrest ? (
                               <img
@@ -442,21 +462,11 @@ export function RecentPredictionsSection({
                         <p className="mt-1 text-[10px] text-muted-foreground">
                           {t("sport.kickoffLabel")}: {formatDate(item.kickoff)}
                         </p>
-
-                        {/* Score bets */}
-                        <ScoreBetsSection
-                          bets={item.scoreBets ?? []}
-                          finalScore={{
-                            home: item.homeScore,
-                            away: item.awayScore,
-                          }}
-                          t={t}
-                        />
                       </div>
 
                       {/* Prediction details */}
-                      <div className="flex flex-wrap items-center gap-4 sm:flex-shrink-0 sm:justify-end">
-                        <div className="min-w-[110px] text-left sm:text-right">
+                      <div className="grid grid-cols-3 gap-2">
+                        <div className="rounded-md border border-border/60 bg-surface/35 px-2 py-1.5">
                           <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
                             {t("sport.yourPick")}
                           </p>
@@ -464,7 +474,7 @@ export function RecentPredictionsSection({
                             {pickLabel(item.pick, t)}
                           </p>
                         </div>
-                        <div className="min-w-[72px] text-left sm:text-right">
+                        <div className="rounded-md border border-border/60 bg-surface/35 px-2 py-1.5">
                           <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
                             {t("sport.points")}
                           </p>
@@ -480,8 +490,41 @@ export function RecentPredictionsSection({
                               : "0"}
                           </p>
                         </div>
-                        <div>{statusBadge(item, t)}</div>
+                        <div className="flex items-end justify-end">
+                          {statusBadge(item, t)}
+                        </div>
                       </div>
+
+                      {(item.scoreBets?.length ?? 0) > 0 && (
+                        <div className="rounded-md border border-border/60 bg-surface/30">
+                          <button
+                            type="button"
+                            onClick={() => toggleScoreRow(item.predictionId)}
+                            className="flex w-full items-center justify-between px-3 py-2 text-left"
+                          >
+                            <span className="text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
+                              {t("sport.scorePredictions", { count: item.scoreBets?.length ?? 0 })}
+                            </span>
+                            {expandedScoreRows[item.predictionId] ? (
+                              <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                            ) : (
+                              <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                            )}
+                          </button>
+                          {expandedScoreRows[item.predictionId] && (
+                            <div className="border-t border-border/60 px-3 py-2">
+                              <ScoreBetsSection
+                                bets={item.scoreBets ?? []}
+                                finalScore={{
+                                  home: item.homeScore,
+                                  away: item.awayScore,
+                                }}
+                                t={t}
+                              />
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
                 ))}

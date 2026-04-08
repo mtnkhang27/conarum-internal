@@ -175,29 +175,13 @@ export function SportPage() {
         onBetNow={() => scrollToSection(SECTION.matches)}
         onDismiss={() => setBannerDismissed(true)}
       />
-      {/* ── Sticky top controls ── */}
-      <div
-        data-sport-sticky-header="true"
-        className="sticky top-0 z-20 border-b border-border/60 bg-background/95 backdrop-blur-sm"
-      >
-        <div className="px-4 py-3 sm:px-5 xl:px-6">
-          <div className="min-w-0">
-            <h1 className="text-lg font-extrabold text-white sm:text-xl">
-              {t("sport.title")}
-            </h1>
-            <p className="text-[11px] text-muted-foreground sm:text-xs">
-              {t("sport.subtitle")}
-            </p>
-          </div>
-        </div>
-      </div>
 
       {/* ── Scrollable content ── */}
       <div className="mobile-safe-section px-4 py-4 sm:px-5 lg:py-5 xl:px-6 xl:pb-6">
         {/* ══════════════════════════════════════════
                     SECTION 2 — Matches (Available + Live + Upcoming)
                 ══════════════════════════════════════════ */}
-        <section className="mb-14">
+        <section id={SECTION.matches} className="mb-14 scroll-mt-4">
           {/* <SectionHeading
             id={SECTION.matches}
             color="bg-primary"
@@ -216,12 +200,10 @@ export function SportPage() {
                 type="button"
                 onClick={() => setIsBracketDialogOpen(true)}
                 disabled={!tournamentId}
-                className="group h-10 rounded-xl border border-primary/35 bg-gradient-to-r from-primary via-primary/90 to-secondary px-3.5 text-sm font-semibold text-white shadow-[0_12px_30px_rgba(109,63,199,0.28)] transition-all hover:-translate-y-0.5 hover:border-primary/60 hover:shadow-[0_16px_36px_rgba(109,63,199,0.36)] disabled:border-border disabled:bg-card disabled:text-muted-foreground disabled:shadow-none"
+                className="group inline-flex h-10 w-full justify-start rounded-lg border border-border bg-surface-dark px-3 text-sm font-medium text-foreground transition-colors hover:border-primary/40 hover:bg-surface hover:text-primary disabled:cursor-not-allowed disabled:border-border disabled:bg-surface-dark/60 disabled:text-muted-foreground md:w-auto md:min-w-[190px]"
               >
-                <span className="mr-2 inline-flex h-6 w-6 items-center justify-center rounded-full bg-white/16 ring-1 ring-white/20 transition-colors group-hover:bg-white/22">
-                  <Workflow className="h-3.5 w-3.5" />
-                </span>
-                {t("nav.tournamentBracket")}
+                <Workflow className="h-4 w-4 text-muted-foreground transition-colors group-hover:text-primary" />
+                <span className="truncate text-left">{t("nav.tournamentBracket")}</span>
               </Button>
             }
           />

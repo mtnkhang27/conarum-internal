@@ -73,15 +73,57 @@ function odataList<T>(path: string) {
 }
 
 export const matchesApi = {
-  list: (options?: { tournamentId?: string; status?: AdminMatchListItem['status'] }) => {
+  list: (options?: { tournamentId?: string; status?: AdminMatchListItem['status']; top?: number; skip?: number }) => {
     const filters = [
       options?.tournamentId ? `tournament_ID eq '${escapeODataString(options.tournamentId)}'` : null,
       options?.status ? `status eq '${escapeODataString(options.status)}'` : null,
     ].filter(Boolean);
 
-    const query = filters.length
-      ? `?$filter=${encodeURIComponent(filters.join(' and '))}&$orderby=kickoff asc`
-      : '?$orderby=kickoff asc';
+    const selectFields = [
+      'ID',
+      'createdAt',
+      'modifiedAt',
+      'tournament_ID',
+      'tournamentName',
+      'homeTeam_ID',
+      'homeTeamName',
+      'homeTeamFlag',
+      'homeTeamCrest',
+      'homeTeamShort',
+      'awayTeam_ID',
+      'awayTeamName',
+      'awayTeamFlag',
+      'awayTeamCrest',
+      'awayTeamShort',
+      'kickoff',
+      'venue',
+      'stage',
+      'status',
+      'matchNumber',
+      'matchday',
+      'outcomePoints',
+      'homeScore',
+      'awayScore',
+      'outcome',
+      'externalId',
+      'bettingLocked',
+      'isHotMatch',
+      'bracketSlot_ID',
+      'leg',
+      'scoreBettingEnabled',
+      'scoreBetMaxBets',
+      'scoreBetPrize',
+    ];
+
+    const queryParts = [
+      filters.length ? `$filter=${encodeURIComponent(filters.join(' and '))}` : '',
+      `$select=${selectFields.join(',')}`,
+      '$orderby=kickoff asc',
+      typeof options?.top === 'number' ? `$top=${options.top}` : '',
+      typeof options?.skip === 'number' ? `$skip=${options.skip}` : '',
+    ].filter(Boolean);
+
+    const query = `?${queryParts.join('&')}`;
 
     return odataList<AdminMatchListItem>(`/AdminMatchListView${query}`);
   },
@@ -193,10 +235,10 @@ export const scoreBetProcessingApi = {
 
     return odataList<AdminScoreBetProcessingView>(`/AdminScoreBetProcessingView${query}`);
   },
-  setPlayerProcessed: (playerId: string, tournamentId: string, processed = true) =>
-    odata<ScoreBetProcessingResult>('/setPlayerScoreBetsProcessed', {
+  setProcessed: (matchId: string, tournamentId: string, processed = true, playerId?: string) =>
+    odata<ScoreBetProcessingResult>('/setScoreBetProcessingStatus', {
       method: 'POST',
-      body: JSON.stringify({ playerId, tournamentId, processed }),
+      body: JSON.stringify({ matchId, tournamentId, playerId: playerId || null, processed }),
     }),
 };
 

@@ -1,5 +1,5 @@
 import React from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useInfiniteQuery } from '@tanstack/react-query';
 import axiosInstance from '@/services/core/axiosInstance';
 import { Card, CardContent } from '@/components/ui/card';
 import { Trophy, Loader2 } from 'lucide-react';
@@ -24,26 +24,73 @@ function escapeODataString(value: string) {
     return value.replace(/'/g, "''");
 }
 
+const LEADERBOARD_BATCH_SIZE = 20;
+const LEADERBOARD_SCROLL_THRESHOLD = 140;
+
 interface LeaderboardCardProps {
     tournamentId?: string;
     maxRows?: number;
     className?: string;
 }
 
-export function LeaderboardCard({ tournamentId, maxRows = 8, className }: LeaderboardCardProps) {
+export function LeaderboardCard({ tournamentId, maxRows = LEADERBOARD_BATCH_SIZE, className }: LeaderboardCardProps) {
     const { t } = useTranslation();
-    const { data, isLoading, error } = useQuery({
-        queryKey: ['leaderboardTop', tournamentId, maxRows],
-        queryFn: async () => {
-            const filter = tournamentId
-                ? `$filter=${encodeURIComponent(`tournament_ID eq '${escapeODataString(tournamentId)}'`)}&`
-                : '';
+    const batchSize = Math.max(LEADERBOARD_BATCH_SIZE, maxRows);
+
+    const {
+        data,
+        isLoading,
+        error,
+        hasNextPage,
+        isFetchingNextPage,
+        fetchNextPage,
+    } = useInfiniteQuery({
+        queryKey: ['leaderboardTop', tournamentId, batchSize],
+        initialPageParam: 0,
+        queryFn: async ({ pageParam, signal }) => {
+            const queryParts = [
+                tournamentId
+                    ? `$filter=${encodeURIComponent(`tournament_ID eq '${escapeODataString(tournamentId)}'`)}`
+                    : '',
+                `$select=${encodeURIComponent('ID,rank,playerId,displayName,avatarUrl,totalPoints,totalCorrect,totalPredictions,isMe')}`,
+                `$top=${batchSize}`,
+                `$skip=${pageParam}`,
+                `$orderby=${encodeURIComponent('totalPoints desc,displayName asc')}`,
+            ].filter(Boolean);
+
+            const query = queryParts.join('&');
+
             const response = await axiosInstance.get(
-                `/api/player/PredictionLeaderboard?${filter}$top=${maxRows}&$orderby=totalPoints desc,displayName asc`
+                `/api/player/PredictionLeaderboard?${query}`,
+                { signal }
             );
             return (response.data?.value || response.data || []) as LeaderboardRow[];
-        }
+        },
+        getNextPageParam: (lastPage, allPages) => {
+            if (lastPage.length < batchSize) return undefined;
+            return allPages.reduce((total, page) => total + page.length, 0);
+        },
+        staleTime: 30_000,
+        gcTime: 5 * 60_000,
+        refetchOnWindowFocus: false,
+        refetchOnReconnect: false,
+        retry: 1,
     });
+
+    const rows = React.useMemo(
+        () => (data?.pages ?? []).flat(),
+        [data]
+    );
+
+    const handleTableScroll = React.useCallback((event: React.UIEvent<HTMLDivElement>) => {
+        if (!hasNextPage || isFetchingNextPage) return;
+
+        const target = event.currentTarget;
+        const distanceToBottom = target.scrollHeight - target.scrollTop - target.clientHeight;
+        if (distanceToBottom <= LEADERBOARD_SCROLL_THRESHOLD) {
+            void fetchNextPage();
+        }
+    }, [fetchNextPage, hasNextPage, isFetchingNextPage]);
 
     const getRankTone = (rank: number) => {
         switch(rank) {
@@ -65,13 +112,13 @@ export function LeaderboardCard({ tournamentId, maxRows = 8, className }: Leader
                     <div className="p-4 text-center text-sm text-destructive">
                         {t('predictionDashboard.leaderboard.loadError')}
                     </div>
-                ) : !data?.length ? (
+                ) : !rows.length ? (
                     <div className="flex h-full min-h-[220px] flex-col items-center justify-center gap-2 p-6 text-center text-muted-foreground">
                         <Trophy className="h-8 w-8 text-border" />
                         <p>{t('predictionDashboard.noPredictionsYet', 'No predictions available.')}</p>
                     </div>
                 ) : (
-                    <div className="scrollbar-hidden lg:h-full lg:overflow-auto">
+                    <div className="scrollbar-hidden lg:h-full lg:overflow-auto" onScroll={handleTableScroll}>
                         <Table className="w-full min-w-[760px] table-auto text-[12px]">
                             <TableHeader>
                                 <TableRow className="hover:bg-transparent">
@@ -94,7 +141,7 @@ export function LeaderboardCard({ tournamentId, maxRows = 8, className }: Leader
                             </TableHeader>
 
                             <TableBody>
-                                {data.map((player, idx) => {
+                                {rows.map((player, idx) => {
                                     const rank = player.rank || idx + 1;
                                     const totalPredictions = Number(player.totalPredictions || 0);
                                     const totalCorrect = Number(player.totalCorrect || 0);
@@ -153,6 +200,13 @@ export function LeaderboardCard({ tournamentId, maxRows = 8, className }: Leader
                                         </TableRow>
                                     );
                                 })}
+                                {isFetchingNextPage ? (
+                                    <TableRow className="hover:bg-transparent">
+                                        <TableCell colSpan={5} className="py-3 text-center">
+                                            <Loader2 className="mx-auto h-4 w-4 animate-spin text-muted-foreground" />
+                                        </TableCell>
+                                    </TableRow>
+                                ) : null}
                             </TableBody>
                         </Table>
                     </div>

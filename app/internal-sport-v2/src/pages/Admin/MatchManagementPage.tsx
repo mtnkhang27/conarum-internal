@@ -2,6 +2,8 @@
 import { useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import {
+  ArrowLeft,
+  ChevronRight,
   ListChecks,
   Loader2,
   Lock,
@@ -75,13 +77,9 @@ import {
 } from './shared';
 import { formatLocalDateTimeInputValue, localDateTimeInputToIso } from '@/utils/localTime';
 
-const INFINITE_STEP = 8;
+const MATCH_PAGE_SIZE = 10;
 const FIELD_CLASSNAME =
   'h-9 rounded-md border border-border bg-background px-3 text-sm text-foreground shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/20';
-
-type MatchRow = AdminMatchListItem & {
-  scoreBetConfig: MatchScoreBetConfig | null;
-};
 
 type MatchFormState = {
   homeTeam_ID: string;
@@ -183,11 +181,12 @@ export function MatchManagementPage() {
   const navigate = useNavigate();
   const { matchId } = useParams<{ matchId?: string }>();
   const [matches, setMatches] = useState<AdminMatchListItem[]>([]);
-  const [scoreBetConfigs, setScoreBetConfigs] = useState<MatchScoreBetConfig[]>([]);
   const [teams, setTeams] = useState<AdminTeam[]>([]);
   const [tournaments, setTournaments] = useState<AdminTournament[]>([]);
   const [loading, setLoading] = useState(true);
-  const [visibleCount, setVisibleCount] = useState(INFINITE_STEP);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [nextSkip, setNextSkip] = useState(0);
+  const [hasMoreRows, setHasMoreRows] = useState(true);
   const [selectedTournamentId, setSelectedTournamentId] = useState<string>(ALL_OPTION);
   const [selectedStatus, setSelectedStatus] = useState<string>(ALL_OPTION);
   const [selectedStage, setSelectedStage] = useState<string>(ALL_OPTION);
@@ -223,29 +222,57 @@ export function MatchManagementPage() {
   }, [selectedTournamentId]);
 
   const loadMatches = useCallback(
-    async (tournamentId = selectedTournamentId, status = selectedStatus) => {
+    async ({
+      tournamentId = selectedTournamentId,
+      status = selectedStatus,
+      reset = true,
+      skip,
+    }: {
+      tournamentId?: string;
+      status?: string;
+      reset?: boolean;
+      skip?: number;
+    } = {}) => {
       const requestId = ++scopedLoadId.current;
-      setLoading(true);
+      const nextPageSkip = typeof skip === 'number' ? skip : 0;
+
+      if (reset) {
+        setLoading(true);
+      } else {
+        setLoadingMore(true);
+      }
 
       try {
-        const [nextMatches, nextConfigs] = await Promise.all([
-          matchesApi.list({
-            tournamentId: tournamentId !== ALL_OPTION ? tournamentId : undefined,
-            status: status !== ALL_OPTION ? (status as AdminMatchListItem['status']) : undefined,
-          }),
-          matchScoreBetConfigApi.list(),
-        ]);
+        const nextMatches = await matchesApi.list({
+          tournamentId: tournamentId !== ALL_OPTION ? tournamentId : undefined,
+          status: status !== ALL_OPTION ? (status as AdminMatchListItem['status']) : undefined,
+          top: MATCH_PAGE_SIZE,
+          skip: nextPageSkip,
+        });
 
         if (requestId !== scopedLoadId.current) return;
 
-        setMatches(nextMatches);
-        setScoreBetConfigs(nextConfigs);
+        setMatches((current) => {
+          if (reset) {
+            return nextMatches;
+          }
+
+          const existingIds = new Set(current.map((match) => match.ID));
+          const uniqueNextRows = nextMatches.filter((match) => !existingIds.has(match.ID));
+          return [...current, ...uniqueNextRows];
+        });
+        setNextSkip(nextPageSkip + nextMatches.length);
+        setHasMoreRows(nextMatches.length === MATCH_PAGE_SIZE);
       } catch (error) {
         if (requestId !== scopedLoadId.current) return;
         toast.error(error instanceof Error ? error.message : 'Failed to load matches.');
       } finally {
         if (requestId === scopedLoadId.current) {
-          setLoading(false);
+          if (reset) {
+            setLoading(false);
+          } else {
+            setLoadingMore(false);
+          }
         }
       }
     },
@@ -257,26 +284,22 @@ export function MatchManagementPage() {
   }, [loadReferenceData]);
 
   useEffect(() => {
-    void loadMatches();
-  }, [loadMatches]);
-
-  useEffect(() => {
-    setVisibleCount(INFINITE_STEP);
-  }, [searchTerm, selectedTournamentId, selectedStatus, selectedStage, selectedHotState, selectedDay]);
-
-  const rows = useMemo<MatchRow[]>(() => {
-    const configMap = new Map(scoreBetConfigs.map((config) => [config.match_ID, config] as const));
-
-    return matches.map((match) => ({
-      ...match,
-      scoreBetConfig: configMap.get(match.ID) ?? null,
-    }));
-  }, [matches, scoreBetConfigs]);
+    if (matchId) return;
+    setMatches([]);
+    setNextSkip(0);
+    setHasMoreRows(true);
+    void loadMatches({
+      reset: true,
+      skip: 0,
+      tournamentId: selectedTournamentId,
+      status: selectedStatus,
+    });
+  }, [loadMatches, matchId, selectedStatus, selectedTournamentId]);
 
   const filteredRows = useMemo(() => {
     const normalizedSearch = searchTerm.trim().toLowerCase();
 
-    return rows.filter((row) => {
+    return matches.filter((row) => {
       const haystack = `${row.homeTeamName || ''} ${row.awayTeamName || ''} ${row.tournamentName || ''}`.toLowerCase();
 
       if (normalizedSearch && !haystack.includes(normalizedSearch)) return false;
@@ -287,13 +310,10 @@ export function MatchManagementPage() {
 
       return true;
     });
-  }, [rows, searchTerm, selectedStage, selectedHotState, selectedDay]);
-
-  const visibleRows = filteredRows.slice(0, visibleCount);
-  const hasMoreRows = visibleRows.length < filteredRows.length;
+  }, [matches, searchTerm, selectedStage, selectedHotState, selectedDay]);
 
   const stats = useMemo(() => {
-    const scoreEnabledCount = filteredRows.filter((row) => row.scoreBetConfig?.enabled).length;
+    const scoreEnabledCount = filteredRows.filter((row) => row.scoreBettingEnabled).length;
     const liveCount = filteredRows.filter((row) => row.status === 'live').length;
     const hotCount = filteredRows.filter((row) => row.isHotMatch).length;
 
@@ -305,12 +325,12 @@ export function MatchManagementPage() {
     };
   }, [filteredRows]);
 
-  const columns = useMemo<DataTableColumn<MatchRow>[]>(
+  const columns = useMemo<DataTableColumn<AdminMatchListItem>[]>(
     () => [
       {
         key: 'kickoff',
-        labelKey: 'Date / Status',
-        width: 210,
+        labelKey: 'Kickoff',
+        width: 190,
         render: (_, row) => (
           <div className="space-y-2">
             <div className="text-sm font-medium text-foreground">{formatAuditTimestamp(row.kickoff)}</div>
@@ -323,72 +343,70 @@ export function MatchManagementPage() {
         ),
       },
       {
-        key: 'tournamentName',
-        labelKey: 'Tournament',
-        width: 180,
-        render: (_, row) => (
-          <div className="space-y-1">
-            <div className="font-medium text-foreground">{row.tournamentName || 'Tournament TBD'}</div>
-            <div className="text-xs text-muted-foreground">{formatStageLabel(row.stage, row.leg)}</div>
-          </div>
-        ),
-      },
-      {
-        key: 'teams',
-        labelKey: 'Teams',
-        width: 260,
+        key: 'match',
+        labelKey: 'Match',
+        width: 360,
         render: (_, row) => (
           <div className="space-y-2">
-            <div className="flex items-center gap-2">
-              <TeamAvatar name={row.homeTeamName || 'Home'} crest={row.homeTeamCrest} flagCode={row.homeTeamFlag} />
-              <span className="text-sm font-medium text-foreground">{row.homeTeamName || 'Home TBD'}</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <TeamAvatar name={row.awayTeamName || 'Away'} crest={row.awayTeamCrest} flagCode={row.awayTeamFlag} />
-              <span className="text-sm font-medium text-foreground">{row.awayTeamName || 'Away TBD'}</span>
-            </div>
-            {row.homeScore != null && row.awayScore != null ? (
-              <div className="inline-flex rounded-md border border-border bg-muted/40 px-2 py-1 text-xs font-semibold text-foreground">
-                Result - {row.homeScore} - {row.awayScore}
+            <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3">
+              <div className="flex min-w-0 items-center gap-2">
+                <TeamAvatar name={row.homeTeamName || 'Home'} crest={row.homeTeamCrest} flagCode={row.homeTeamFlag} />
+                <span className="truncate text-sm font-medium text-foreground">{row.homeTeamName || 'Home TBD'}</span>
               </div>
-            ) : null}
-          </div>
-        ),
-      },
-      {
-        key: 'scorePick',
-        labelKey: 'Score Pick',
-        width: 220,
-        render: (_, row) =>
-          row.scoreBetConfig?.enabled ? (
-            <div className="space-y-1">
-              <p className="text-sm font-medium text-foreground">{row.scoreBetConfig.maxBets} picks per player</p>
-              <p className="text-xs text-muted-foreground">{formatCurrencyValue(row.scoreBetConfig.prize)} reward per correct score</p>
+              <span className="rounded-full border border-primary/20 bg-primary/10 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-[0.12em] text-primary">
+                VS
+              </span>
+              <div className="flex min-w-0 items-center justify-end gap-2">
+                <span className="truncate text-right text-sm font-medium text-foreground">{row.awayTeamName || 'Away TBD'}</span>
+                <TeamAvatar name={row.awayTeamName || 'Away'} crest={row.awayTeamCrest} flagCode={row.awayTeamFlag} />
+              </div>
             </div>
-          ) : (
-            <span className="text-sm text-muted-foreground">Disabled</span>
-          ),
-      },
-      {
-        key: 'wdl',
-        labelKey: 'WDL Pick',
-        width: 180,
-        render: (_, row) => (
-          <div className="space-y-1">
-            <p className="text-sm font-medium text-foreground">{Math.trunc(Number(row.outcomePoints || 0))} pts</p>
-            <p className="text-xs text-muted-foreground">Awarded for a correct 1-X-2 pick</p>
+            <p className="text-xs text-muted-foreground">
+              {row.tournamentName || 'Tournament TBD'} • {formatStageLabel(row.stage, row.leg)}
+            </p>
           </div>
         ),
       },
       {
-        key: 'audit',
-        labelKey: 'Audit',
+        key: 'betting',
+        labelKey: 'Betting',
         width: 220,
         render: (_, row) => (
           <div className="space-y-1">
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Created</p>
-            <p className="text-sm text-foreground">{formatAuditTimestamp(row.createdAt)}</p>
-            <p className="text-xs text-muted-foreground">Updated - {formatAuditTimestamp(row.modifiedAt)}</p>
+            <p className="text-sm font-medium text-foreground">
+              {Math.trunc(Number(row.outcomePoints || 0))} pts outcome
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {row.scoreBettingEnabled
+                ? `${Math.max(1, Number(row.scoreBetMaxBets || 0))} score picks • ${formatCurrencyValue(row.scoreBetPrize)} each`
+                : 'Exact score disabled'}
+            </p>
+          </div>
+        ),
+      },
+      {
+        key: 'result',
+        labelKey: 'Result',
+        width: 150,
+        render: (_, row) => (
+          <div className="flex items-center justify-center">
+            {row.homeScore != null && row.awayScore != null ? (
+              <span className="inline-flex rounded-full border border-border bg-muted/30 px-3 py-1 text-sm font-semibold text-foreground">
+                {row.homeScore} - {row.awayScore}
+              </span>
+            ) : (
+              <span className="text-sm text-muted-foreground">Pending</span>
+            )}
+          </div>
+        ),
+      },
+      {
+        key: 'open',
+        labelKey: '',
+        width: 72,
+        render: () => (
+          <div className="flex justify-center">
+            <ChevronRight className="h-4 w-4 text-muted-foreground" />
           </div>
         ),
       },
@@ -441,7 +459,7 @@ export function MatchManagementPage() {
 
       toast.success('Match created.');
       setCreateOpen(false);
-      await loadMatches();
+      await loadMatches({ reset: true, skip: 0 });
       navigate(`/admin/matches/${created.ID}`);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to create match.');
@@ -461,7 +479,7 @@ export function MatchManagementPage() {
     try {
       await tournamentActionsApi.syncMatchResults(selectedTournamentId);
       toast.success('Match results synced.');
-      await loadMatches();
+      await loadMatches({ reset: true, skip: 0 });
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to sync match results.');
     } finally {
@@ -470,8 +488,13 @@ export function MatchManagementPage() {
   };
 
   const requestMoreRows = () => {
-    if (!hasMoreRows || loading) return;
-    setVisibleCount((current) => Math.min(filteredRows.length, current + INFINITE_STEP));
+    if (!hasMoreRows || loading || loadingMore) return;
+    void loadMatches({
+      reset: false,
+      skip: nextSkip,
+      tournamentId: selectedTournamentId,
+      status: selectedStatus,
+    });
   };
 
   const handleTableScroll = (event: React.UIEvent<HTMLDivElement>) => {
@@ -483,115 +506,132 @@ export function MatchManagementPage() {
     }
   };
 
+  if (matchId) {
+    return (
+      <div className="space-y-6">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="space-y-1">
+            <Button variant="outline" onClick={() => navigate('/admin/matches')}>
+              <ArrowLeft className="h-4 w-4" />
+              Back to matches
+            </Button>
+            <p className="text-sm text-muted-foreground">
+              Open one match at a time so the admin flow stays lighter and easier to scan.
+            </p>
+          </div>
+        </div>
+
+        <MatchDetailPanel
+          matchId={matchId}
+          teams={teams}
+          tournaments={tournaments}
+          onChanged={async () => {
+            await loadMatches({ reset: true, skip: 0 });
+          }}
+          onDeleted={async () => {
+            await loadMatches({ reset: true, skip: 0 });
+            navigate('/admin/matches');
+          }}
+        />
+      </div>
+    );
+  }
+
   return (
-    <div className={cn('grid gap-6', matchId ? 'xl:grid-cols-[minmax(0,1.6fr)_minmax(360px,1fr)]' : 'grid-cols-1')}>
-      <div className="min-w-0 space-y-6">
-        <Card className="border-border/80 shadow-sm">
-          <CardHeader className="border-b border-border/80 bg-muted/20">
-            <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-              <div className="space-y-2">
-                <CardTitle className="text-xl">Match Management</CardTitle>
-              </div>
-
-              <div className="flex flex-wrap gap-2">
-                <Button variant="outline" onClick={() => void loadMatches()} disabled={loading}>
-                  <RefreshCcw className="h-4 w-4" />
-                  Refresh
-                </Button>
-                <Button variant="outline" onClick={handleSyncResults} disabled={busy}>
-                  <Sparkles className="h-4 w-4" />
-                  Sync results
-                </Button>
-                <Button onClick={handleOpenCreate}>
-                  <Plus className="h-4 w-4" />
-                  New match
-                </Button>
-              </div>
+    <div className="space-y-6">
+      <Card className="border-border/80 shadow-sm">
+        <CardHeader className="border-b border-border/80 bg-muted/20">
+          <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+            <div className="space-y-2">
+              <CardTitle className="text-xl">Match Management</CardTitle>
+              <p className="text-sm text-muted-foreground">
+                Keep the list lean, then open a single match for the full detail workflow.
+              </p>
             </div>
 
-            <div className="flex flex-wrap items-center gap-3 pt-4">
-              <div className="relative min-w-[240px] flex-1">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} placeholder="Search by team or tournament" className="pl-9" />
+            <div className="flex flex-wrap gap-2">
+              <Button variant="outline" onClick={() => void loadMatches({ reset: true, skip: 0 })} disabled={loading || loadingMore}>
+                <RefreshCcw className="h-4 w-4" />
+                Refresh
+              </Button>
+              <Button variant="outline" onClick={handleSyncResults} disabled={busy}>
+                <Sparkles className="h-4 w-4" />
+                Sync results
+              </Button>
+              <Button onClick={handleOpenCreate}>
+                <Plus className="h-4 w-4" />
+                New match
+              </Button>
+            </div>
+          </div>
+
+          <div className="grid gap-3 pt-4 md:grid-cols-4">
+            <SummaryStatCard label="Matches" value={String(stats.total)} />
+            <SummaryStatCard label="Exact score enabled" value={String(stats.scoreEnabledCount)} />
+            <SummaryStatCard label="Live now" value={String(stats.liveCount)} />
+            <SummaryStatCard label="Hot matches" value={String(stats.hotCount)} />
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3 pt-4">
+            <div className="relative min-w-[240px] flex-1">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} placeholder="Search by team or tournament" className="pl-9" />
+            </div>
+            <select className={cn(FIELD_CLASSNAME, 'min-w-[180px]')} value={selectedTournamentId} onChange={(event) => setSelectedTournamentId(event.target.value)}>
+              <option value={ALL_OPTION}>All tournaments</option>
+              {tournaments.map((tournament) => (
+                <option key={tournament.ID} value={tournament.ID}>
+                  {tournament.name}
+                </option>
+              ))}
+            </select>
+            <select className={cn(FIELD_CLASSNAME, 'min-w-[160px]')} value={selectedStatus} onChange={(event) => setSelectedStatus(event.target.value)}>
+              <option value={ALL_OPTION}>All status</option>
+              {MATCH_STATUSES.map((status) => (
+                <option key={status} value={status}>
+                  {status}
+                </option>
+              ))}
+            </select>
+            <select className={cn(FIELD_CLASSNAME, 'min-w-[160px]')} value={selectedStage} onChange={(event) => setSelectedStage(event.target.value)}>
+              <option value={ALL_OPTION}>All stages</option>
+              {MATCH_STAGES.map((stage) => (
+                <option key={stage} value={stage}>
+                  {formatStageLabel(stage)}
+                </option>
+              ))}
+            </select>
+            <select className={cn(FIELD_CLASSNAME, 'min-w-[180px]')} value={selectedHotState} onChange={(event) => setSelectedHotState(event.target.value)}>
+              <option value={ALL_OPTION}>All highlight states</option>
+              <option value="hot">Hot matches only</option>
+              <option value="normal">Normal matches only</option>
+            </select>
+            <Input type="date" value={selectedDay} onChange={(event) => setSelectedDay(event.target.value)} className="min-w-[170px]" />
+          </div>
+        </CardHeader>
+
+        <CardContent className="p-0">
+          <div className="scrollbar-hidden max-h-[70vh] overflow-auto" onScroll={handleTableScroll}>
+            <DataTable
+              data={filteredRows}
+              columns={columns}
+              isLoading={loading}
+              onRowClick={(row) => navigate(`/admin/matches/${row.ID}`)}
+              variant="borderless"
+              mobileRenderMode="card"
+              showFooter={false}
+              emptyMessageKey="No matches found"
+              className="rounded-none border-0 shadow-none"
+            />
+
+            {loadingMore ? (
+              <div className="flex items-center justify-center py-3">
+                <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
               </div>
-              <select className={cn(FIELD_CLASSNAME, 'min-w-[180px]')} value={selectedTournamentId} onChange={(event) => setSelectedTournamentId(event.target.value)}>
-                <option value={ALL_OPTION}>All tournaments</option>
-                {tournaments.map((tournament) => (
-                  <option key={tournament.ID} value={tournament.ID}>
-                    {tournament.name}
-                  </option>
-                ))}
-              </select>
-              <select className={cn(FIELD_CLASSNAME, 'min-w-[160px]')} value={selectedStatus} onChange={(event) => setSelectedStatus(event.target.value)}>
-                <option value={ALL_OPTION}>All status</option>
-                {MATCH_STATUSES.map((status) => (
-                  <option key={status} value={status}>
-                    {status}
-                  </option>
-                ))}
-              </select>
-              <select className={cn(FIELD_CLASSNAME, 'min-w-[160px]')} value={selectedStage} onChange={(event) => setSelectedStage(event.target.value)}>
-                <option value={ALL_OPTION}>All stages</option>
-                {MATCH_STAGES.map((stage) => (
-                  <option key={stage} value={stage}>
-                    {formatStageLabel(stage)}
-                  </option>
-                ))}
-              </select>
-              <select className={cn(FIELD_CLASSNAME, 'min-w-[180px]')} value={selectedHotState} onChange={(event) => setSelectedHotState(event.target.value)}>
-                <option value={ALL_OPTION}>All highlight states</option>
-                <option value="hot">Hot matches only</option>
-                <option value="normal">Normal matches only</option>
-              </select>
-              <Input type="date" value={selectedDay} onChange={(event) => setSelectedDay(event.target.value)} className="min-w-[170px]" />
-            </div>
-          </CardHeader>
-
-          <CardContent className="p-0">
-            <div className="scrollbar-hidden max-h-[70vh] overflow-auto" onScroll={handleTableScroll}>
-              <DataTable
-                data={visibleRows}
-                columns={columns}
-                isLoading={loading}
-                onRowClick={(row) => navigate(`/admin/matches/${row.ID}`)}
-                variant="borderless"
-                mobileRenderMode="card"
-                showFooter={false}
-                emptyMessageKey="No matches found"
-                className="rounded-none border-0 shadow-none"
-              />
-
-              {hasMoreRows && !loading ? (
-                <div className="flex items-center justify-center py-3">
-                  <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-                </div>
-              ) : null}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="min-w-0 xl:sticky xl:top-6 xl:self-start">
-        {matchId ? (
-          <MatchDetailPanel
-            matchId={matchId}
-            teams={teams}
-            tournaments={tournaments}
-            onChanged={async () => {
-              await loadMatches();
-            }}
-            onDeleted={async () => {
-              await loadMatches();
-              navigate('/admin/matches');
-            }}
-          />
-        ) : (
-          <EmptySelectionPanel
-            title="Select a match"
-            description="Pick a row to edit."
-          />
-        )}
-      </div>
+            ) : null}
+          </div>
+        </CardContent>
+      </Card>
 
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
         <DialogContent>
@@ -711,12 +751,15 @@ function MatchDetailPanel({
   const [predictions, setPredictions] = useState<AdminPredictionView[]>([]);
   const [scoreBets, setScoreBets] = useState<AdminScoreBetView[]>([]);
   const [loading, setLoading] = useState(true);
+  const [insightsLoading, setInsightsLoading] = useState(false);
+  const [insightsLoaded, setInsightsLoaded] = useState(false);
   const [saving, setSaving] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [resultDialogOpen, setResultDialogOpen] = useState(false);
   const [resultHome, setResultHome] = useState('');
   const [resultAway, setResultAway] = useState('');
   const [isCorrection, setIsCorrection] = useState(false);
+  const [activeTab, setActiveTab] = useState<'configuration' | 'winners' | 'audit'>('configuration');
   const [form, setForm] = useState<MatchFormState>(DEFAULT_CREATE_FORM);
   const [outcomePoints, setOutcomePoints] = useState('1');
   const [scoreBettingEnabled, setScoreBettingEnabled] = useState(false);

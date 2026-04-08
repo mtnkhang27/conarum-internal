@@ -19,6 +19,18 @@ const defaultContext: FioriThemeContextType = {
 export const FioriThemeContext = createContext<FioriThemeContextType>(defaultContext);
 export const useFioriTheme = () => useContext(FioriThemeContext);
 
+function normalizeLanguageCode(rawLanguage: string): string {
+    const normalized = rawLanguage.trim().toLowerCase();
+    if (!normalized) return 'en';
+
+    if (normalized === 'ja' || normalized === 'ja-jp') return 'jp';
+    if (normalized === 'de' || normalized.startsWith('de-')) return 'de';
+    if (normalized === 'en' || normalized.startsWith('en-')) return 'en';
+    if (normalized === 'jp') return 'jp';
+
+    return 'en';
+}
+
 export function FioriThemeProvider({ children }: { children: React.ReactNode }) {
     const [language, setLanguageState] = useState('en');
     const [theme, setThemeState] = useState('');
@@ -40,8 +52,9 @@ export function FioriThemeProvider({ children }: { children: React.ReactNode }) 
         console.log('URL params - sap-locale:', locale, 'sap-theme:', themeParam);
 
         if (locale) {
-            setLanguageState(locale);
-            i18n.changeLanguage(locale);
+            const normalizedLocale = normalizeLanguageCode(locale);
+            setLanguageState(normalizedLocale);
+            i18n.changeLanguage(normalizedLocale);
         }
 
         if (themeParam) {
@@ -50,8 +63,9 @@ export function FioriThemeProvider({ children }: { children: React.ReactNode }) 
     }, []);
 
     const setLanguage = (lang: string) => {
-        setLanguageState(lang);
-        i18n.changeLanguage(lang);
+        const normalizedLang = normalizeLanguageCode(lang);
+        setLanguageState(normalizedLang);
+        i18n.changeLanguage(normalizedLang);
     };
 
     const setTheme = (thm: string) => {

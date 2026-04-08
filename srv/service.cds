@@ -220,8 +220,6 @@ service PlayerService {
         select from db.PlayerTournamentStats as stats
             left join db.Player as player
                 on player.ID = stats.player.ID
-            left join db.Team as favTeam
-                on favTeam.ID = player.favoriteTeam.ID
             left join CurrentPlayerView as currentPlayer
                 on currentPlayer.ID = stats.player.ID {
             key stats.ID              as ID,
@@ -230,10 +228,6 @@ service PlayerService {
                 stats.player.ID       as playerId,
                 player.displayName    as displayName,
                 player.avatarUrl      as avatarUrl,
-                player.email          as email,
-                favTeam.name          as favoriteTeam,
-                player.bio            as bio,
-                player.country        as country,
                 stats.totalPoints     as totalPoints,
                 stats.totalCorrect    as totalCorrect,
                 stats.totalPredictions as totalPredictions,
@@ -783,7 +777,9 @@ service AdminService {
             left join db.Team as away
                 on away.ID = m.awayTeam.ID
             left join db.Tournament as tournament
-                on tournament.ID = m.tournament.ID {
+                on tournament.ID = m.tournament.ID
+            left join db.MatchScoreBetConfig as scoreBetConfig
+                on scoreBetConfig.match.ID = m.ID {
             key m.ID               as ID,
                 m.createdAt        as createdAt,
                 m.modifiedAt       as modifiedAt,
@@ -813,7 +809,10 @@ service AdminService {
                 m.bettingLocked    as bettingLocked,
                 m.isHotMatch       as isHotMatch,
                 m.bracketSlot.ID   as bracketSlot_ID,
-                m.leg              as leg
+                m.leg              as leg,
+                coalesce(scoreBetConfig.enabled, false) as scoreBettingEnabled : Boolean,
+                scoreBetConfig.maxBets as scoreBetMaxBets,
+                coalesce(scoreBetConfig.prize, 0) as scoreBetPrize : Decimal(15, 2)
         };
 
     /**
@@ -864,7 +863,7 @@ service AdminService {
 
     /**
      * Correct exact-score bets with match, tournament, and player context.
-     * Powers the admin payout-processing screen that groups winning bets by user.
+     * Powers the admin payout-processing screen grouped by match.
      */
     @readonly
     entity AdminScoreBetProcessingView as
@@ -1044,10 +1043,10 @@ service AdminService {
     action lockTournamentBetting(tournamentId: UUID, locked: Boolean)               returns ActionResult;
 
     /**
-     * Mark one player's correct score bets in a tournament as processed/unprocessed.
-     * Used by the admin payout-processing screen that groups winners by player.
+     * Mark correct score bets for a match as processed/unprocessed.
+     * Optionally scope the update to a single player within the match.
      */
-    action setPlayerScoreBetsProcessed(playerId: UUID, tournamentId: UUID, processed: Boolean default true) returns ScoreBetProcessingResponse;
+    action setScoreBetProcessingStatus(matchId: UUID, tournamentId: UUID, playerId: UUID, processed: Boolean default true) returns ScoreBetProcessingResponse;
 
     // ── Competition Import ────────────────────────────────────
 

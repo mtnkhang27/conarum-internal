@@ -118,7 +118,7 @@ export function LeaderboardSection({ tournamentId }: LeaderboardSectionProps) {
     return (
         <TooltipProvider delayDuration={120}>
             <div>
-                <div className="mb-8 grid grid-cols-1 gap-4 md:grid-cols-3">
+                <div className="hidden lg:block mb-8 grid grid-cols-1 gap-4 md:grid-cols-3">
                     {topPlayers.map((player) => (
                         <div
                             key={player.rank}
@@ -205,7 +205,7 @@ export function LeaderboardSection({ tournamentId }: LeaderboardSectionProps) {
                                     </div>
                                 </div>
 
-                                <div className="mt-4 grid grid-cols-3 gap-2">
+                                <div className="hidden lg:block mt-4 grid grid-cols-3 gap-2">
                                     <div className="rounded-lg border border-border/60 bg-card/50 px-3 py-2 text-center">
                                         <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">
                                             {t("account.stats.totalCorrect")}

@@ -81,7 +81,7 @@ export function BettingBannerPopup({
             : matches.slice(0, 4);
 
     return (
-        <div className={`betting-overlay !items-start !overflow-y-auto !p-3 sm:!items-center sm:!p-4 ${closing ? "closing" : ""}`}
+        <div className={`betting-overlay !flex-col !items-center !justify-start !overflow-y-auto !p-3 sm:!justify-center sm:!p-4 ${closing ? "closing" : ""}`}
             style={{ WebkitOverflowScrolling: "touch" }}
         >
             <div className="betting-overlay__bg">
@@ -93,7 +93,7 @@ export function BettingBannerPopup({
                 />
             </div>
 
-            <div className="betting-banner my-auto max-h-[100dvh] overflow-y-auto sm:max-h-none sm:overflow-visible"
+            <div className="betting-banner my-auto w-full overflow-y-auto pb-3 sm:overflow-visible sm:pb-0"
                 style={{ WebkitOverflowScrolling: "touch" }}
             >
                 {/* Header */}
